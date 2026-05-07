@@ -1,10 +1,14 @@
 const db = require("./database");
+
 const express = require("express");
 const axios = require("axios");
+const cors = require("cors");
 
 const app = express();
 
-const PORT = 5050;
+app.use(cors());
+
+const PORT = process.env.PORT || 5050;
 
 /**
  * ROOT
@@ -79,40 +83,6 @@ app.get("/api/member/:userId", async (req, res) => {
     });
 
   }
-
-});
-/**
- * LEADERBOARD
- */
-
-app.get("/api/leaderboard", (req, res) => {
-
-  db.all(
-
-    `
-    SELECT *
-    FROM users
-    ORDER BY score DESC
-    LIMIT 10
-    `,
-
-    [],
-
-    (err, rows) => {
-
-      if (err) {
-
-        return res.status(500).json({
-          error: err.message,
-        });
-
-      }
-
-      res.json(rows);
-
-    }
-
-  );
 
 });
 /**
