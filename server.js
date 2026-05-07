@@ -249,26 +249,37 @@ async (req, res) => {
      */
 
     const { error } =
-      await supabase
+  await supabase
 
-        .from("players")
+    .from("players")
 
-        .upsert({
+    .upsert(
 
-          user_id,
+      {
 
-          name:
-            customer_name,
+        user_id,
 
-          spins,
+        name:
+          customer_name,
 
-          coins,
+        spins,
 
-          score,
+        coins,
 
-          total_orders: 1,
+        score,
 
-        });
+        total_orders: 1,
+
+      },
+
+      {
+
+        onConflict:
+          "user_id",
+
+      }
+
+    );
 
     if (error) {
 
