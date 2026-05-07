@@ -513,6 +513,131 @@ async (req, res) => {
   }
 
 });
+/**
+ * CLAIM VOUCHER
+ */
+
+app.post("/api/claim-voucher",
+
+async (req, res) => {
+
+  try {
+
+    const {
+
+      user_id,
+
+      voucher_name,
+
+      coin_cost,
+
+    } = req.body;
+
+    /**
+     * GET PLAYER
+     */
+
+    const {
+
+      data: player,
+
+    } = await supabase
+
+      .from("players")
+
+      .select("*")
+
+      .eq("user_id", user_id)
+
+      .single();
+
+    /**
+     * NOT ENOUGH COIN
+     */
+
+    if (
+
+      (player?.coins || 0)
+      < coin_cost
+
+    ) {
+
+      return res.json({
+
+        success: false,
+
+        message:
+          "Không đủ coin",
+
+      });
+
+    }
+
+    /**
+     * SAVE VOUCHER
+     */
+
+    await supabase
+
+      .from("user_vouchers")
+
+      .insert({
+
+        user_id,
+
+        voucher_name,
+
+        coin_cost,
+
+      });
+
+    /**
+     * UPDATE PLAYER
+     */
+
+    await supabase
+
+      .from("players")
+
+      .update({
+
+        coins:
+          player.coins
+          - coin_cost,
+
+      })
+
+      .eq("user_id", user_id);
+
+    /**
+     * SUCCESS
+     */
+
+    res.json({
+
+      success: true,
+
+      message:
+        "Claim voucher thành công",
+
+    });
+
+  } catch (error) {
+
+    console.log(error);
+
+    res.status(500).json({
+
+      success: false,
+
+      error:
+        error.message,
+
+    });
+
+  }
+
+});
 app.listen(PORT, () => {
 
   console.log(`Server running on port ${PORT}`);
