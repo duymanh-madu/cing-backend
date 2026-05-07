@@ -1,3 +1,5 @@
+const supabase =
+require("./supabase");
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
@@ -193,6 +195,118 @@ app.get("/api/vouchers/:userId", async (req, res) => {
     console.log("VOUCHER API ERROR:");
 
     console.log(error.message);
+
+    res.status(500).json({
+
+      success: false,
+
+      error: error.message,
+
+    });
+
+  }
+
+});
+/**
+ * ORDER WEBHOOK
+ */
+
+app.post("/api/order-webhook",
+
+async (req, res) => {
+
+  try {
+
+    /**
+     * ORDER DATA
+     */
+
+    const {
+
+      user_id,
+
+      customer_name,
+
+      total_amount,
+
+    } = req.body;
+
+    /**
+     * CALCULATE REWARD
+     */
+
+    const spins =
+      Math.floor(total_amount / 50000);
+
+    const coins =
+      Math.floor(total_amount / 1000);
+
+    const score =
+      Math.floor(total_amount / 1000);
+
+    /**
+     * UPDATE PLAYER
+     */
+
+    const { error } =
+      await supabase
+
+        .from("players")
+
+        .upsert({
+
+          user_id,
+
+          name:
+            customer_name,
+
+          spins,
+
+          coins,
+
+          score,
+
+          total_orders: 1,
+
+        });
+
+    if (error) {
+
+      console.log(error);
+
+      return res.status(500).json({
+
+        success: false,
+
+        error,
+
+      });
+
+    }
+
+    /**
+     * SUCCESS
+     */
+
+    res.json({
+
+      success: true,
+
+      reward: {
+
+        spins,
+
+        coins,
+
+        score,
+
+      },
+
+    });
+
+  } catch (error) {
+
+    console.log(error);
 
     res.status(500).json({
 
