@@ -243,7 +243,25 @@ async (req, res) => {
 
     const score =
       Math.floor(total_amount / 1000);
+/**
+ * VIP LEVEL
+ */
 
+let level = "Bronze";
+
+if (score >= 5000) {
+
+  level = "Diamond";
+
+} else if (score >= 2000) {
+
+  level = "Gold";
+
+} else if (score >= 500) {
+
+  level = "Silver";
+
+}
     /**
      * UPDATE PLAYER
      */
@@ -267,6 +285,8 @@ async (req, res) => {
         coins,
 
         score,
+
+        level,
 
         total_orders: 1,
 
