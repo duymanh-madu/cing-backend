@@ -151,7 +151,60 @@ app.get("/api/member/:userId", async (req, res) => {
 /**
  * START SERVER
  */
+/**
+ * VOUCHER API
+ */
 
+app.get("/api/vouchers/:userId", async (req, res) => {
+
+  try {
+
+    const { userId } = req.params;
+
+    const response = await axios.get(
+
+      "https://api.foodbook.vn/ipos/ws/xpartner/member_vouchers",
+
+      {
+
+        params: {
+
+          access_token:
+            "4ETARZYY813AS5LEKOOCD1NP61Y6J55C",
+
+          pos_parent:
+            "FOODBOOK",
+
+          user_id:
+            userId,
+
+        },
+
+        timeout: 10000,
+
+      }
+
+    );
+
+    res.json(response.data);
+
+  } catch (error) {
+
+    console.log("VOUCHER API ERROR:");
+
+    console.log(error.message);
+
+    res.status(500).json({
+
+      success: false,
+
+      error: error.message,
+
+    });
+
+  }
+
+});
 app.listen(PORT, () => {
 
   console.log(`Server running on port ${PORT}`);
