@@ -66,7 +66,6 @@ app.get("/api/member/:userId", async (req, res) => {
           pos_parent: "APP_CINGHUTANG",
           user_id: userId,
         },
-        timeout: 10000,
       }
     );
 
