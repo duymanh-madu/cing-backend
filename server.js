@@ -1,3 +1,4 @@
+const db = require("./database");
 const express = require("express");
 const axios = require("axios");
 
@@ -78,6 +79,132 @@ app.get("/api/member/:userId", async (req, res) => {
     });
 
   }
+
+});
+/**
+ * LEADERBOARD
+ */
+
+app.get("/api/leaderboard", (req, res) => {
+
+  db.all(
+
+    `
+    SELECT *
+    FROM users
+    ORDER BY score DESC
+    LIMIT 10
+    `,
+
+    [],
+
+    (err, rows) => {
+
+      if (err) {
+
+        return res.status(500).json({
+          error: err.message,
+        });
+
+      }
+
+      res.json(rows);
+
+    }
+
+  );
+
+});
+/**
+ * ADD COIN
+ */
+
+app.post("/api/add-coin", express.json(), (req, res) => {
+
+  const {
+    user_id,
+    name,
+    coins,
+    score,
+  } = req.body;
+
+  db.run(
+
+    `
+    INSERT INTO users (
+      user_id,
+      name,
+      coins,
+      score
+    )
+
+    VALUES (?, ?, ?, ?)
+
+    ON CONFLICT(user_id)
+
+    DO UPDATE SET
+
+      coins = coins + ?,
+      score = score + ?
+    `,
+
+    [
+      user_id,
+      name,
+      coins,
+      score,
+
+      coins,
+      score,
+    ],
+
+    function (err) {
+
+      if (err) {
+
+        return res.status(500).json({
+          error: err.message,
+        });
+
+      }
+
+      res.json({
+        success: true,
+      });
+
+    }
+
+  );
+
+});
+app.get("/api/leaderboard", (req, res) => {
+
+  db.all(
+
+    `
+    SELECT *
+    FROM users
+    ORDER BY score DESC
+    LIMIT 10
+    `,
+
+    [],
+
+    (err, rows) => {
+
+      if (err) {
+
+        return res.status(500).json({
+          error: err.message,
+        });
+
+      }
+
+      res.json(rows);
+
+    }
+
+  );
 
 });
 app.listen(PORT, () => {
