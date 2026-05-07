@@ -330,6 +330,169 @@ async (req, res) => {
   }
 
 });
+/**
+ * DAILY CHECKIN
+ */
+
+app.post("/api/checkin",
+
+async (req, res) => {
+
+  try {
+
+    const {
+
+      user_id,
+
+      name,
+
+    } = req.body;
+
+    /**
+     * TODAY
+     */
+
+    const today =
+      new Date()
+
+        .toISOString()
+
+        .split("T")[0];
+
+    /**
+     * GET PLAYER
+     */
+
+    const {
+
+      data: player,
+
+    } = await supabase
+
+      .from("players")
+
+      .select("*")
+
+      .eq("user_id", user_id)
+
+      .single();
+
+    /**
+     * ALREADY CHECKED
+     */
+
+    if (
+
+      player?.last_checkin === today
+
+    ) {
+
+      return res.json({
+
+        success: false,
+
+        message:
+          "Bạn đã điểm danh hôm nay",
+
+      });
+
+    }
+
+    /**
+     * NEW STREAK
+     */
+
+    const newStreak =
+      (player?.streak || 0) + 1;
+
+    /**
+     * REWARD
+     */
+
+    const reward =
+      newStreak * 10;
+
+    /**
+     * UPDATE PLAYER
+     */
+
+    const { error } =
+      await supabase
+
+        .from("players")
+
+        .upsert(
+
+          {
+
+            user_id,
+
+            name,
+
+            streak:
+              newStreak,
+
+            last_checkin:
+              today,
+
+            coins:
+              (player?.coins || 0)
+              + reward,
+
+          },
+
+          {
+
+            onConflict:
+              "user_id",
+
+          }
+
+        );
+
+    if (error) {
+
+      return res.status(500).json({
+
+        success: false,
+
+        error,
+
+      });
+
+    }
+
+    /**
+     * SUCCESS
+     */
+
+    res.json({
+
+      success: true,
+
+      streak:
+        newStreak,
+
+      reward,
+
+    });
+
+  } catch (error) {
+
+    console.log(error);
+
+    res.status(500).json({
+
+      success: false,
+
+      error:
+        error.message,
+
+    });
+
+  }
+
+});
 app.listen(PORT, () => {
 
   console.log(`Server running on port ${PORT}`);
