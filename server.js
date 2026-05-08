@@ -642,6 +642,66 @@ async (req, res) => {
   }
 
 });
+/**
+ * APP CONFIG
+ */
+
+app.get(
+
+  "/api/app-config",
+
+  async (req, res) => {
+
+    try {
+
+      const {
+
+        data,
+
+        error,
+
+      } = await supabase
+
+        .from("app_config")
+
+        .select("*")
+
+        .limit(1)
+
+        .single();
+
+      if (error) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error,
+
+        });
+
+      }
+
+      res.json(data);
+
+    } catch (error) {
+
+      console.log(error);
+
+      res.status(500).json({
+
+        success: false,
+
+        error:
+          error.message,
+
+      });
+
+    }
+
+  }
+
+);
 app.listen(PORT, () => {
 
   console.log(`Server running on port ${PORT}`);
