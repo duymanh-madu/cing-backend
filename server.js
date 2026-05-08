@@ -846,6 +846,81 @@ app.get(
   }
 
 );
+/**
+ * VOUCHERS CENTER API
+ */
+
+app.get(
+
+  "/api/vouchers-center",
+
+  async (req, res) => {
+
+    try {
+
+      const {
+
+        data,
+
+        error,
+
+      } = await supabase
+
+        .from("vouchers")
+
+        .select("*")
+
+        .eq(
+
+          "is_active",
+
+          true
+
+        )
+
+        .order(
+
+          "id",
+
+          {
+
+            ascending: false,
+
+          }
+
+        );
+
+      if (error) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error,
+
+        });
+
+      }
+
+      res.json(data);
+
+    } catch (error) {
+
+      res.status(500).json({
+
+        success: false,
+
+        error:
+
+          error.message,
+
+      });
+
+    }
+
+  }
+
+);
 app.listen(PORT, () => {
 
   console.log(`Server running on port ${PORT}`);
