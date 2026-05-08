@@ -1033,6 +1033,65 @@ app.get(
   }
 
 );
+/**
+ * GAME CONFIG API
+ */
+
+app.get(
+
+  "/api/game-config",
+
+  async (req, res) => {
+
+    try {
+
+      const {
+
+        data,
+
+        error,
+
+      } = await supabase
+
+        .from("game_config")
+
+        .select("*")
+
+        .limit(1)
+
+        .single();
+
+      if (error) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error,
+
+        });
+
+      }
+
+      res.json(data);
+
+    } catch (error) {
+
+      res.status(500).json({
+
+        success: false,
+
+        error:
+
+          error.message,
+
+      });
+
+    }
+
+  }
+
+);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
