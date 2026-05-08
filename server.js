@@ -1092,6 +1092,81 @@ app.get(
   }
 
 );
+/**
+ * HOME MENU API
+ */
+
+app.get(
+
+  "/api/home-menu",
+
+  async (req, res) => {
+
+    try {
+
+      const {
+
+        data,
+
+        error,
+
+      } = await supabase
+
+        .from("home_menu")
+
+        .select("*")
+
+        .eq(
+
+          "is_active",
+
+          true
+
+        )
+
+        .order(
+
+          "sort_order",
+
+          {
+
+            ascending: true,
+
+          }
+
+        );
+
+      if (error) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error,
+
+        });
+
+      }
+
+      res.json(data);
+
+    } catch (error) {
+
+      res.status(500).json({
+
+        success: false,
+
+        error:
+
+          error.message,
+
+      });
+
+    }
+
+  }
+
+);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
