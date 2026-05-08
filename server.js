@@ -685,6 +685,279 @@ app.get(
 /**
  * START SERVER
  */
+/**
+ * SPIN WHEEL
+ */
+
+app.post(
+
+  "/api/spin",
+
+  async (req, res) => {
+
+    try {
+
+      const {
+
+        user_id,
+
+      } = req.body;
+
+      /**
+       * PLAYER
+       */
+
+      const {
+
+        data: player,
+
+      } = await supabase
+
+        .from("players")
+
+        .select("*")
+
+        .eq(
+
+          "user_id",
+
+          user_id
+
+        )
+
+        .maybeSingle();
+
+      if (!player) {
+
+        return res.status(400).json({
+
+          success: false,
+
+          message:
+
+            "Không tìm thấy user",
+
+        });
+
+      }
+
+      /**
+       * CHECK SPINS
+       */
+
+      if (
+
+        (player.spins || 0)
+
+        <= 0
+
+      ) {
+
+        return res.status(400).json({
+
+          success: false,
+
+          message:
+
+            "Bạn đã hết lượt quay",
+
+        });
+
+      }
+
+      /**
+       * REWARDS
+       */
+
+      const {
+
+        data: rewards,
+
+      } = await supabase
+
+        .from("wheel_rewards")
+
+        .select("*")
+
+        .eq(
+
+          "is_active",
+
+          true
+
+        );
+
+      /**
+       * RANDOM
+       */
+
+      const totalProbability =
+
+        rewards.reduce(
+
+          (sum, reward) =>
+
+            sum +
+
+            reward.probability,
+
+          0
+
+        );
+
+      let random =
+
+        Math.random()
+
+        * totalProbability;
+
+      let selectedReward =
+
+        rewards[0];
+
+      for (
+
+        const reward
+
+        of rewards
+
+      ) {
+
+        random -=
+
+          reward.probability;
+
+        if (random <= 0) {
+
+          selectedReward =
+
+            reward;
+
+          break;
+
+        }
+
+      }
+
+      /**
+       * UPDATE PLAYER
+       */
+
+      let newCoins =
+
+        player.coins || 0;
+
+      if (
+
+        selectedReward.reward_type
+
+        === "coin"
+
+      ) {
+
+        newCoins +=
+
+          selectedReward.reward_value;
+
+      }
+
+      const { error } =
+
+        await supabase
+
+          .from("players")
+
+          .update({
+
+            spins:
+
+              player.spins - 1,
+
+            coins:
+
+              newCoins,
+
+          })
+
+          .eq(
+
+            "user_id",
+
+            user_id
+
+          );
+
+      if (error) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error,
+
+        });
+
+      }
+
+      /**
+       * SAVE VOUCHER
+       */
+
+      if (
+
+        selectedReward.reward_type
+
+        === "voucher"
+
+      ) {
+
+        await supabase
+
+          .from("user_vouchers")
+
+          .insert({
+
+            user_id,
+
+            voucher_title:
+
+              selectedReward.title,
+
+          });
+
+      }
+
+      /**
+       * SUCCESS
+       */
+
+      res.json({
+
+        success: true,
+
+        reward:
+
+          selectedReward,
+
+      });
+
+    } catch (error) {
+
+      res.status(500).json({
+
+        success: false,
+
+        error:
+
+          error.message,
+
+      });
+
+    }
+
+  }
+
+);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
