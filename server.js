@@ -214,7 +214,43 @@ app.get("/api/vouchers/:userId", async (req, res) => {
 /**
  * ORDER WEBHOOK
  */
+/**
+ * GET MEMBER LEVEL
+ */
 
+function getMemberLevel(
+
+  totalSpent
+
+) {
+
+  if (totalSpent >= 10000000) {
+
+    return "Kim Cương";
+
+  }
+
+  if (totalSpent >= 5000000) {
+
+    return "Vàng";
+
+  }
+
+  if (totalSpent >= 3000000) {
+
+    return "Bạc";
+
+  }
+
+  if (totalSpent >= 1000000) {
+
+    return "Thân Thiết";
+
+  }
+
+  return "Mới";
+
+}
 app.post("/api/order-webhook",
 
 async (req, res) => {
@@ -247,6 +283,53 @@ async (req, res) => {
 
     const score =
       Math.floor(total_amount / 1000);
+      /**
+ * GET PLAYER
+ */
+
+const {
+
+  data: currentPlayer,
+
+} = await supabase
+
+  .from("players")
+
+  .select("*")
+
+  .eq(
+
+    "user_id",
+
+    user_id
+
+  )
+
+  .maybeSingle();
+
+/**
+ * TOTAL SPENT
+ */
+
+const totalSpent =
+
+  (currentPlayer
+
+    ?.total_spent || 0)
+
+  + total_amount;
+
+/**
+ * LEVEL
+ */
+
+const level =
+
+  getMemberLevel(
+
+    totalSpent
+
+  );
 /**
  * VIP LEVEL
  */
@@ -275,35 +358,29 @@ if (score >= 5000) {
 
     .from("players")
 
-    .upsert(
+    .upsert({
 
-      {
+  user_id,
 
-        user_id,
+  name:
 
-        name:
-          customer_name,
+    customer_name,
 
-        spins,
+  spins,
 
-        coins,
+  coins,
 
-        score,
+  score,
 
-        level,
+  level,
 
-        total_orders: 1,
+  total_spent:
 
-      },
+    totalSpent,
 
-      {
+  total_orders: 1,
 
-        onConflict:
-          "user_id",
-
-      }
-
-    );
+});
 
     if (error) {
 
