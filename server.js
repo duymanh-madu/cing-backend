@@ -1140,6 +1140,125 @@ app.post(
   }
 
 );
+/**
+ * USER PROFILE API
+ */
+
+app.get(
+
+  "/api/profile/:userId",
+
+  async (req, res) => {
+
+    try {
+
+      const {
+
+        userId,
+
+      } = req.params;
+
+      /**
+       * PLAYER
+       */
+
+      const {
+
+        data: player,
+
+        error,
+
+      } = await supabase
+
+        .from("players")
+
+        .select("*")
+
+        .eq(
+
+          "user_id",
+
+          userId
+
+        )
+
+        .maybeSingle();
+
+      if (error) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error,
+
+        });
+
+      }
+
+      /**
+       * USER VOUCHERS
+       */
+
+      const {
+
+        data: vouchers,
+
+      } = await supabase
+
+        .from("user_vouchers")
+
+        .select("*")
+
+        .eq(
+
+          "user_id",
+
+          userId
+
+        )
+
+        .order(
+
+          "id",
+
+          {
+
+            ascending: false,
+
+          }
+
+        );
+
+      /**
+       * RESPONSE
+       */
+
+      res.json({
+
+        player,
+
+        vouchers,
+
+      });
+
+    } catch (error) {
+
+      res.status(500).json({
+
+        success: false,
+
+        error:
+
+          error.message,
+
+      });
+
+    }
+
+  }
+
+);
 app.listen(PORT, () => {
 
   console.log(`Server running on port ${PORT}`);
