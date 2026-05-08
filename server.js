@@ -958,6 +958,81 @@ app.post(
   }
 
 );
+/**
+ * WHEEL REWARDS API
+ */
+
+app.get(
+
+  "/api/wheel-rewards",
+
+  async (req, res) => {
+
+    try {
+
+      const {
+
+        data,
+
+        error,
+
+      } = await supabase
+
+        .from("wheel_rewards")
+
+        .select("*")
+
+        .eq(
+
+          "is_active",
+
+          true
+
+        )
+
+        .order(
+
+          "id",
+
+          {
+
+            ascending: true,
+
+          }
+
+        );
+
+      if (error) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error,
+
+        });
+
+      }
+
+      res.json(data);
+
+    } catch (error) {
+
+      res.status(500).json({
+
+        success: false,
+
+        error:
+
+          error.message,
+
+      });
+
+    }
+
+  }
+
+);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
