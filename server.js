@@ -649,3 +649,48 @@ app.listen(PORT, () => {
 });
 // voucher api updated
 // webhook updated
+/**
+ * APP CONFIG
+ */
+
+app.get(
+  "/api/app-config",
+
+async (req, res) => {
+
+  try {
+
+    const {
+      data,
+      error,
+    } = await supabase
+
+      .from("app_config")
+
+      .select("*")
+
+      .limit(1)
+
+      .single();
+
+    if (error) {
+
+      return res.status(500).json({
+        success: false,
+        error,
+      });
+
+    }
+
+    res.json(data);
+
+  } catch (error) {
+
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+
+  }
+
+});
