@@ -775,6 +775,77 @@ app.get(
   }
 
 );
+/**
+ * POPUP CAMPAIGN API
+ */
+
+app.get(
+
+  "/api/popup-campaign",
+
+  async (req, res) => {
+
+    try {
+
+      const {
+
+        data,
+
+        error,
+
+      } = await supabase
+
+        .from(
+
+          "popup_campaigns"
+
+        )
+
+        .select("*")
+
+        .eq(
+
+          "is_active",
+
+          true
+
+        )
+
+        .limit(1)
+
+        .maybeSingle();
+
+      if (error) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error,
+
+        });
+
+      }
+
+      res.json(data);
+
+    } catch (error) {
+
+      res.status(500).json({
+
+        success: false,
+
+        error:
+
+          error.message,
+
+      });
+
+    }
+
+  }
+
+);
 app.listen(PORT, () => {
 
   console.log(`Server running on port ${PORT}`);
