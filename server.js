@@ -921,6 +921,225 @@ app.get(
   }
 
 );
+/**
+ * CLAIM VOUCHER
+ */
+
+app.post(
+
+  "/api/claim-voucher",
+
+  async (req, res) => {
+
+    try {
+
+      const {
+
+        user_id,
+
+        voucher_id,
+
+      } = req.body;
+
+      /**
+       * GET PLAYER
+       */
+
+      const {
+
+        data: player,
+
+      } = await supabase
+
+        .from("players")
+
+        .select("*")
+
+        .eq(
+
+          "user_id",
+
+          user_id
+
+        )
+
+        .maybeSingle();
+
+      /**
+       * GET VOUCHER
+       */
+
+      const {
+
+        data: voucher,
+
+      } = await supabase
+
+        .from("vouchers")
+
+        .select("*")
+
+        .eq(
+
+          "id",
+
+          voucher_id
+
+        )
+
+        .maybeSingle();
+
+      /**
+       * VALIDATE
+       */
+
+      if (!player || !voucher) {
+
+        return res.status(400).json({
+
+          success: false,
+
+          message:
+
+            "Không tìm thấy dữ liệu",
+
+        });
+
+      }
+
+      /**
+       * CHECK COINS
+       */
+
+      if (
+
+        player.coins <
+
+        voucher.coin_cost
+
+      ) {
+
+        return res.status(400).json({
+
+          success: false,
+
+          message:
+
+            "Không đủ coin",
+
+        });
+
+      }
+
+      /**
+       * UPDATE PLAYER
+       */
+
+      const { error: updateError } =
+
+        await supabase
+
+          .from("players")
+
+          .update({
+
+            coins:
+
+              player.coins -
+
+              voucher.coin_cost,
+
+          })
+
+          .eq(
+
+            "user_id",
+
+            user_id
+
+          );
+
+      if (updateError) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error:
+
+            updateError,
+
+        });
+
+      }
+
+      /**
+       * SAVE USER VOUCHER
+       */
+
+      const { error: saveError } =
+
+        await supabase
+
+          .from("user_vouchers")
+
+          .insert({
+
+            user_id,
+
+            voucher_id,
+
+            voucher_title:
+
+              voucher.title,
+
+          });
+
+      if (saveError) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error:
+
+            saveError,
+
+        });
+
+      }
+
+      /**
+       * SUCCESS
+       */
+
+      res.json({
+
+        success: true,
+
+        message:
+
+          "Đổi voucher thành công",
+
+      });
+
+    } catch (error) {
+
+      res.status(500).json({
+
+        success: false,
+
+        error:
+
+          error.message,
+
+      });
+
+    }
+
+  }
+
+);
 app.listen(PORT, () => {
 
   console.log(`Server running on port ${PORT}`);
