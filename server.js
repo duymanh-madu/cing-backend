@@ -702,6 +702,79 @@ app.get(
   }
 
 );
+/**
+ * BANNERS API
+ */
+
+app.get(
+
+  "/api/banners",
+
+  async (req, res) => {
+
+    try {
+
+      const {
+
+        data,
+
+        error,
+
+      } = await supabase
+
+        .from("banners")
+
+        .select("*")
+
+        .eq("is_active", true)
+
+        .order(
+
+          "id",
+
+          {
+
+            ascending: false,
+
+          }
+
+        );
+
+      if (error) {
+
+        console.log(error);
+
+        return res.status(500).json({
+
+          success: false,
+
+          error,
+
+        });
+
+      }
+
+      res.json(data);
+
+    } catch (error) {
+
+      console.log(error);
+
+      res.status(500).json({
+
+        success: false,
+
+        error:
+
+          error.message,
+
+      });
+
+    }
+
+  }
+
+);
 app.listen(PORT, () => {
 
   console.log(`Server running on port ${PORT}`);
