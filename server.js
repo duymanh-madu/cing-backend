@@ -1167,6 +1167,83 @@ app.get(
   }
 
 );
+/**
+ * TRACK EVENT
+ */
+
+app.post(
+
+  "/api/track-event",
+
+  async (req, res) => {
+
+    try {
+
+      const {
+
+        event_name,
+
+        user_id,
+
+        event_data,
+
+      } = req.body;
+
+      const { error } =
+
+        await supabase
+
+          .from(
+
+            "analytics_events"
+
+          )
+
+          .insert({
+
+            event_name,
+
+            user_id,
+
+            event_data,
+
+          });
+
+      if (error) {
+
+        return res.status(500).json({
+
+          success: false,
+
+          error,
+
+        });
+
+      }
+
+      res.json({
+
+        success: true,
+
+      });
+
+    } catch (error) {
+
+      res.status(500).json({
+
+        success: false,
+
+        error:
+
+          error.message,
+
+      });
+
+    }
+
+  }
+
+);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
