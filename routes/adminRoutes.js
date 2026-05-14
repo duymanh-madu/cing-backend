@@ -1,0 +1,45 @@
+const express =
+  require("express");
+
+const router =
+  express.Router();
+
+/**
+ * ============================================
+ * ADMIN CORE
+ * ============================================
+ */
+
+router.use(
+  "/analytics",
+  require("./adminAnalyticsRoutes")
+);
+
+router.use(
+  "/controls",
+  require("./adminControlRoutes")
+);
+
+router.use(
+  "/realtime",
+  require("./adminRealtimeRoutes")
+);
+
+router.use(
+  "/roles",
+  require("./adminRoleRoutes")
+);
+
+/**
+ * ============================================
+ * FUTURE ADMIN DOMAINS
+ * ============================================
+ */
+
+router.use(
+  "/vouchers",
+  require("./voucherAdminRoutes")
+);
+
+module.exports =
+  router;

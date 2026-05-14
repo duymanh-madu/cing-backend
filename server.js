@@ -1,1250 +1,390 @@
-const express = require("express");
-const axios = require("axios");
-const cors = require("cors");
-const supabase = require("./supabase");
+require("dotenv").config();
 
-const app = express();
+const http =
+  require("http");
 
 /**
- * MIDDLEWARE
+ * =====================================================
+ * BOOTSTRAP
+ * =====================================================
  */
 
-app.use(
-  cors({
-    origin: "*",
-  })
+const {
+  createApp,
+} = require(
+  "./bootstrap/appBootstrap"
 );
 
-app.use(express.json());
+const {
+  initializeSocket,
+} = require(
+  "./bootstrap/socketBootstrap"
+);
+
+const {
+  initializeWorkers,
+} = require(
+  "./bootstrap/workerBootstrap"
+);
+
+const {
+  startupValidation,
+} = require(
+  "./bootstrap/startupValidation"
+);
+
+const {
+  registerEvents,
+} = require(
+  "./core/events/registerEvents"
+);
+
+const logger =
+  require(
+    "./services/loggerService"
+  );
+
+const {
+  validateEnv,
+} = require(
+  "./config/envValidator"
+);
 
 /**
+ * =====================================================
+ * APP
+ * =====================================================
+ */
+
+const app =
+  createApp();
+
+/**
+ * =====================================================
+ * HTTP SERVER
+ * =====================================================
+ */
+
+const server =
+  http.createServer(app);
+
+/**
+ * =====================================================
+ * SERVER TIMEOUTS
+ * =====================================================
+ */
+
+server.keepAliveTimeout =
+  65000;
+
+server.headersTimeout =
+  66000;
+
+/**
+ * =====================================================
  * PORT
+ * =====================================================
  */
 
-const PORT = process.env.PORT || 5050;
+const PORT =
+  process.env.PORT ||
+  5050;
 
 /**
- * ROOT
+ * =====================================================
+ * SHUTDOWN STATE
+ * =====================================================
  */
 
-app.get("/", (req, res) => {
-  res.send("Backend OK");
-});
+let isShuttingDown =
+  false;
 
 /**
- * MEMBER LEVEL ENGINE
+ * =====================================================
+ * SERVER REFERENCES
+ * =====================================================
  */
 
-function getMemberLevel(totalSpent) {
-  if (totalSpent >= 10000000) {
-    return "Kim Cương";
+let ioInstance =
+  null;
+
+/**
+ * =====================================================
+ * START APPLICATION
+ * =====================================================
+ */
+
+async function startServer() {
+
+  try {
+
+    /**
+     * ============================================
+     * VALIDATION
+     * ============================================
+     */
+
+    await startupValidation();
+
+    validateEnv();
+
+    logger.info(
+      "Startup validation completed"
+    );
+
+    /**
+     * ============================================
+     * SOCKET
+     * ============================================
+     */
+
+    ioInstance =
+      initializeSocket({
+        app,
+        server,
+      });
+
+    if (!ioInstance) {
+
+      throw new Error(
+        "Socket initialization failed"
+      );
+
+    }
+
+    logger.info(
+      "Socket initialized"
+    );
+
+    /**
+     * ============================================
+     * EVENTS
+     * ============================================
+     */
+
+    registerEvents();
+
+    logger.info(
+      "Events registered"
+    );
+
+    /**
+     * ============================================
+     * WORKERS
+     * ============================================
+     */
+
+    await initializeWorkers();
+
+    logger.info(
+      "Workers initialized"
+    );
+
+    /**
+     * ============================================
+     * START HTTP SERVER
+     * ============================================
+     */
+
+    server.listen(
+      PORT,
+      () => {
+
+        logger.info(
+          "Server booted successfully",
+          {
+            port: PORT,
+            environment:
+              process.env.NODE_ENV,
+            realtime:
+              true,
+            pid:
+              process.pid,
+          }
+        );
+
+      }
+    );
+
+  } catch (error) {
+
+    logger.error(
+      "startup error",
+      {
+        message:
+          error.message,
+
+        stack:
+          error.stack,
+      }
+    );
+
+    process.exit(1);
+
   }
 
-  if (totalSpent >= 5000000) {
-    return "Vàng";
-  }
-
-  if (totalSpent >= 3000000) {
-    return "Bạc";
-  }
-
-  if (totalSpent >= 1000000) {
-    return "Thân Thiết";
-  }
-
-  return "Mới";
 }
 
 /**
- * MENU API
+ * =====================================================
+ * PROCESS ERRORS
+ * =====================================================
  */
 
-app.get("/api/menu", async (req, res) => {
-  try {
-    const response = await axios.get(
-      "https://api.foodbook.vn/ipos/ws/xpartner/v2/items",
+process.on(
+  "unhandledRejection",
+  (reason) => {
+
+    logger.error(
+      "UNHANDLED REJECTION",
       {
-        params: {
-          access_token:
-            "4ETARZYY813AS5LEKOOCD1NP61Y6J55C",
-
-          pos_parent:
-            "APP_CINGHUTANG",
-
-          pos_id:
-            "10000343",
-        },
-
-        timeout: 10000,
+        reason,
       }
     );
 
-    res.json(response.data);
-  } catch (error) {
-    console.log("MENU API ERROR:");
-    console.log(error.message);
-
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
   }
-});
+);
 
-/**
- * MEMBER API
- */
+process.on(
+  "uncaughtException",
+  (error) => {
 
-app.get("/api/member/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const response = await axios.get(
-      "https://api.foodbook.vn/ipos/ws/xpartner/membership_detail",
+    logger.error(
+      "UNCAUGHT EXCEPTION",
       {
-        params: {
-          access_token:
-            "4ETARZYY813AS5LEKOOCD1NP61Y6J55C",
+        message:
+          error.message,
 
-          pos_parent:
-            "APP_CINGHUTANG",
-
-          user_id: userId,
-        },
-
-        timeout: 10000,
+        stack:
+          error.stack,
       }
     );
 
-    res.json(response.data);
-  } catch (error) {
-    console.log("MEMBER API ERROR:");
-    console.log(error.message);
-
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
   }
-});
+);
 
 /**
- * USER VOUCHERS FROM IPOS
+ * =====================================================
+ * GRACEFUL SHUTDOWN
+ * =====================================================
  */
 
-app.get("/api/vouchers/:userId", async (req, res) => {
+async function shutdown(
+  signal
+) {
+
   try {
-    const { userId } = req.params;
 
-    const response = await axios.get(
-      "https://api.foodbook.vn/ipos/ws/xpartner/member_vouchers",
-      {
-        params: {
-          access_token:
-            "4ETARZYY813AS5LEKOOCD1NP61Y6J55C",
+    if (isShuttingDown) {
 
-          pos_parent: "FOODBOOK",
+      return;
 
-          user_id: userId,
-        },
-
-        timeout: 10000,
-      }
-    );
-
-    res.json(response.data);
-  } catch (error) {
-    console.log("VOUCHER API ERROR:");
-    console.log(error.message);
-
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-/**
- * ORDER WEBHOOK
- */
-
-app.post("/api/order-webhook", async (req, res) => {
-  try {
-    const {
-      user_id,
-      customer_name,
-      total_amount,
-    } = req.body;
-
-    /**
-     * VALIDATE
-     */
-
-    if (!user_id || !total_amount) {
-      return res.status(400).json({
-        success: false,
-        message: "Thiếu dữ liệu",
-      });
     }
 
-    /**
-     * REWARD
-     */
+    isShuttingDown =
+      true;
 
-    const spins = Math.floor(total_amount / 50000);
-
-    const coins = Math.floor(total_amount / 1000);
-
-    const score = Math.floor(total_amount / 1000);
-
-    /**
-     * GET CURRENT PLAYER
-     */
-
-    const {
-      data: currentPlayer,
-    } = await supabase
-      .from("players")
-      .select("*")
-      .eq("user_id", user_id)
-      .maybeSingle();
+    logger.info(
+      "Graceful shutdown started",
+      {
+        signal,
+      }
+    );
 
     /**
-     * CALCULATE TOTALS
+     * ============================================
+     * SOCKET CLOSE
+     * ============================================
      */
 
-    const totalSpent =
-      (currentPlayer?.total_spent || 0) +
-      total_amount;
+    if (ioInstance) {
 
-    const totalCoins =
-      (currentPlayer?.coins || 0) +
-      coins;
+      ioInstance.close();
 
-    const totalScore =
-      (currentPlayer?.score || 0) +
-      score;
-
-    const totalSpins =
-      (currentPlayer?.spins || 0) +
-      spins;
-
-    const totalOrders =
-      (currentPlayer?.total_orders || 0) +
-      1;
-
-    /**
-     * LEVEL
-     */
-
-    const level = getMemberLevel(totalSpent);
-
-    /**
-     * UPSERT PLAYER
-     */
-
-    const { error } = await supabase
-      .from("players")
-      .upsert(
-        {
-          user_id,
-
-          name: customer_name,
-
-          coins: totalCoins,
-
-          score: totalScore,
-
-          spins: totalSpins,
-
-          total_orders: totalOrders,
-
-          total_spent: totalSpent,
-
-          level,
-        },
-        {
-          onConflict: "user_id",
-        }
+      logger.info(
+        "Socket server closed"
       );
 
-    if (error) {
-      console.log(error);
-
-      return res.status(500).json({
-        success: false,
-        error,
-      });
     }
 
-    res.json({
-      success: true,
+    /**
+     * ============================================
+     * HTTP CLOSE
+     * ============================================
+     */
 
-      reward: {
-        spins,
-        coins,
-        score,
+    server.close(
+      () => {
+
+        logger.info(
+          "HTTP server closed"
+        );
+
+        process.exit(0);
+
+      }
+    );
+
+    /**
+     * ============================================
+     * FORCE EXIT
+     * ============================================
+     */
+
+    setTimeout(
+      () => {
+
+        logger.error(
+          "Forced shutdown timeout"
+        );
+
+        process.exit(1);
+
       },
+      10000
+    );
 
-      level,
-    });
   } catch (error) {
-    console.log(error);
 
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-/**
- * DAILY CHECKIN
- */
-
-app.post("/api/checkin", async (req, res) => {
-  try {
-    const {
-      user_id,
-      name,
-    } = req.body;
-
-    const today = new Date()
-      .toISOString()
-      .split("T")[0];
-
-    const {
-      data: player,
-    } = await supabase
-      .from("players")
-      .select("*")
-      .eq("user_id", user_id)
-      .maybeSingle();
-
-    if (player?.last_checkin === today) {
-      return res.json({
-        success: false,
-        message: "Bạn đã điểm danh hôm nay",
-      });
-    }
-
-    const newStreak =
-      (player?.streak || 0) + 1;
-
-    const reward = newStreak * 10;
-
-    const { error } = await supabase
-      .from("players")
-      .upsert(
-        {
-          user_id,
-
-          name,
-
-          streak: newStreak,
-
-          last_checkin: today,
-
-          coins:
-            (player?.coins || 0) + reward,
-        },
-        {
-          onConflict: "user_id",
-        }
-      );
-
-    if (error) {
-      return res.status(500).json({
-        success: false,
-        error,
-      });
-    }
-
-    res.json({
-      success: true,
-      streak: newStreak,
-      reward,
-    });
-  } catch (error) {
-    console.log(error);
-
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-/**
- * APP CONFIG
- */
-
-app.get("/api/app-config", async (req, res) => {
-  try {
-    const {
-      data,
-      error,
-    } = await supabase
-      .from("app_config")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      return res.status(500).json({
-        success: false,
-        error,
-      });
-    }
-
-    res.json(data);
-  } catch (error) {
-    console.log(error);
-
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-/**
- * BANNERS API
- */
-
-app.get("/api/banners", async (req, res) => {
-  try {
-    const {
-      data,
-      error,
-    } = await supabase
-      .from("banners")
-      .select("*")
-      .eq("is_active", true)
-      .order("id", {
-        ascending: false,
-      });
-
-    if (error) {
-      return res.status(500).json({
-        success: false,
-        error,
-      });
-    }
-
-    res.json(data);
-  } catch (error) {
-    console.log(error);
-
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-/**
- * POPUP CAMPAIGN API
- */
-
-app.get(
-  "/api/popup-campaign",
-  async (req, res) => {
-    try {
-      const {
-        data,
-        error,
-      } = await supabase
-        .from("popup_campaigns")
-        .select("*")
-        .eq("is_active", true)
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        return res.status(500).json({
-          success: false,
-          error,
-        });
-      }
-
-      res.json(data);
-    } catch (error) {
-      console.log(error);
-
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
-    }
-  }
-);
-
-/**
- * VOUCHERS CENTER API
- */
-
-app.get(
-  "/api/vouchers-center",
-  async (req, res) => {
-    try {
-      const {
-        data,
-        error,
-      } = await supabase
-        .from("vouchers")
-        .select("*")
-        .eq("is_active", true)
-        .order("id", {
-          ascending: false,
-        });
-
-      if (error) {
-        return res.status(500).json({
-          success: false,
-          error,
-        });
-      }
-
-      res.json(data);
-    } catch (error) {
-      console.log(error);
-
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
-    }
-  }
-);
-
-/**
- * CLAIM VOUCHER
- */
-
-app.post(
-  "/api/claim-voucher",
-  async (req, res) => {
-    try {
-      const {
-        user_id,
-        voucher_id,
-      } = req.body;
-
-      /**
-       * PLAYER
-       */
-
-      const {
-        data: player,
-      } = await supabase
-        .from("players")
-        .select("*")
-        .eq("user_id", user_id)
-        .maybeSingle();
-
-      /**
-       * VOUCHER
-       */
-
-      const {
-        data: voucher,
-      } = await supabase
-        .from("vouchers")
-        .select("*")
-        .eq("id", voucher_id)
-        .maybeSingle();
-
-      if (!player || !voucher) {
-        return res.status(400).json({
-          success: false,
-          message: "Không tìm thấy dữ liệu",
-        });
-      }
-
-      if (
-        (player?.coins || 0) <
-        voucher.coin_cost
-      ) {
-        return res.status(400).json({
-          success: false,
-          message: "Không đủ coin",
-        });
-      }
-
-      /**
-       * UPDATE PLAYER COINS
-       */
-
-      const { error: updateError } =
-        await supabase
-          .from("players")
-          .update({
-            coins:
-              player.coins -
-              voucher.coin_cost,
-          })
-          .eq("user_id", user_id);
-
-      if (updateError) {
-        return res.status(500).json({
-          success: false,
-          error: updateError,
-        });
-      }
-
-      /**
-       * SAVE USER VOUCHER
-       */
-
-      const { error: saveError } =
-        await supabase
-          .from("user_vouchers")
-          .insert({
-            user_id,
-
-            voucher_id,
-
-            voucher_title:
-              voucher.title,
-          });
-
-      if (saveError) {
-        return res.status(500).json({
-          success: false,
-          error: saveError,
-        });
-      }
-
-      res.json({
-        success: true,
-        message: "Đổi voucher thành công",
-      });
-    } catch (error) {
-      console.log(error);
-
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
-    }
-  }
-);
-
-/**
- * USER PROFILE API
- */
-
-app.get(
-  "/api/profile/:userId",
-  async (req, res) => {
-    try {
-      const { userId } = req.params;
-
-      const {
-        data: player,
-        error,
-      } = await supabase
-        .from("players")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (error) {
-        return res.status(500).json({
-          success: false,
-          error,
-        });
-      }
-
-      const {
-        data: vouchers,
-      } = await supabase
-        .from("user_vouchers")
-        .select("*")
-        .eq("user_id", userId)
-        .order("id", {
-          ascending: false,
-        });
-
-      res.json({
-        player,
-        vouchers,
-      });
-    } catch (error) {
-      console.log(error);
-
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
-    }
-  }
-);
-
-/**
- * START SERVER
- */
-/**
- * SPIN WHEEL
- */
-
-app.post(
-
-  "/api/spin",
-
-  async (req, res) => {
-
-    try {
-
-      const {
-
-        user_id,
-
-      } = req.body;
-
-      /**
-       * PLAYER
-       */
-
-      const {
-
-        data: player,
-
-      } = await supabase
-
-        .from("players")
-
-        .select("*")
-
-        .eq(
-
-          "user_id",
-
-          user_id
-
-        )
-
-        .maybeSingle();
-
-      if (!player) {
-
-        return res.status(400).json({
-
-          success: false,
-
-          message:
-
-            "Không tìm thấy user",
-
-        });
-
-      }
-
-      /**
-       * CHECK SPINS
-       */
-
-      if (
-
-        (player.spins || 0)
-
-        <= 0
-
-      ) {
-
-        return res.status(400).json({
-
-          success: false,
-
-          message:
-
-            "Bạn đã hết lượt quay",
-
-        });
-
-      }
-
-      /**
-       * REWARDS
-       */
-
-      const {
-
-        data: rewards,
-
-      } = await supabase
-
-        .from("wheel_rewards")
-
-        .select("*")
-
-        .eq(
-
-          "is_active",
-
-          true
-
-        );
-
-      /**
-       * RANDOM
-       */
-
-      const totalProbability =
-
-        rewards.reduce(
-
-          (sum, reward) =>
-
-            sum +
-
-            reward.probability,
-
-          0
-
-        );
-
-      let random =
-
-        Math.random()
-
-        * totalProbability;
-
-      let selectedReward =
-
-        rewards[0];
-
-      for (
-
-        const reward
-
-        of rewards
-
-      ) {
-
-        random -=
-
-          reward.probability;
-
-        if (random <= 0) {
-
-          selectedReward =
-
-            reward;
-
-          break;
-
-        }
-
-      }
-
-      /**
-       * UPDATE PLAYER
-       */
-
-      let newCoins =
-
-        player.coins || 0;
-
-      if (
-
-        selectedReward.reward_type
-
-        === "coin"
-
-      ) {
-
-        newCoins +=
-
-          selectedReward.reward_value;
-
-      }
-
-      const { error } =
-
-        await supabase
-
-          .from("players")
-
-          .update({
-
-            spins:
-
-              player.spins - 1,
-
-            coins:
-
-              newCoins,
-
-          })
-
-          .eq(
-
-            "user_id",
-
-            user_id
-
-          );
-
-      if (error) {
-
-        return res.status(500).json({
-
-          success: false,
-
-          error,
-
-        });
-
-      }
-
-      /**
-       * SAVE VOUCHER
-       */
-
-      if (
-
-        selectedReward.reward_type
-
-        === "voucher"
-
-      ) {
-
-        await supabase
-
-          .from("user_vouchers")
-
-          .insert({
-
-            user_id,
-
-            voucher_title:
-
-              selectedReward.title,
-
-          });
-
-      }
-
-      /**
-       * SUCCESS
-       */
-
-      res.json({
-
-        success: true,
-
-        reward:
-
-          selectedReward,
-
-      });
-
-    } catch (error) {
-
-      res.status(500).json({
-
-        success: false,
-
-        error:
-
+    logger.error(
+      "shutdown error",
+      {
+        message:
           error.message,
 
-      });
+        stack:
+          error.stack,
+      }
+    );
 
-    }
+    process.exit(1);
 
   }
 
-);
+}
+
 /**
- * WHEEL REWARDS API
+ * =====================================================
+ * SIGNALS
+ * =====================================================
  */
 
-app.get(
-
-  "/api/wheel-rewards",
-
-  async (req, res) => {
-
-    try {
-
-      const {
-
-        data,
-
-        error,
-
-      } = await supabase
-
-        .from("wheel_rewards")
-
-        .select("*")
-
-        .eq(
-
-          "is_active",
-
-          true
-
-        )
-
-        .order(
-
-          "id",
-
-          {
-
-            ascending: true,
-
-          }
-
-        );
-
-      if (error) {
-
-        return res.status(500).json({
-
-          success: false,
-
-          error,
-
-        });
-
-      }
-
-      res.json(data);
-
-    } catch (error) {
-
-      res.status(500).json({
-
-        success: false,
-
-        error:
-
-          error.message,
-
-      });
-
-    }
-
-  }
-
+process.on(
+  "SIGINT",
+  () =>
+    shutdown("SIGINT")
 );
+
+process.on(
+  "SIGTERM",
+  () =>
+    shutdown("SIGTERM")
+);
+
 /**
- * GAME CONFIG API
+ * =====================================================
+ * BOOT
+ * =====================================================
  */
 
-app.get(
-
-  "/api/game-config",
-
-  async (req, res) => {
-
-    try {
-
-      const {
-
-        data,
-
-        error,
-
-      } = await supabase
-
-        .from("game_config")
-
-        .select("*")
-
-        .limit(1)
-
-        .single();
-
-      if (error) {
-
-        return res.status(500).json({
-
-          success: false,
-
-          error,
-
-        });
-
-      }
-
-      res.json(data);
-
-    } catch (error) {
-
-      res.status(500).json({
-
-        success: false,
-
-        error:
-
-          error.message,
-
-      });
-
-    }
-
-  }
-
-);
-/**
- * HOME MENU API
- */
-
-app.get(
-
-  "/api/home-menu",
-
-  async (req, res) => {
-
-    try {
-
-      const {
-
-        data,
-
-        error,
-
-      } = await supabase
-
-        .from("home_menu")
-
-        .select("*")
-
-        .eq(
-
-          "is_active",
-
-          true
-
-        )
-
-        .order(
-
-          "sort_order",
-
-          {
-
-            ascending: true,
-
-          }
-
-        );
-
-      if (error) {
-
-        return res.status(500).json({
-
-          success: false,
-
-          error,
-
-        });
-
-      }
-
-      res.json(data);
-
-    } catch (error) {
-
-      res.status(500).json({
-
-        success: false,
-
-        error:
-
-          error.message,
-
-      });
-
-    }
-
-  }
-
-);
-/**
- * TRACK EVENT
- */
-
-app.post(
-
-  "/api/track-event",
-
-  async (req, res) => {
-
-    try {
-
-      const {
-
-        event_name,
-
-        user_id,
-
-        event_data,
-
-      } = req.body;
-
-      const { error } =
-
-        await supabase
-
-          .from(
-
-            "analytics_events"
-
-          )
-
-          .insert({
-
-            event_name,
-
-            user_id,
-
-            event_data,
-
-          });
-
-      if (error) {
-
-        return res.status(500).json({
-
-          success: false,
-
-          error,
-
-        });
-
-      }
-
-      res.json({
-
-        success: true,
-
-      });
-
-    } catch (error) {
-
-      res.status(500).json({
-
-        success: false,
-
-        error:
-
-          error.message,
-
-      });
-
-    }
-
-  }
-
-);
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+startServer();
