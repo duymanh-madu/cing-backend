@@ -4,38 +4,31 @@ const {
   "socket.io"
 );
 
+const realtimeConnectionHandler =
+  require(
+    "../socket/realtime/realtimeConnectionHandler"
+  );
+
+const logger =
+  require(
+    "../services/loggerService"
+  );
+
 /**
- * =========================================================
+ * =====================================================
  * SOCKET BOOTSTRAP
- * =========================================================
+ * =====================================================
  */
 
 function initializeSocket({
-  app,
   server,
 }) {
 
-  /**
-   * =======================================================
-   * ALLOWED ORIGINS
-   * =======================================================
-   */
-
   const allowedOrigins = [
-
-    process.env.CLIENT_URL,
-
     "http://localhost:3000",
-
-    "http://127.0.0.1:3000",
-
-  ].filter(Boolean);
-
-  /**
-   * =======================================================
-   * SOCKET SERVER
-   * =======================================================
-   */
+    "http://localhost:5173",
+    "https://cinghutangkinhbac.vercel.app",
+  ];
 
   const io =
     new Server(
@@ -43,109 +36,78 @@ function initializeSocket({
       {
 
         /**
-         * =================================================
-         * SOCKET PATH
-         * =================================================
-         */
-
-        path:
-          "/socket.io",
-
-        /**
-         * =================================================
+         * ============================================
          * CORS
-         * =================================================
+         * ============================================
          */
 
         cors: {
 
-          origin:
-            (
-              origin,
-              callback
-            ) => {
+          origin: (
+            origin,
+            callback
+          ) => {
 
-              /**
-               * =============================================
-               * SERVER TO SERVER / NO ORIGIN
-               * =============================================
-               */
+            /**
+             * Browserless / mobile / Zalo
+             */
 
-              if (
-                !origin
-              ) {
-
-                return callback(
-                  null,
-                  true
-                );
-
-              }
-
-              /**
-               * =============================================
-               * ALLOWED
-               * =============================================
-               */
-
-              if (
-                allowedOrigins.includes(
-                  origin
-                )
-              ) {
-
-                return callback(
-                  null,
-                  true
-                );
-
-              }
-
-              /**
-               * =============================================
-               * BLOCK
-               * =============================================
-               */
-
-              console.error(
-                "❌ BLOCKED SOCKET ORIGIN:",
-                origin
-              );
+            if (!origin) {
 
               return callback(
-                new Error(
-                  "Socket CORS blocked"
-                )
+                null,
+                true
               );
 
-            },
+            }
 
-          credentials:
-            true,
+            if (
+              allowedOrigins.includes(
+                origin
+              )
+            ) {
+
+              return callback(
+                null,
+                true
+              );
+
+            }
+
+            return callback(
+              new Error(
+                "CORS blocked"
+              )
+            );
+
+          },
 
           methods: [
             "GET",
             "POST",
           ],
 
+          credentials:
+            true,
+
         },
 
         /**
-         * =================================================
-         * TRANSPORTS
-         * =================================================
+         * ============================================
+         * SOCKET ENGINE
+         * ============================================
          */
+
+        path:
+          "/socket.io",
 
         transports: [
-          "polling",
           "websocket",
+          "polling",
         ],
 
-        /**
-         * =================================================
-         * CONNECTION STABILITY
-         * =================================================
-         */
+        allowEIO3:
+          true,
 
         pingTimeout:
           60000,
@@ -153,66 +115,26 @@ function initializeSocket({
         pingInterval:
           25000,
 
+        upgradeTimeout:
+          30000,
+
         connectTimeout:
           30000,
 
         /**
-         * =================================================
-         * MOBILE NETWORK STABILITY
-         * =================================================
+         * Railway / proxy stability
          */
 
-        upgradeTimeout:
-          30000,
-
-        maxHttpBufferSize:
-          1e6,
-
-        /**
-         * =================================================
-         * COMPATIBILITY
-         * =================================================
-         */
-
-        allowEIO3:
+        serveClient:
           false,
-
-        /**
-         * =================================================
-         * COOKIE
-         * =================================================
-         */
-
-        cookie:
-          false,
-
-        /**
-         * =================================================
-         * CLEANUP
-         * =================================================
-         */
-
-        cleanupEmptyChildNamespaces:
-          true,
 
       }
     );
 
   /**
-   * =======================================================
-   * APP INJECTION
-   * =======================================================
-   */
-
-  app.set(
-    "io",
-    io
-  );
-
-  /**
-   * =======================================================
-   * SOCKET EVENTS
-   * =======================================================
+   * ============================================
+   * CONNECTION
+   * ============================================
    */
 
   io.on(
@@ -221,173 +143,64 @@ function initializeSocket({
       socket
     ) => {
 
-      /**
-       * ===================================================
-       * CONNECTED
-       * ===================================================
-       */
-
-      console.log(
-        "🟢 Socket connected:",
-        socket.id
-      );
-
-      /**
-       * ===================================================
-       * CLIENT PING
-       * ===================================================
-       */
-
-      socket.on(
-        "client_ping",
-        () => {
-
-          socket.emit(
-            "server_pong"
-          );
-
-        }
-      );
-
-      /**
-       * ===================================================
-       * USER CHANNEL
-       * ===================================================
-       */
-
-      socket.on(
-        "join_user_channel",
-        (
-          payload
-        ) => {
-
-          const userId =
-            payload?.user_id;
-
-          if (
-            !userId
-          ) {
-
-            return;
-
-          }
-
-          const roomName =
-            `user:${userId}`;
-
-          socket.join(
-            roomName
-          );
-
-          console.log(
-            `👤 User joined room: ${roomName}`
-          );
-
-        }
-      );
-
-      /**
-       * ===================================================
-       * DISCONNECT
-       * ===================================================
-       */
-
-      socket.on(
-        "disconnect",
-        (
-          reason
-        ) => {
-
-          console.log(
-            "🔴 Socket disconnected:",
+      logger.info(
+        "Socket connected",
+        {
+          socketId:
             socket.id,
-            reason
-          );
-
         }
       );
 
-      /**
-       * ===================================================
-       * SOCKET ERROR
-       * ===================================================
-       */
+      realtimeConnectionHandler({
 
-      socket.on(
-        "error",
-        (
-          error
-        ) => {
+        io,
 
-          console.error(
-            "❌ Socket error:",
-            {
-              id:
-                socket.id,
+        socket,
 
-              message:
-                error?.message,
-
-              stack:
-                error?.stack,
-            }
-          );
-
-        }
-      );
+      });
 
     }
   );
 
   /**
-   * =======================================================
-   * ENGINE EVENTS
-   * =======================================================
+   * ============================================
+   * ENGINE ERROR
+   * ============================================
    */
 
   io.engine.on(
     "connection_error",
     (
-      error
+      err
     ) => {
 
-      console.error(
-        "❌ ENGINE CONNECTION ERROR",
+      logger.error(
+        "Socket connection error",
         {
-          code:
-            error.code,
-
           message:
-            error.message,
+            err.message,
+
+          code:
+            err.code,
 
           context:
-            error.context,
+            err.context,
         }
       );
 
     }
   );
 
-  /**
-   * =======================================================
-   * READY
-   * =======================================================
-   */
-
-  console.log(
-    "🚀 Socket.IO initialized"
+  logger.info(
+    "Socket initialized"
   );
-
-  /**
-   * =======================================================
-   * RETURN
-   * =======================================================
-   */
 
   return io;
 
 }
 
 module.exports = {
+
   initializeSocket,
+
 };

@@ -11,6 +11,11 @@ const router =
  */
 
 router.use(
+  "/auth",
+  require("./authRoutes")
+);
+
+router.use(
   "/customer",
   require("./customerRoutes")
 );

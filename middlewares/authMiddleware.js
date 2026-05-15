@@ -1,52 +1,73 @@
-const {
+const jwt =
+  require("jsonwebtoken");
 
-  verifyToken,
+const customerRepository =
+  require(
+    "../repositories/customer/customerRepository"
+  );
 
-} = require(
-  "../services/tokenService"
-);
+/**
+ * =====================================================
+ * AUTH MIDDLEWARE
+ * =====================================================
+ */
 
 async function authMiddleware(
-
   req,
-
   res,
-
   next
-
 ) {
 
   try {
 
-    const authHeader =
-
+    const authorization =
       req.headers.authorization;
 
-    if (!authHeader) {
+    if (!authorization) {
 
       return res.status(401).json({
 
         success: false,
 
-        message:
-          "Unauthorized",
+        code:
+          "UNAUTHORIZED",
 
       });
 
     }
 
     const token =
-
-      authHeader.replace(
+      authorization.replace(
         "Bearer ",
         ""
       );
 
-    const decoded =
+    const payload =
+      jwt.verify(
+        token,
+        process.env.JWT_SECRET
+      );
 
-      verifyToken(token);
+    const customer =
+      await customerRepository.findById(
+        payload.customerId
+      );
 
-    req.user = decoded;
+    if (!customer) {
+
+      return res.status(401).json({
+
+        success: false,
+
+        code:
+          "CUSTOMER_NOT_FOUND",
+
+      });
+
+    }
+
+    req.customer =
+      customer;
 
     next();
 
@@ -56,8 +77,8 @@ async function authMiddleware(
 
       success: false,
 
-      message:
-        "Invalid token",
+      code:
+        "INVALID_TOKEN",
 
     });
 

@@ -4,52 +4,55 @@ const express =
 const router =
   express.Router();
 
-const {
-  login,
-} = require(
-  "../services/authService"
-);
+const authController =
+  require(
+    "../controllers/auth/authController"
+  );
+
+const authMiddleware =
+  require(
+    "../middlewares/authMiddleware"
+  );
 
 /**
- * ============================================
- * LOGIN
- * ============================================
+ * =====================================================
+ * PUBLIC AUTH
+ * =====================================================
  */
 
 router.post(
-
-  "/login",
-
-  async (
-    req,
-    res
-  ) => {
-
-    try {
-
-      const result =
-        await login(
-          req.body
-        );
-
-      res.json(result);
-
-    } catch (error) {
-
-      res.status(500).json({
-
-        success: false,
-
-        error:
-          error.message,
-
-      });
-
-    }
-
-  }
-
+  "/zalo/login",
+  authController.loginWithZalo
 );
+
+router.post(
+  "/refresh",
+  authController.refreshSession
+);
+
+/**
+ * =====================================================
+ * AUTHENTICATED
+ * =====================================================
+ */
+
+router.get(
+  "/session",
+  authMiddleware,
+  authController.getSession
+);
+
+router.post(
+  "/logout",
+  authMiddleware,
+  authController.logout
+);
+
+/**
+ * =====================================================
+ * EXPORTS
+ * =====================================================
+ */
 
 module.exports =
   router;
