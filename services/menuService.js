@@ -21,17 +21,8 @@ async function getMenu() {
     .select("*")
 
     .eq(
-      "is_active",
+      "active",
       true
-    )
-
-    .order(
-      "sort_order",
-      {
-
-        ascending: true,
-
-      }
     );
 
   if (error) {
