@@ -90,13 +90,7 @@ async function createOrder(payload) {
    * ============================================
    */
 
-  const {
-
-    data: order,
-
-    error,
-
-  } = await createOrderRecord({
+  const order = await createOrderRecord({
 
       ...payload,
 
@@ -119,19 +113,9 @@ async function createOrder(payload) {
       updated_at:
         new Date(),
 
-    })
+    });
 
-    .select("*")
-
-    .maybeSingle();
-
-  if (error) {
-
-    throw new Error(
-      error.message
-    );
-
-  }
+  
 
   /**
    * ============================================
