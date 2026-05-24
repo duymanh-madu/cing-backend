@@ -104,8 +104,6 @@ async function createOrder(payload) {
       order_code:
         generateOrderCode(),
 
-      crm_sync_status:
-        "pending",
 
       created_at:
         new Date(),
