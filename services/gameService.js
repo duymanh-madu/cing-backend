@@ -1,5 +1,6 @@
 const supabase =
   require("../supabase");
+const { emitLeaderboardUpdate } = require("./gamification/realtime/realtimeLeaderboardService");
 
 /**
  * =====================================================
