@@ -1,8 +1,8 @@
 const supabase = require("../supabase");
 const { updateMemberPoint } = require("./foodbook");
 const { realtimeEventBus } = require("./realtime/realtimeEventBus");
-const createRedisClient = require("./infrastructure/cache/redisClient");
-const redis = createRedisClient();
+const Redis = require("ioredis");
+const redis = new Redis(process.env.REDIS_URL);
 
 const POINT_VALUE = 1000; // 1 diem = 1000 VND
 
