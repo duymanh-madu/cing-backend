@@ -59,10 +59,11 @@ const {
 );
 
 const {
-  publishPaymentEvent,
+  emitPaymentPaid,
 } = require(
   "./paymentEventPublisher"
 );
+const publishPaymentEvent = emitPaymentPaid;
 
 const PAYMENT_EVENT_TYPES =
   require(
