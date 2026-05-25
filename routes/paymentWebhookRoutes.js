@@ -48,10 +48,12 @@ router.post("/momo", async (req, res) => {
 
     // Verify va push order len iPOS
     try {
-      const payment = await verifyPayment({
+      const result = await verifyPayment({
         transaction_code: orderId,
         provider_transaction_id: String(transId),
       });
+      // verifyPayment tra ve { payment, order } hoac payment truc tiep
+      const payment = result?.payment || result;
       await executePaymentOrderPipeline({ payment });
       console.log("[MOMO IPN] Order pushed to iPOS successfully for:", orderId);
     } catch(pipelineErr) {
