@@ -140,10 +140,7 @@ router.use(
   require("./paymentRoutes")
 );
 
-router.use(
-  "/payment",
-  require("./paymentRoutes")
-);
+
 
 router.use(
   "/payment/webhook",

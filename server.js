@@ -56,13 +56,6 @@ const {
  * =====================================================
  */
 
-const menuRoutes =
-  require(
-    "./routes/menuRoutes"
-  );
-
-const paymentRoutes =
-  require("./routes/paymentRoutes");
 
 /**
  * =====================================================
@@ -86,24 +79,6 @@ const API_PREFIX =
  * API ROUTES
  * =====================================================
  */
-
-/**
- * MENU
- */
-
-app.use(
-  `${API_PREFIX}/menu`,
-  menuRoutes
-);
-
-/**
- * PAYMENT
- */
-
-app.use(
-  "/api/payment",
-  paymentRoutes
-);
 
 /**
  * =====================================================
@@ -245,30 +220,6 @@ app.get(
  * 404 HANDLER
  * =====================================================
  */
-
-app.use(
-  (
-    req,
-    res
-  ) => {
-
-    return res.status(404).json({
-
-      success: false,
-
-      message:
-        "API route not found",
-
-      method:
-        req.method,
-
-      path:
-        req.originalUrl,
-
-    });
-
-  }
-);
 
 /**
  * =====================================================
@@ -715,10 +666,4 @@ app.use(
   }
 );
 
-startServer();app.use("/api/sync", require("./routes/sync/syncRoutes"));
-const crmSyncWorker = require("./workers/crmSyncWorker"); crmSyncWorker.start();
-require("./services/payment/paymentBootstrap").init();
-const syncGateway = require("./services/sync/syncGateway");
-app.use("/api/sync", require("./routes/sync"))
-app.use("/api/obs", require("./routes/observability"));
-app.use("/api/obs", require("./routes/observability"));
+startServer();
