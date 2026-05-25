@@ -1,6 +1,8 @@
 const supabase = require("../supabase");
 const { updateMemberPoint } = require("./foodbook");
 const { realtimeEventBus } = require("./realtime/realtimeEventBus");
+const createRedisClient = require("./infrastructure/cache/redisClient");
+const redis = createRedisClient();
 
 const POINT_VALUE = 1000; // 1 diem = 1000 VND
 
@@ -49,6 +51,16 @@ async function deductPoints({ phone, user_id, points, reason = "Sử dụng đi�
   }
 
 
+
+  // Invalidate membership cache
+  try {
+    const phoneKey = String(user_id).replace(/\D/g,"");
+    const p84 = phoneKey.startsWith("84") ? phoneKey : "84" + phoneKey.slice(1);
+    const p0 = phoneKey.startsWith("84") ? "0" + phoneKey.slice(2) : phoneKey;
+    await redis.del("membership:" + p84);
+    await redis.del("membership:" + p0);
+    await redis.del("membership:" + user_id);
+  } catch(e) {}
   try {
     realtimeEventBus.publish({
       event: "user.updated",
