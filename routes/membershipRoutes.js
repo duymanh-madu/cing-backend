@@ -101,3 +101,14 @@ router.get("/:phone/vouchers", async (req, res) => {
 });
 
 module.exports = router;
+
+// GET /api/membership/:user_id/partner-progress
+router.get("/:user_id/partner-progress", async (req, res) => {
+  try {
+    const { getPartnerProgress } = require("../services/partnerProgressService");
+    const data = await getPartnerProgress(req.params.user_id);
+    res.json({ success: true, data });
+  } catch(err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
