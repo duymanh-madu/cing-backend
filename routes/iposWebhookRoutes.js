@@ -103,4 +103,32 @@ function mapTierKey(name) {
   return "member";
 }
 
+
+/**
+ * POST /webhook/ipos/test
+ * Dung de capture format callback tu Foodbook
+ */
+router.post("/test", async (req, res) => {
+  console.log("[FOODBOOK CALLBACK] Headers:", JSON.stringify(req.headers, null, 2));
+  console.log("[FOODBOOK CALLBACK] Body:", JSON.stringify(req.body, null, 2));
+  // Luu vao Redis de xem sau
+  try {
+    await redisClient.setex(
+      "foodbook:last_callback",
+      3600,
+      JSON.stringify({ headers: req.headers, body: req.body, ts: Date.now() })
+    );
+  } catch(e) {}
+  return res.json({ success: true, received: true });
+});
+
+/**
+ * GET /webhook/ipos/last-callback
+ * Xem callback cuoi cung tu Foodbook
+ */
+router.get("/last-callback", async (req, res) => {
+  const data = await redisClient.get("foodbook:last_callback");
+  return res.json({ data: data ? JSON.parse(data) : null });
+});
+
 module.exports = router;
