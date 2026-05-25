@@ -1,5 +1,6 @@
 const supabase = require("../supabase");
 const { updateMemberPoint } = require("./foodbook");
+const { realtimeEventBus } = require("./realtime/realtimeEventBus");
 
 const POINT_VALUE = 1000; // 1 diem = 1000 VND
 
@@ -47,6 +48,16 @@ async function deductPoints({ phone, user_id, points, reason = "Sử dụng đi�
     }
   }
 
+
+  try {
+    realtimeEventBus.publish({
+      event: "user.updated",
+      delivery_type: "BROADCAST",
+      payload: { user_id, phone: user_id, points_changed: true },
+      channel: "user",
+      timestamp: new Date().toISOString(),
+    });
+  } catch(e) {}
   return { success: true, points_deducted: points, remaining: currentPoints - points };
 }
 
@@ -82,6 +93,16 @@ async function addPoints({ phone, user_id, points, reason = "Nhận điểm thư
     }
   }
 
+
+  try {
+    realtimeEventBus.publish({
+      event: "user.updated",
+      delivery_type: "BROADCAST",
+      payload: { user_id, phone: user_id, points_changed: true },
+      channel: "user",
+      timestamp: new Date().toISOString(),
+    });
+  } catch(e) {}
   return { success: true, points_added: points, total: currentPoints + points };
 }
 
