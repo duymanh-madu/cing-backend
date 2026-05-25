@@ -65,7 +65,7 @@ router.post("/member-updated", async (req, res) => {
 
       // 4. Push realtime qua Redis pub/sub -> Socket.IO
       await redisPublisher.publish("realtime.events", JSON.stringify({
-        event: "membership:updated",
+        event: "user.updated",
         delivery_type: "BROADCAST",  // broadcast toi tat ca client
         payload: { phone, data: memberData },
         channel: "membership",
@@ -189,7 +189,7 @@ router.post("/callback", async (req, res) => {
         
         // Push Socket.IO realtime
         await redisPublisher.publish("realtime.events", JSON.stringify({
-          event: "membership:updated",
+          event: "user.updated",
           delivery_type: "BROADCAST",
           payload: { phone, data: memberData },
           channel: "membership",
