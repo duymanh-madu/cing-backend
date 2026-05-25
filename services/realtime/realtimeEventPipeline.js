@@ -1,20 +1,10 @@
-const {
-
-  sendToMember,
-
-  sendToAdmins,
-
-  sendToCampaign,
-
-  sendToStore,
-
-  broadcastVoucher,
-
-  broadcastLeaderboard,
-
-} = require(
-  "./realtimeEmitterService"
-);
+const { realtimeEventBus } = require('./realtimeEventBus');
+function sendToMember(p) { realtimeEventBus.publish({event: p.event||'user.updated', delivery_type:'BROADCAST', payload:p.payload, channel:'user', timestamp:new Date().toISOString()}); }
+function sendToAdmins(p) { realtimeEventBus.publish({event: p.event||'admin.updated', delivery_type:'BROADCAST', payload:p.payload, channel:'admin', timestamp:new Date().toISOString()}); }
+function sendToCampaign(p) { realtimeEventBus.publish({event: p.event||'campaign.updated', delivery_type:'BROADCAST', payload:p.payload, channel:'campaign', timestamp:new Date().toISOString()}); }
+function sendToStore(p) { realtimeEventBus.publish({event: p.event||'store.updated', delivery_type:'BROADCAST', payload:p.payload, channel:'store', timestamp:new Date().toISOString()}); }
+function broadcastVoucher(p) { realtimeEventBus.publish({event:'voucher.updated', delivery_type:'BROADCAST', payload:p.payload, channel:'voucher', timestamp:new Date().toISOString()}); }
+function broadcastLeaderboard(p) { realtimeEventBus.publish({event:'leaderboard.updated', delivery_type:'BROADCAST', payload:p.payload, channel:'leaderboard', timestamp:new Date().toISOString()}); }
 
 const logger =
   require(
