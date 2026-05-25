@@ -12,20 +12,28 @@ const IPOS_WEBHOOK_SECRET = process.env.IPOS_WEBHOOK_SECRET || "";
  */
 router.post("/member-updated", async (req, res) => {
   try {
-    // Verify secret neu co
-    const secret = req.headers["x-webhook-secret"] || req.query.secret;
-    if (IPOS_WEBHOOK_SECRET && secret !== IPOS_WEBHOOK_SECRET) {
-      return res.status(401).json({ success: false, message: "Invalid secret" });
-    }
+    const body = req.body || {};
 
-    const { phone_number, user_id, event_type } = req.body;
-    const phone = String(phone_number || user_id || "").replace(/\D/g, "");
+    // Support ca 2 format: Foodbook format va custom format
+    let phone = "";
+    let eventType = body.event_type || body.event || "unknown";
+
+    if (body.membership_log) {
+      // Foodbook format: membership_log.membership_id
+      const mid = String(body.membership_log.membership_id || "");
+      // membership_id co the la 84984966336 (co 84) hoac 0984966336
+      phone = mid.startsWith("84") ? "0" + mid.slice(2) : mid.replace(/\D/g,"");
+      eventType = body.event || "membership_log";
+    } else {
+      // Custom format
+      phone = String(body.phone_number || body.user_id || "").replace(/\D/g,"");
+    }
 
     if (!phone) {
       return res.status(400).json({ success: false, message: "Missing phone" });
     }
 
-    console.log(`[IPOS WEBHOOK] ${event_type} for phone: ${phone}`);
+    console.log(`[IPOS WEBHOOK] ${eventType} for phone: ${phone}`);
 
     // 1. Xoa cache cu
     await redisClient.del(`membership:${phone}`);
@@ -129,6 +137,70 @@ router.post("/test", async (req, res) => {
 router.get("/last-callback", async (req, res) => {
   const data = await redisClient.get("foodbook:last_callback");
   return res.json({ data: data ? JSON.parse(data) : null });
+});
+
+/**
+ * POST /webhook/ipos/callback
+ * Unified endpoint cho tat ca Foodbook callbacks
+ */
+router.post("/callback", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const event = body.event || "unknown";
+    
+    console.log(`[FOODBOOK] Event: ${event}`, JSON.stringify(body).slice(0, 200));
+
+    // Luu last callback
+    await redisClient.setex("foodbook:last_callback", 3600,
+      JSON.stringify({ headers: req.headers, body, ts: Date.now() }));
+
+    let phone = "";
+    if (body.membership_log?.membership_id) {
+      const mid = String(body.membership_log.membership_id);
+      phone = mid.startsWith("84") ? "0" + mid.slice(2) : mid.replace(/\D/g,"");
+    } else if (body.order?.phone_number) {
+      phone = String(body.order.phone_number).replace(/\D/g,"");
+    }
+
+    if (phone) {
+      // Xoa cache -> next request se fetch moi
+      await redisClient.del(`membership:${phone}`);
+
+      // Fetch moi va cache lai
+      const result = await getMember(phone);
+      if (result.success && result.data?.data) {
+        const d = result.data.data;
+        const memberData = {
+          id: d.id,
+          phone: "0" + String(d.phone_number).slice(-9),
+          name: d.name,
+          tierKey: mapTierKey(d.membership_type_name),
+          tierName: d.membership_type_name,
+          points: Math.floor(d.point || 0),
+          pointAmount: d.point_amount || 0,
+          paymentAmount: d.payment_amount || 0,
+          eatTimes: d.eat_times || 0,
+          tags: d.tags || [],
+          updatedAt: Date.now(),
+        };
+        await redisClient.setex(`membership:${phone}`, 600, JSON.stringify(memberData));
+        
+        // Push Socket.IO realtime
+        await redisPublisher.publish("realtime:events", JSON.stringify({
+          event: "membership:updated",
+          payload: { phone, data: memberData },
+          room: `user:${phone}`,
+        }));
+        
+        console.log(`[FOODBOOK] Cache updated for ${phone} - event: ${event}`);
+      }
+    }
+
+    return res.json({ success: true });
+  } catch(err) {
+    console.error("[FOODBOOK CALLBACK] Error:", err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 module.exports = router;
