@@ -73,3 +73,21 @@ router.get("/stats", verifyAdmin, async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /api/admin/broadcast - gui thong bao flash sales
+router.post("/broadcast", verifyAdmin, async (req, res) => {
+  try {
+    const { title, message } = req.body;
+    if (!title) return res.status(400).json({ success: false, message: "Thiếu title" });
+    
+    const { broadcastNotification } = require("../services/notificationService");
+    await broadcastNotification({
+      template_key: "CAMPAIGN_BROADCAST",
+      custom: { title, message: message || "" }
+    });
+    
+    res.json({ success: true, message: "Đã gửi thông báo đến tất cả người dùng" });
+  } catch(err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});

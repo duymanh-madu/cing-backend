@@ -1,441 +1,114 @@
-const supabase =
-  require("../supabase");
+const supabase = require("../supabase");
+const { realtimeEventBus } = require("./realtime/realtimeEventBus");
 
-const logger =
-  require("./loggerService");
-
-const {
-
-  broadcastNotificationUpdate,
-
-  broadcastDashboardUpdate,
-
-} = require(
-  "./adminRealtimeBroadcastService"
-);
-
-const {
-
-  processRealtimeEvent,
-
-} = require(
-  "./realtime/realtimeEventPipeline"
-);
-
-const {
-
-  MEMBER_EVENTS,
-
-} = require(
-  "./realtime/realtimeEventTypes"
-);
+const TEMPLATES = {
+  LEADERBOARD_PROMOTION: {
+    title: "🏆 Bạn vừa thăng hạng!",
+    message: "Bạn vừa tăng hạng trên bảng xếp hạng. Tiếp tục phát huy!",
+    type: "leaderboard",
+  },
+  MEMBER_TIER_UP: {
+    title: "⭐ Chúc mừng thăng hạng thành viên!",
+    message: "Bạn vừa được nâng lên hạng thành viên mới. Nhiều ưu đãi đang chờ bạn!",
+    type: "membership",
+  },
+  GAME_REWARD: {
+    title: "🎮 Bạn vừa nhận thưởng!",
+    message: "Phần thưởng mini game đã được cộng vào tài khoản.",
+    type: "game",
+  },
+  CAMPAIGN_BROADCAST: {
+    title: "🔥 Ưu đãi mới hôm nay",
+    message: "Khám phá ưu đãi mới và nhận quà ngay.",
+    type: "campaign",
+  },
+  VOUCHER_RECEIVED: {
+    title: "🎁 Bạn nhận được voucher mới",
+    message: "Voucher ưu đãi mới đã được thêm vào tài khoản của bạn.",
+    type: "voucher",
+  },
+  MISSION_COMPLETED: {
+    title: "✅ Hoàn thành nhiệm vụ!",
+    message: "Bạn vừa hoàn thành nhiệm vụ ngày và nhận được phần thưởng.",
+    type: "mission",
+  },
+};
 
 /**
- * =====================================================
- * CREATE NOTIFICATION
- * =====================================================
+ * Tao va luu notification vao DB
  */
-
-async function createNotification({
-
-  user_id,
-
-  title,
-
-  message,
-
-  type =
-    "system",
-
-  notification_type =
-    "system",
-
-  action_url = null,
-
-  metadata = {},
-
-  send_realtime = true,
-
-}) {
-
-  /**
-   * ============================================
-   * VALIDATION
-   * ============================================
-   */
-
-  if (!title) {
-
-    throw new Error(
-      "Missing title"
-    );
-
-  }
-
-  if (!message) {
-
-    throw new Error(
-      "Missing message"
-    );
-
-  }
-
-  /**
-   * ============================================
-   * CREATE NOTIFICATION
-   * ============================================
-   */
-
-  const {
-
-    data,
-
-    error,
-
-  } = await supabase
-
-    .from("notifications")
-
-    .insert({
-
-      user_id,
-
-      title,
-
-      message,
-
-      type,
-
-      notification_type,
-
-      action_url,
-
-      metadata,
-
-      is_read: false,
-
-      created_at:
-        new Date(),
-
-      updated_at:
-        new Date(),
-
-    })
-
-    .select("*")
-
-    .maybeSingle();
-
-  /**
-   * ============================================
-   * DATABASE ERROR
-   * ============================================
-   */
-
-  if (error) {
-
-    logger.error(
-
-      "Create notification failed",
-
-      {
-
-        error:
-          error.message,
-
-        user_id,
-
-      }
-
-    );
-
-    throw new Error(
-      error.message
-    );
-
-  }
-
-  /**
-   * ============================================
-   * REALTIME MEMBER EVENT
-   * ============================================
-   */
-
+async function createNotification({ user_id, type, title, message, data = {} }) {
   try {
+    const { data: notif } = await supabase
+      .from("notifications")
+      .insert({ user_id, type, title, message, data, read: false })
+      .select()
+      .single();
+    return notif;
+  } catch(e) {
+    console.error("[NOTIF] Create failed:", e.message);
+    return null;
+  }
+}
 
-    if (
-      send_realtime &&
-      user_id
-    ) {
-
-      processRealtimeEvent({
-
-        type:
-          "member",
-
-        target:
-          user_id,
-
-        event:
-          MEMBER_EVENTS.ORDER_UPDATED,
-
-        payload: {
-
-          notification:
-            data,
-
-        },
-
-      });
-
+/**
+ * Gui notification realtime den user
+ */
+async function sendNotification({ user_id, template_key, custom = {}, data = {} }) {
+  try {
+    const template = TEMPLATES[template_key];
+    if (!template) {
+      console.warn("[NOTIF] Unknown template:", template_key);
+      return null;
     }
 
-  } catch (realtimeError) {
+    const title = custom.title || template.title;
+    const message = custom.message || template.message;
+    const type = template.type;
 
-    logger.error(
+    // Luu vao DB
+    const notif = await createNotification({ user_id, type, title, message, data });
 
-      "Notification realtime failed",
-
-      {
-
-        error:
-          realtimeError.message,
-
-        user_id,
-
-      }
-
-    );
-
-  }
-
-  /**
-   * ============================================
-   * ADMIN REALTIME
-   * ============================================
-   */
-
-  try {
-
-    await broadcastNotificationUpdate({
-
-      notification:
-        data,
-
-      action:
-        "notification_created",
-
+    // Push realtime den user
+    realtimeEventBus.publish({
+      event: "notification.new",
+      delivery_type: "BROADCAST",
+      payload: { user_id, notification: { title, message, type, data, created_at: new Date().toISOString() } },
+      channel: "notification",
+      timestamp: new Date().toISOString(),
     });
 
-  } catch (adminError) {
-
-    logger.error(
-
-      "Admin notification broadcast failed",
-
-      {
-
-        error:
-          adminError.message,
-
-      }
-
-    );
-
+    console.log(`[NOTIF] Sent ${template_key} to ${user_id}`);
+    return notif;
+  } catch(e) {
+    console.error("[NOTIF] Send failed:", e.message);
+    return null;
   }
+}
 
-  /**
-   * ============================================
-   * DASHBOARD REFRESH
-   * ============================================
-   */
-
+/**
+ * Broadcast cho tat ca users (flash sales, campaigns)
+ */
+async function broadcastNotification({ template_key, custom = {} }) {
   try {
+    const template = TEMPLATES[template_key];
+    if (!template) return;
 
-    await broadcastDashboardUpdate();
+    const title = custom.title || template.title;
+    const message = custom.message || template.message;
 
-  } catch (dashboardError) {
+    realtimeEventBus.publish({
+      event: "notification.broadcast",
+      delivery_type: "BROADCAST",
+      payload: { notification: { title, message, type: template.type, created_at: new Date().toISOString() } },
+      channel: "notification",
+      timestamp: new Date().toISOString(),
+    });
 
-    logger.error(
-
-      "Dashboard realtime refresh failed",
-
-      {
-
-        error:
-          dashboardError.message,
-
-      }
-
-    );
-
+    console.log(`[NOTIF] Broadcast ${template_key}`);
+  } catch(e) {
+    console.error("[NOTIF] Broadcast failed:", e.message);
   }
-
-  /**
-   * ============================================
-   * SUCCESS LOG
-   * ============================================
-   */
-
-  logger.info(
-
-    "Notification created",
-
-    {
-
-      notification_id:
-        data?.id,
-
-      user_id,
-
-      type,
-
-      notification_type,
-
-    }
-
-  );
-
-  /**
-   * ============================================
-   * RESPONSE
-   * ============================================
-   */
-
-  return {
-
-    success: true,
-
-    notification:
-      data,
-
-  };
-
 }
 
-/**
- * =====================================================
- * MARK NOTIFICATION AS READ
- * =====================================================
- */
-
-async function markNotificationRead({
-
-  notification_id,
-
-}) {
-
-  /**
-   * ============================================
-   * UPDATE
-   * ============================================
-   */
-
-  const {
-
-    data,
-
-    error,
-
-  } = await supabase
-
-    .from("notifications")
-
-    .update({
-
-      is_read: true,
-
-      read_at:
-        new Date(),
-
-      updated_at:
-        new Date(),
-
-    })
-
-    .eq(
-      "id",
-      notification_id
-    )
-
-    .select("*")
-
-    .maybeSingle();
-
-  /**
-   * ============================================
-   * DATABASE ERROR
-   * ============================================
-   */
-
-  if (error) {
-
-    logger.error(
-
-      "Mark notification read failed",
-
-      {
-
-        error:
-          error.message,
-
-        notification_id,
-
-      }
-
-    );
-
-    throw new Error(
-      error.message
-    );
-
-  }
-
-  /**
-   * ============================================
-   * SUCCESS LOG
-   * ============================================
-   */
-
-  logger.info(
-
-    "Notification marked as read",
-
-    {
-
-      notification_id,
-
-    }
-
-  );
-
-  /**
-   * ============================================
-   * RESPONSE
-   * ============================================
-   */
-
-  return {
-
-    success: true,
-
-    notification:
-      data,
-
-  };
-
-}
-
-/**
- * =====================================================
- * EXPORTS
- * =====================================================
- */
-
-module.exports = {
-
-  createNotification,
-
-  markNotificationRead,
-
-};
+module.exports = { createNotification, sendNotification, broadcastNotification, TEMPLATES };
