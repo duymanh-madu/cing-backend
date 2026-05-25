@@ -215,7 +215,7 @@ router.get("/test-update-point", async (req, res) => {
     const axios = require("axios");
     const params = new URLSearchParams();
     params.append('pos_parent', process.env.IPOS_POS_PARENT);
-    params.append('phone_number', '84984966336');
+    params.append('phone_number', '0984966336');
     params.append('type_change', 'SUBTRACT');
     params.append('point_change', '0.1');
     params.append('note', 'Test tru diem tu app Railway');
