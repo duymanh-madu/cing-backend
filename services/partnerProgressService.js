@@ -2,13 +2,18 @@ const supabase = require("../supabase");
 
 const PARTNER_MONTHLY_TARGET = 2000000; // 2 trieu / thang
 
+function getVNDate() {
+  // UTC+7 Vietnam timezone
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+}
+
 function getCurrentYearMonth() {
-  const now = new Date();
+  const now = getVNDate();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function getPrevYearMonth() {
-  const now = new Date();
+  const now = getVNDate();
   now.setMonth(now.getMonth() - 1);
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
