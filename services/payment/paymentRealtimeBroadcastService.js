@@ -24,4 +24,17 @@ function broadcastPaymentStatus(data) {
   } catch(e) {}
 }
 
-module.exports = { broadcastPaymentCreated, broadcastPaymentStatus };
+function broadcastPaymentPaid(data) {
+  try {
+    const { realtimeEventBus } = require("../realtime/realtimeEventBus");
+    realtimeEventBus.publish({
+      event: "payment.paid",
+      delivery_type: "BROADCAST",
+      payload: data,
+      channel: "payment",
+      timestamp: new Date().toISOString(),
+    });
+  } catch(e) {}
+}
+
+module.exports = { broadcastPaymentCreated, broadcastPaymentStatus, broadcastPaymentPaid };
