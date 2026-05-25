@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const redisClient = require("../services/infrastructure/cache/redisClient");
 const redisPublisher = require("../services/infrastructure/cache/redisPublisher");
+const { realtimeEventBus } = require("../services/realtime/realtimeEventBus");
 const { getMember } = require("../services/foodbook");
 
 const IPOS_WEBHOOK_SECRET = process.env.IPOS_WEBHOOK_SECRET || "";
@@ -188,15 +189,14 @@ router.post("/callback", async (req, res) => {
         await redisClient.setex(`membership:${phone}`, 600, JSON.stringify(memberData));
         
         // Push Socket.IO realtime
-        await redisPublisher.publish("realtime.events", JSON.stringify({
+        const pushed = realtimeEventBus.publish({
           event: "user.updated",
           delivery_type: "BROADCAST",
           payload: { phone, data: memberData },
           channel: "membership",
           timestamp: new Date().toISOString(),
-        }));
-        
-        console.log(`[FOODBOOK] Cache updated for ${phone} - event: ${event}`);
+        });
+        console.log(`[FOODBOOK] Cache updated for ${phone} - event: ${event} - pushed: ${pushed}`);
       }
     }
 
