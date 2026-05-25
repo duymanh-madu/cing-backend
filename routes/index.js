@@ -100,6 +100,10 @@ router.use(
   "/membership",
   require("./membershipRoutes")
 );
+router.use(
+  "/missions",
+  require("./dailyMissionRoutes")
+);
 
 
 /**
