@@ -2,6 +2,8 @@ const { Server } =
   require("socket.io");
 const { realtimeEventBus } =
   require("../services/realtime/realtimeEventBus");
+const { initializeRealtimeSubscriber } =
+  require("../services/realtime/realtimeSubscriber");
 
 const attachRedisAdapter =
   require(
@@ -190,12 +192,22 @@ function initializeSocket({
    */
   realtimeEventBus.setIO(io);
 
+  // Khoi tao Redis subscriber - lang nghe events tu webhook
+  initializeRealtimeSubscriber().catch(err =>
+    console.error("[SUBSCRIBER] Init failed:", err.message)
+  );
+
   /**
    * =====================================================
    * ATTACH IO TO EVENT BUS - enables realtime dispatch
    * =====================================================
    */
   realtimeEventBus.setIO(io);
+
+  // Khoi tao Redis subscriber - lang nghe events tu webhook
+  initializeRealtimeSubscriber().catch(err =>
+    console.error("[SUBSCRIBER] Init failed:", err.message)
+  );
 
   /**
    * =====================================================
