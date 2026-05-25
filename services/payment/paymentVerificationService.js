@@ -190,7 +190,7 @@ async function verifyPayment({
           payment.user_id,
 
         items:
-          payment.cart_snapshot?.items || [],
+          Array.isArray(payment.cart_snapshot) ? payment.cart_snapshot : (payment.cart_snapshot?.items || []),
 
         subtotal:
           payment.cart_snapshot?.subtotal || 0,
