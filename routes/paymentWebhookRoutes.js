@@ -101,6 +101,23 @@ router.post("/momo", async (req, res) => {
     try {
       await pushOrderToIPOS({ order });
       console.log("[MOMO IPN] Pushed to iPOS:", order.order_code);
+
+    // Trigger daily missions check
+    try {
+      const { checkOrderMissions } = require("../services/dailyMissionService");
+      await checkOrderMissions(order.user_id, order.total_amount);
+      console.log("[MOMO IPN] Mission check done for:", order.user_id);
+    } catch(e) { console.warn("[MOMO IPN] Mission check failed:", e.message); }
+
+    // Send order notification
+    try {
+      const { sendNotification } = require("../services/notificationService");
+      await sendNotification({
+        user_id: order.user_id,
+        template_key: "MISSION_COMPLETED",
+        custom: { title: "Đặt hàng thành công!", message: "Đơn hàng " + order.order_code + " đang được xử lý." }
+      });
+    } catch(e) {}
     } catch(iposErr) {
       console.error("[MOMO IPN] iPOS push failed:", iposErr.message);
       // Khong throw - order da duoc tao thanh cong
