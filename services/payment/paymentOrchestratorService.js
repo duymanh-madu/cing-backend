@@ -15,7 +15,7 @@ const {
 );
 
 const {
-  publishPaymentCreated,
+  emitPaymentCreated as publishPaymentCreated,
 } = require(
   "./paymentEventPublisher"
 );
