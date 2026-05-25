@@ -150,11 +150,13 @@ async function verifyPayment({
       });
 
     if (!validTransition) {
-
-      throw new Error(
-        `Invalid payment transition: ${payment.payment_status} -> paid`
-      );
-
+      if (payment.payment_status === "paid" && !payment.order_created) {
+        console.log("[VERIFY] Already paid but no order - allowing retry");
+      } else {
+        throw new Error(
+          `Invalid payment transition: ${payment.payment_status} -> paid`
+        );
+      }
     }
 
     const updated =
