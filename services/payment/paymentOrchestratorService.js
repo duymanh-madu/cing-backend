@@ -14,11 +14,8 @@ const {
   "./paymentTransactionService"
 );
 
-const {
-  emitPaymentCreated as publishPaymentCreated,
-} = require(
-  "./paymentEventPublisher"
-);
+const { emitPaymentCreated } = require("./paymentEventPublisher");
+const publishPaymentCreated = emitPaymentCreated;
 
 const {
   broadcastPaymentCreated,
