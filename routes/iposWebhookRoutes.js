@@ -208,3 +208,25 @@ router.post("/callback", async (req, res) => {
 });
 
 module.exports = router;
+
+// GET /webhook/ipos/test-update-point - test tru diem tu Railway
+router.get("/test-update-point", async (req, res) => {
+  try {
+    const axios = require("axios");
+    const params = new URLSearchParams();
+    params.append('pos_parent', process.env.IPOS_POS_PARENT);
+    params.append('phone_number', '84984966336');
+    params.append('type_change', 'SUBTRACT');
+    params.append('point_change', '0.1');
+    params.append('note', 'Test tru diem tu app Railway');
+
+    const result = await axios.post(
+      'https://api.foodbook.vn/ipos/ws/partner/mbs/update_point',
+      params,
+      { headers: { 'access_token': process.env.IPOS_ACCESS_TOKEN } }
+    );
+    res.json({ success: true, data: result.data });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.response?.data || e.message });
+  }
+});
