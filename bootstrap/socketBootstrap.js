@@ -85,9 +85,7 @@ function initializeSocket({
           const normalizedOrigin =
             origin.trim();
 
-          if (
           const isVercelPreview = normalizedOrigin.includes('.vercel.app');
-          if (
             allowedOrigins.includes(normalizedOrigin) || isVercelPreview
           ) {
 
