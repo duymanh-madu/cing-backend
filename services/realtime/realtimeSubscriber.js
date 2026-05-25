@@ -48,10 +48,12 @@ async function initializeRealtimeSubscriber() {
             message
           );
 
-        realtimeEventBus.emit(
-          parsed.event,
-          parsed
-        );
+        // Forward toi Socket.IO clients qua publish (dispatch)
+        if (realtimeEventBus.io) {
+          realtimeEventBus.publish(parsed);
+        } else {
+          realtimeEventBus.emit(parsed.event, parsed);
+        }
 
       } catch (error) {
 
