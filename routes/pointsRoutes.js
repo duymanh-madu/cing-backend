@@ -1,10 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../supabase");
+const { deductPoints } = require("../services/loyaltyPointService");
 
-const POINTS_PER_PLAY = 5; // 5 diem = 1 luot choi
+const POINTS_PER_PLAY = 5;
 
-// GET /api/points/:user_id - lay diem hien tai
+// GET /api/points/:user_id
 router.get("/:user_id", async (req, res) => {
   try {
     const { data } = await supabase
@@ -18,37 +19,26 @@ router.get("/:user_id", async (req, res) => {
   }
 });
 
-// POST /api/points/buy-plays - dung diem mua luot choi
+// POST /api/points/buy-plays
 router.post("/buy-plays", async (req, res) => {
   try {
-    const { user_id, quantity = 1 } = req.body;
+    const { user_id, phone, quantity = 1 } = req.body;
     if (!user_id) return res.status(400).json({ success: false, message: "Thiếu user_id" });
 
     const cost = quantity * POINTS_PER_PLAY;
 
-    // Lay diem hien tai
-    const { data: player } = await supabase
-      .from("players")
-      .select("game_plays, total_points")
-      .eq("user_id", user_id)
-      .maybeSingle();
-
-    const currentPoints = Number(player?.total_points || 0);
-    const currentPlays = Number(player?.game_plays || 0);
-
-    if (currentPoints < cost) {
-      return res.status(400).json({
-        success: false,
-        message: `Không đủ điểm. Cần ${cost} điểm, bạn có ${currentPoints} điểm.`
-      });
-    }
-
-    // Tru diem va cong luot choi
-    await supabase.from("players").upsert({
+    // Tru diem qua loyaltyPointService - tu dong sync ve iPOS
+    const result = await deductPoints({
+      phone: phone || user_id,
       user_id,
-      total_points: currentPoints - cost,
-      game_plays: currentPlays + quantity,
-    }, { onConflict: "user_id" });
+      points: cost,
+      reason: `Mua ${quantity} lượt chơi game`,
+    });
+
+    // Cong luot choi
+    const { data: player } = await supabase.from("players").select("game_plays").eq("user_id", user_id).maybeSingle();
+    const newPlays = Number(player?.game_plays || 0) + quantity;
+    await supabase.from("players").update({ game_plays: newPlays }).eq("user_id", user_id);
 
     res.json({
       success: true,
@@ -56,12 +46,12 @@ router.post("/buy-plays", async (req, res) => {
       data: {
         plays_added: quantity,
         points_spent: cost,
-        remaining_points: currentPoints - cost,
-        new_plays: currentPlays + quantity,
+        remaining_points: result.remaining,
+        new_plays: newPlays,
       }
     });
   } catch(err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(400).json({ success: false, message: err.message });
   }
 });
 
