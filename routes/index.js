@@ -104,6 +104,14 @@ router.use(
   "/missions",
   require("./dailyMissionRoutes")
 );
+router.use(
+  "/admin/auth",
+  require("./adminAuthRoutes")
+);
+router.use(
+  "/admin",
+  require("./adminMissionRoutes")
+);
 
 
 /**
