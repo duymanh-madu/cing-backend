@@ -65,6 +65,15 @@ router.get("/:phone", async (req, res) => {
     // 3. Luu vao Redis 5 phut
     await redisClient.setex(cacheKey, CACHE_TTL, JSON.stringify(memberData));
 
+    // Sync iPOS points vao players table
+    try {
+      const supabase = require("../supabase");
+      await supabase.from("players").upsert({
+        user_id: phone, phone, zalo_name: memberData.name,
+        total_points: Math.floor(memberData.points || 0),
+        crm_tier: memberData.tierKey,
+      }, { onConflict: "user_id" });
+    } catch(e) { console.warn("[MEMBERSHIP] Sync failed:", e.message); }
     return res.json({ success: true, data: memberData, source: "ipos" });
   } catch (err) {
     console.error("membership route error:", err);
