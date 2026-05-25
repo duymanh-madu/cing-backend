@@ -64,10 +64,12 @@ router.post("/member-updated", async (req, res) => {
       );
 
       // 4. Push realtime qua Redis pub/sub -> Socket.IO
-      await redisPublisher.publish("realtime:events", JSON.stringify({
+      await redisPublisher.publish("realtime.events", JSON.stringify({
         event: "membership:updated",
+        delivery_type: "BROADCAST",  // broadcast toi tat ca client
         payload: { phone, data: memberData },
-        room: `user:${phone}`,
+        channel: "membership",
+        timestamp: new Date().toISOString(),
       }));
 
       console.log(`[IPOS WEBHOOK] Cache updated + pushed for ${phone}`);
@@ -186,10 +188,12 @@ router.post("/callback", async (req, res) => {
         await redisClient.setex(`membership:${phone}`, 600, JSON.stringify(memberData));
         
         // Push Socket.IO realtime
-        await redisPublisher.publish("realtime:events", JSON.stringify({
+        await redisPublisher.publish("realtime.events", JSON.stringify({
           event: "membership:updated",
+          delivery_type: "BROADCAST",
           payload: { phone, data: memberData },
-          room: `user:${phone}`,
+          channel: "membership",
+          timestamp: new Date().toISOString(),
         }));
         
         console.log(`[FOODBOOK] Cache updated for ${phone} - event: ${event}`);
