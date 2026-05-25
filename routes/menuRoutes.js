@@ -10,20 +10,13 @@ const {
   "../services/menuService"
 );
 
-const {
-  syncMenuFromIPOS,
-} = require(
-  "../services/menuSyncService"
-);
-
 /**
- * ============================================
+ * =====================================================
  * GET MENU
- * ============================================
+ * =====================================================
  */
 
 router.get(
-
   "/",
 
   async (
@@ -33,73 +26,101 @@ router.get(
 
     try {
 
-      const data =
+      /**
+       * ===============================================
+       * FETCH MENU
+       * ===============================================
+       */
+
+      const items =
         await getMenu();
 
-      res.json({
+      /**
+       * ===============================================
+       * SUCCESS
+       * ===============================================
+       */
+
+      return res.json({
 
         success: true,
 
-        data,
+        total:
+          items.length,
+
+        items,
 
       });
 
-    } catch (error) {
+    } catch (
+      error
+    ) {
 
-      res.status(500).json({
+      console.error(
+        "MENU ROUTE ERROR:",
+        error
+      );
 
-        success: false,
+      /**
+       * ===============================================
+       * ERROR
+       * ===============================================
+       */
 
-        error:
-          error.message,
+      return res
+        .status(500)
+        .json({
 
-      });
+          success: false,
+
+          message:
+            error.message,
+
+          items: [],
+
+        });
 
     }
 
   }
-
 );
 
 /**
- * ============================================
- * SYNC MENU
- * ============================================
+ * =====================================================
+ * TEST ROUTE
+ * =====================================================
  */
 
-router.post(
+router.get(
+  "/test",
 
-  "/sync",
-
-  async (
+  (
     req,
     res
   ) => {
 
-    try {
+    return res.json({
 
-      const result =
+      success: true,
 
-        await syncMenuFromIPOS();
+      route:
+        "menu routes working",
 
-      res.json(result);
+      realtime: true,
 
-    } catch (error) {
+      timestamp:
+        Date.now(),
 
-      res.status(500).json({
-
-        success: false,
-
-        error:
-          error.message,
-
-      });
-
-    }
+    });
 
   }
-
 );
+
+/**
+ * =====================================================
+ * EXPORT
+ * =====================================================
+ */
 
 module.exports =
   router;

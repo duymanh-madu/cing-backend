@@ -1,111 +1,213 @@
-const {
-  AsyncLocalStorage,
-} = require(
-  "async_hooks"
-);
-
-const crypto = require(
-  "crypto"
-);
-
-const asyncLocalStorage =
-  new AsyncLocalStorage();
+const crypto =
+  require("crypto");
 
 /**
- * ==========================================
- * HELPERS
- * ==========================================
+ * ============================================
+ * TRACE STORAGE
+ * ============================================
  */
 
-function generateTraceId() {
-  return crypto.randomUUID();
-}
+const traceStorage =
+  new Map();
 
-function generateRequestId() {
-  return crypto.randomUUID();
+/**
+ * ============================================
+ * CREATE TRACE CONTEXT
+ * ============================================
+ */
+
+function createTraceContext(
+  payload = {}
+) {
+
+  const traceId =
+    crypto.randomUUID();
+
+  traceStorage.set(
+    traceId,
+    {
+
+      trace_id:
+        traceId,
+
+      ...payload,
+
+      created_at:
+        Date.now(),
+
+      updated_at:
+        Date.now(),
+
+    }
+  );
+
+  return traceId;
+
 }
 
 /**
- * ==========================================
- * CONTEXT
- * ==========================================
+ * ============================================
+ * SET TRACE CONTEXT
+ * ============================================
  */
 
-function runWithTraceContext(
-  context,
-  callback
+function setTraceContext(
+  traceId,
+  payload = {}
 ) {
-  asyncLocalStorage.run(
-    context,
-    callback
-  );
-}
 
-function getTraceContext() {
-  return (
-    asyncLocalStorage.getStore() ||
-    {}
-  );
-}
+  if (!traceId) {
 
-function setTraceValue(
-  key,
-  value
-) {
-  const store =
-    asyncLocalStorage.getStore();
+    return null;
 
-  if (!store) {
-    return;
   }
 
-  store[key] = value;
+  const existing =
+    traceStorage.get(
+      traceId
+    ) || {};
+
+  const updated = {
+
+    ...existing,
+
+    ...payload,
+
+    updated_at:
+      Date.now(),
+
+  };
+
+  traceStorage.set(
+    traceId,
+    updated
+  );
+
+  return updated;
+
 }
 
 /**
- * ==========================================
- * INITIALIZER
- * ==========================================
+ * ============================================
+ * GET TRACE CONTEXT
+ * ============================================
  */
 
-function createTraceContext({
-  requestId,
-  traceId,
-  correlationId,
-} = {}) {
-  return {
-    request_id:
-      requestId ||
-      generateRequestId(),
+function getTraceContext(
+  traceId
+) {
 
-    trace_id:
-      traceId ||
-      generateTraceId(),
+  if (!traceId) {
 
-    correlation_id:
-      correlationId || null,
+    return null;
 
-    started_at:
-      new Date().toISOString(),
-  };
+  }
+
+  return (
+    traceStorage.get(
+      traceId
+    ) || null
+  );
+
 }
 
 /**
- * ==========================================
+ * ============================================
+ * RUN WITH TRACE CONTEXT
+ * ============================================
+ */
+
+async function runWithTraceContext(
+  traceId,
+  callback
+) {
+
+  if (
+    typeof callback !==
+    "function"
+  ) {
+
+    return null;
+
+  }
+
+  const context =
+    getTraceContext(
+      traceId
+    );
+
+  return callback(
+    context
+  );
+
+}
+
+/**
+ * ============================================
+ * CLEAR TRACE CONTEXT
+ * ============================================
+ */
+
+function clearTraceContext(
+  traceId
+) {
+
+  if (!traceId) {
+
+    return false;
+
+  }
+
+  return traceStorage.delete(
+    traceId
+  );
+
+}
+
+/**
+ * ============================================
+ * CLEAR ALL
+ * ============================================
+ */
+
+function clearAllTraceContexts() {
+
+  traceStorage.clear();
+
+}
+
+/**
+ * ============================================
+ * TRACE COUNT
+ * ============================================
+ */
+
+function getTraceCount() {
+
+  return traceStorage.size;
+
+}
+
+/**
+ * ============================================
  * EXPORTS
- * ==========================================
+ * ============================================
  */
 
 module.exports = {
-  runWithTraceContext,
-
-  getTraceContext,
-
-  setTraceValue,
 
   createTraceContext,
 
-  generateTraceId,
+  setTraceContext,
 
-  generateRequestId,
+  getTraceContext,
+
+  runWithTraceContext,
+
+  clearTraceContext,
+
+  clearAllTraceContexts,
+
+  getTraceCount,
+
 };

@@ -52,12 +52,223 @@ const {
 
 /**
  * =====================================================
+ * ROUTES
+ * =====================================================
+ */
+
+const menuRoutes =
+  require(
+    "./routes/menuRoutes"
+  );
+
+const paymentRoutes =
+  require("./routes/paymentRoutes");
+
+/**
+ * =====================================================
  * APP
  * =====================================================
  */
 
-const app =
-  createApp();
+const app = createApp();
+
+/**
+ * =====================================================
+ * API PREFIX
+ * =====================================================
+ */
+
+const API_PREFIX =
+  "/api";
+
+/**
+ * =====================================================
+ * API ROUTES
+ * =====================================================
+ */
+
+/**
+ * MENU
+ */
+
+app.use(
+  `${API_PREFIX}/menu`,
+  menuRoutes
+);
+
+/**
+ * PAYMENT
+ */
+
+app.use(
+  "/api/payment",
+  paymentRoutes
+);
+
+/**
+ * =====================================================
+ * ROOT
+ * =====================================================
+ */
+
+app.get(
+  "/",
+  (
+    req,
+    res
+  ) => {
+
+    return res.json({
+
+      success: true,
+
+      app:
+        "CING HU TANG BACKEND",
+
+      realtime: true,
+
+      websocket: true,
+
+      payment: true,
+
+      ipos: true,
+
+      environment:
+        process.env.NODE_ENV,
+
+      timestamp:
+        Date.now(),
+
+    });
+
+  }
+);
+
+/**
+ * =====================================================
+ * HEALTHCHECK
+ * =====================================================
+ */
+
+app.get(
+  "/health",
+  (
+    req,
+    res
+  ) => {
+
+    return res.json({
+
+      success: true,
+
+      realtime: true,
+
+      websocket: true,
+
+      payment: true,
+
+      uptime:
+        process.uptime(),
+
+      environment:
+        process.env.NODE_ENV,
+
+      memory: {
+
+        rss:
+          process.memoryUsage()
+            .rss,
+
+        heapUsed:
+          process.memoryUsage()
+            .heapUsed,
+
+      },
+
+      timestamp:
+        Date.now(),
+
+    });
+
+  }
+);
+
+/**
+ * =====================================================
+ * PAYMENT HEALTH
+ * =====================================================
+ */
+
+app.get(
+  "/payment-health",
+  (
+    req,
+    res
+  ) => {
+
+    return res.json({
+
+      success: true,
+
+      momo: {
+
+        enabled:
+          !!process.env
+            .MOMO_PARTNER_CODE,
+
+        endpoint:
+          process.env
+            .MOMO_ENDPOINT ||
+
+          "https://payment.momo.vn/v2/gateway/api/create",
+
+      },
+
+      webhook: {
+
+        enabled:
+          !!process.env
+            .PAYMENT_WEBHOOK_SECRET,
+
+      },
+
+      timestamp:
+        Date.now(),
+
+    });
+
+  }
+);
+
+/**
+ * =====================================================
+ * 404 HANDLER
+ * =====================================================
+ */
+
+app.use(
+  (
+    req,
+    res
+  ) => {
+
+    return res.status(404).json({
+
+      success: false,
+
+      message:
+        "API route not found",
+
+      method:
+        req.method,
+
+      path:
+        req.originalUrl,
+
+    });
+
+  }
+);
 
 /**
  * =====================================================
@@ -66,7 +277,9 @@ const app =
  */
 
 const server =
-  http.createServer(app);
+  http.createServer(
+    app
+  );
 
 /**
  * =====================================================
@@ -79,6 +292,9 @@ server.keepAliveTimeout =
 
 server.headersTimeout =
   66000;
+
+server.requestTimeout =
+  120000;
 
 /**
  * =====================================================
@@ -101,7 +317,7 @@ let isShuttingDown =
 
 /**
  * =====================================================
- * SERVER REFERENCES
+ * SOCKET INSTANCE
  * =====================================================
  */
 
@@ -110,7 +326,7 @@ let ioInstance =
 
 /**
  * =====================================================
- * START APPLICATION
+ * START SERVER
  * =====================================================
  */
 
@@ -120,7 +336,7 @@ async function startServer() {
 
     /**
      * ============================================
-     * VALIDATION
+     * STARTUP VALIDATION
      * ============================================
      */
 
@@ -134,17 +350,22 @@ async function startServer() {
 
     /**
      * ============================================
-     * SOCKET
+     * SOCKET BOOT
      * ============================================
      */
 
     ioInstance =
       initializeSocket({
+
         app,
+
         server,
+
       });
 
-    if (!ioInstance) {
+    if (
+      !ioInstance
+    ) {
 
       throw new Error(
         "Socket initialization failed"
@@ -158,7 +379,7 @@ async function startServer() {
 
     /**
      * ============================================
-     * EVENTS
+     * EVENT BUS
      * ============================================
      */
 
@@ -182,7 +403,7 @@ async function startServer() {
 
     /**
      * ============================================
-     * START HTTP SERVER
+     * HTTP SERVER
      * ============================================
      */
 
@@ -193,30 +414,63 @@ async function startServer() {
         logger.info(
           "Server booted successfully",
           {
-            port: PORT,
+
+            port:
+              PORT,
+
             environment:
               process.env.NODE_ENV,
+
             realtime:
               true,
+
+            websocket:
+              true,
+
+            payment:
+              true,
+
             pid:
               process.pid,
+
           }
+        );
+
+        console.log(
+          `🚀 Backend running on http://localhost:${PORT}`
+        );
+
+        console.log(
+          `💳 Payment API: http://localhost:${PORT}/api/payment/test`
+        );
+
+        console.log(
+          `❤️ Healthcheck: http://localhost:${PORT}/health`
         );
 
       }
     );
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
 
     logger.error(
       "startup error",
       {
+
         message:
           error.message,
 
         stack:
           error.stack,
+
       }
+    );
+
+    console.log(
+      "❌ STARTUP FAILED:",
+      error.message
     );
 
     process.exit(1);
@@ -233,7 +487,9 @@ async function startServer() {
 
 process.on(
   "unhandledRejection",
-  (reason) => {
+  (
+    reason
+  ) => {
 
     logger.error(
       "UNHANDLED REJECTION",
@@ -242,22 +498,36 @@ process.on(
       }
     );
 
+    console.log(
+      "❌ UNHANDLED REJECTION:",
+      reason
+    );
+
   }
 );
 
 process.on(
   "uncaughtException",
-  (error) => {
+  (
+    error
+  ) => {
 
     logger.error(
       "UNCAUGHT EXCEPTION",
       {
+
         message:
           error.message,
 
         stack:
           error.stack,
+
       }
+    );
+
+    console.log(
+      "❌ UNCAUGHT EXCEPTION:",
+      error.message
     );
 
   }
@@ -265,7 +535,7 @@ process.on(
 
 /**
  * =====================================================
- * GRACEFUL SHUTDOWN
+ * SHUTDOWN
  * =====================================================
  */
 
@@ -275,7 +545,9 @@ async function shutdown(
 
   try {
 
-    if (isShuttingDown) {
+    if (
+      isShuttingDown
+    ) {
 
       return;
 
@@ -291,13 +563,19 @@ async function shutdown(
       }
     );
 
+    console.log(
+      `🛑 Shutdown signal: ${signal}`
+    );
+
     /**
      * ============================================
      * SOCKET CLOSE
      * ============================================
      */
 
-    if (ioInstance) {
+    if (
+      ioInstance
+    ) {
 
       ioInstance.close();
 
@@ -320,6 +598,10 @@ async function shutdown(
           "HTTP server closed"
         );
 
+        console.log(
+          "✅ Server shutdown complete"
+        );
+
         process.exit(0);
 
       }
@@ -338,23 +620,36 @@ async function shutdown(
           "Forced shutdown timeout"
         );
 
+        console.log(
+          "❌ Forced shutdown"
+        );
+
         process.exit(1);
 
       },
       10000
     );
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
 
     logger.error(
       "shutdown error",
       {
+
         message:
           error.message,
 
         stack:
           error.stack,
+
       }
+    );
+
+    console.log(
+      "❌ Shutdown error:",
+      error.message
     );
 
     process.exit(1);
@@ -372,13 +667,17 @@ async function shutdown(
 process.on(
   "SIGINT",
   () =>
-    shutdown("SIGINT")
+    shutdown(
+      "SIGINT"
+    )
 );
 
 process.on(
   "SIGTERM",
   () =>
-    shutdown("SIGTERM")
+    shutdown(
+      "SIGTERM"
+    )
 );
 
 /**
@@ -387,4 +686,39 @@ process.on(
  * =====================================================
  */
 
-startServer();
+/**
+ * =====================================================
+ * 404 HANDLER
+ * =====================================================
+ */
+
+app.use(
+  (
+    req,
+    res
+  ) => {
+
+    return res
+      .status(404)
+      .json({
+
+        success: false,
+
+        code:
+          "ROUTE_NOT_FOUND",
+
+        message:
+          "API route not found",
+
+      });
+
+  }
+);
+
+startServer();app.use("/api/sync", require("./routes/sync/syncRoutes"));
+const crmSyncWorker = require("./workers/crmSyncWorker"); crmSyncWorker.start();
+require("./services/payment/paymentBootstrap").init();
+const syncGateway = require("./services/sync/syncGateway");
+app.use("/api/sync", require("./routes/sync"))
+app.use("/api/obs", require("./routes/observability"));
+app.use("/api/obs", require("./routes/observability"));

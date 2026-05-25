@@ -5,44 +5,49 @@ const router =
   express.Router();
 
 const {
-
   createPaymentSession,
-
-  verifyPayment,
-
-  expireOldPayments,
-
 } = require(
-  "../services/paymentService"
+  "../services/payment/paymentOrchestratorService"
 );
 
-const supabase =
-  require("../supabase");
-
-  const {
-  verifyWebhookSignature,
-  logWebhook,
-  isDuplicateWebhook,
+const {
+  recoverPayment,
 } = require(
-  "../services/paymentWebhookService"
+  "../services/payment/paymentRecoveryService"
+);
+
+const {
+  reconcilePayment,
+} = require(
+  "../services/payment/paymentReconciliationService"
 );
 
 /**
- * ============================================
+ * =====================================================
  * TEST
- * ============================================
+ * =====================================================
  */
 
 router.get(
   "/test",
-  async (req, res) => {
+  (
+    req,
+    res
+  ) => {
 
-    res.json({
+    return res.json({
 
       success: true,
 
       route:
         "payment routes working",
+
+      payment: true,
+
+      realtime: true,
+
+      timestamp:
+        Date.now(),
 
     });
 
@@ -50,16 +55,17 @@ router.get(
 );
 
 /**
- * ============================================
+ * =====================================================
  * CREATE PAYMENT SESSION
- * ============================================
+ * =====================================================
  */
 
 router.post(
-
   "/create-session",
-
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
 
     try {
 
@@ -69,15 +75,17 @@ router.post(
           req.body
         );
 
-      res.json(
+      return res.json(
         result
       );
 
     } catch (error) {
 
-      console.log(error);
+      console.log(
+        error.message
+      );
 
-      res.status(500).json({
+      return res.status(500).json({
 
         success: false,
 
@@ -89,399 +97,45 @@ router.post(
     }
 
   }
-
 );
 
 /**
- * ============================================
- * VERIFY PAYMENT
- * ============================================
- */
-
-router.post(
-
-  "/verify",
-
-  async (req, res) => {
-
-    try {
-
-      const {
-
-        transaction_code,
-
-        provider_transaction_id,
-
-      } = req.body;
-
-      if (
-        !transaction_code
-      ) {
-
-        return res.status(400).json({
-
-          success: false,
-
-          message:
-            "Missing transaction_code",
-
-        });
-
-      }
-
-      const result =
-
-        await verifyPayment({
-
-          transaction_code,
-
-          provider_transaction_id,
-
-        });
-
-      res.json(
-        result
-      );
-
-    } catch (error) {
-
-      console.log(error);
-
-      res.status(500).json({
-
-        success: false,
-
-        error:
-          error.message,
-
-      });
-
-    }
-
-  }
-
-);
-
-/**
- * ============================================
- * GET PAYMENT STATUS
- * ============================================
+ * =====================================================
+ * RECOVER PAYMENT
+ * =====================================================
  */
 
 router.get(
-
-  "/status/:transactionCode",
-
-  async (req, res) => {
-
-    try {
-
-      const {
-        transactionCode,
-      } = req.params;
-
-      const {
-
-        data,
-        error,
-
-      } = await supabase
-
-        .from(
-          "payment_transactions"
-        )
-
-        .select("*")
-
-        .eq(
-          "transaction_code",
-          transactionCode
-        )
-
-        .maybeSingle();
-
-      if (error) {
-
-        throw new Error(
-          error.message
-        );
-
-      }
-
-      if (!data) {
-
-        return res.status(404).json({
-
-          success: false,
-
-          message:
-            "Payment not found",
-
-        });
-
-      }
-
-      res.json({
-
-        success: true,
-
-        payment:
-          data,
-
-      });
-
-    } catch (error) {
-
-      console.log(error);
-
-      res.status(500).json({
-
-        success: false,
-
-        error:
-          error.message,
-
-      });
-
-    }
-
-  }
-
-);
-
-/**
- * ============================================
- * EXPIRE PAYMENTS
- * ============================================
- */
-
-router.post(
-
-  "/expire",
-
-  async (req, res) => {
+  "/recover/:transactionCode",
+  async (
+    req,
+    res
+  ) => {
 
     try {
-
-      await expireOldPayments();
-
-      res.json({
-
-        success: true,
-
-      });
-
-    } catch (error) {
-
-      console.log(error);
-
-      res.status(500).json({
-
-        success: false,
-
-        error:
-          error.message,
-
-      });
-
-    }
-
-  }
-
-);
-
-/**
- * ============================================
- * WEBHOOK
- * ============================================
- */
-
-router.post(
-
-  "/webhook",
-
-  async (req, res) => {
-
-    try {
-
-      const signature =
-
-        req.headers[
-          "x-signature"
-        ];
-
-      const raw_body =
-
-        JSON.stringify(
-          req.body
-        );
-
-      const {
-
-        transaction_code,
-
-        provider_transaction_id,
-
-        payment_provider,
-
-      } = req.body;
-
-      /**
-       * VALIDATE
-       */
-
-      if (
-        !transaction_code
-      ) {
-
-        return res.status(400).json({
-
-          success: false,
-
-          message:
-            "Missing transaction_code",
-
-        });
-
-      }
-
-      /**
-       * DUPLICATE CHECK
-       */
-
-      const duplicated =
-
-        await isDuplicateWebhook({
-
-          transaction_code,
-
-          payment_provider:
-            payment_provider ||
-            "banking",
-
-        });
-
-      if (duplicated) {
-
-        return res.json({
-
-          success: true,
-
-          duplicated: true,
-
-        });
-
-      }
-
-      /**
-       * VERIFY SIGNATURE
-       */
-
-      const verified =
-
-        verifyWebhookSignature({
-
-          raw_body,
-
-          signature,
-
-          secret:
-            process.env
-              .PAYMENT_WEBHOOK_SECRET ||
-
-            "demo-secret",
-
-        });
-
-      /**
-       * LOG WEBHOOK
-       */
-
-      await logWebhook({
-
-        transaction_code,
-
-        payment_provider:
-          payment_provider ||
-          "banking",
-
-        webhook_type:
-          "payment_callback",
-
-        webhook_signature:
-          signature,
-
-        signature_verified:
-          verified,
-
-        request_headers:
-          req.headers,
-
-        request_body:
-          req.body,
-
-        processing_status:
-          verified
-            ? "processed"
-            : "rejected",
-
-        processing_error:
-          verified
-            ? null
-            : "Invalid signature",
-
-      });
-
-      /**
-       * INVALID SIGNATURE
-       */
-
-      if (!verified) {
-
-        return res.status(401).json({
-
-          success: false,
-
-          message:
-            "Invalid signature",
-
-        });
-
-      }
-
-      /**
-       * VERIFY PAYMENT
-       */
 
       const result =
 
-        await verifyPayment({
+        await recoverPayment({
 
-          transaction_code,
-
-          provider_transaction_id,
+          transaction_code:
+            req.params
+              .transactionCode,
 
         });
 
-      /**
-       * RESPONSE
-       */
-
-      res.json({
+      return res.json({
 
         success: true,
 
-        webhook: true,
-
-        result,
+        data:
+          result,
 
       });
 
     } catch (error) {
 
-      console.log(error);
-
-      res.status(500).json({
+      return res.status(500).json({
 
         success: false,
 
@@ -493,13 +147,63 @@ router.post(
     }
 
   }
-
 );
 
 /**
- * ============================================
- * EXPORT
- * ============================================
+ * =====================================================
+ * RECONCILE PAYMENT
+ * =====================================================
  */
 
-module.exports = router;
+router.post(
+  "/reconcile/:transactionCode",
+  async (
+    req,
+    res
+  ) => {
+
+    try {
+
+      const result =
+
+        await reconcilePayment({
+
+          transaction_code:
+            req.params
+              .transactionCode,
+
+        });
+
+      return res.json({
+
+        success: true,
+
+        data:
+          result,
+
+      });
+
+    } catch (error) {
+
+      return res.status(500).json({
+
+        success: false,
+
+        error:
+          error.message,
+
+      });
+
+    }
+
+  }
+);
+
+/**
+ * =====================================================
+ * EXPORTS
+ * =====================================================
+ */
+
+module.exports =
+  router;

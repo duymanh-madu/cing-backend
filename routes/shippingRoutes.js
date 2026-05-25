@@ -4,241 +4,110 @@ const express =
 const router =
   express.Router();
 
-const {
-
-  calculateDistance,
-
-  calculateShippingFee,
-
-} = require(
-  "../services/shippingService"
-);
-
 /**
- * ============================================
- * TEST
- * ============================================
+ * ====================================
+ * SHIPPING CONFIG
+ * ====================================
  */
 
-router.get(
-  "/test",
+const shippingConfig = {
 
-  async (req, res) => {
+  baseFee: 15000,
 
-    res.json({
+  feePerKm: 5000,
 
-      success: true,
+  freeShipThreshold:
+    200000,
 
-      route:
-        "shipping routes working",
-
-    });
-
-  }
-);
+};
 
 /**
- * ============================================
- * CALCULATE DISTANCE
- * ============================================
+ * ====================================
+ * CALCULATE SHIPPING
+ * ====================================
  */
 
 router.post(
-
-  "/distance",
-
-  async (req, res) => {
+  "/calculate",
+  async (
+    req,
+    res
+  ) => {
 
     try {
 
       const {
-
-        destination_latitude,
-
-        destination_longitude,
-
+        subtotal,
+        distanceKm,
       } = req.body;
 
       /**
-       * VALIDATE
+       * FREE SHIP
        */
 
       if (
-
-        destination_latitude ===
-          undefined ||
-
-        destination_longitude ===
-          undefined
-
+        subtotal >=
+        shippingConfig.freeShipThreshold
       ) {
 
-        return res.status(400).json({
+        return res.json({
 
-          success: false,
+          success: true,
 
-          message:
-            "Missing destination coordinates",
+          data: {
+            fee: 0,
+            reason:
+              "FREE_SHIP",
+          },
 
         });
 
       }
 
       /**
-       * CALCULATE
+       * SHIPPING FORMULA
        */
 
-      const result =
+      const fee =
+        shippingConfig.baseFee +
+        (
+          distanceKm *
+          shippingConfig.feePerKm
+        );
 
-        await calculateDistance({
-
-          destination_latitude,
-
-          destination_longitude,
-
-        });
-
-      /**
-       * RESPONSE
-       */
-
-      res.json({
+      return res.json({
 
         success: true,
 
-        ...result,
+        data: {
+          fee,
+          reason:
+            "DISTANCE_RULE",
+        },
 
       });
 
     } catch (error) {
 
       console.error(
-
-        "distance route error:",
-
-        error.message
-
+        "SHIPPING ERROR:",
+        error
       );
 
-      res.status(500).json({
-
-        success: false,
-
-        error:
-          error.message,
-
-      });
-
-    }
-
-  }
-
-);
-
-/**
- * ============================================
- * CALCULATE SHIPPING
- * ============================================
- */
-
-router.post(
-
-  "/calculate",
-
-  async (req, res) => {
-
-    try {
-
-      const {
-
-        total_amount,
-
-        destination_latitude,
-
-        destination_longitude,
-
-      } = req.body;
-
-      /**
-       * VALIDATE
-       */
-
-      if (
-
-        total_amount ===
-          undefined ||
-
-        destination_latitude ===
-          undefined ||
-
-        destination_longitude ===
-          undefined
-
-      ) {
-
-        return res.status(400).json({
+      return res.status(500)
+        .json({
 
           success: false,
 
           message:
-            "Missing shipping data",
+            "Shipping calculate failed",
 
         });
-
-      }
-
-      /**
-       * CALCULATE
-       */
-
-      const result =
-
-        await calculateShippingFee({
-
-          total_amount,
-
-          destination_latitude,
-
-          destination_longitude,
-
-        });
-
-      /**
-       * RESPONSE
-       */
-
-      res.json(result);
-
-    } catch (error) {
-
-      console.error(
-
-        "shipping route error:",
-
-        error.message
-
-      );
-
-      res.status(500).json({
-
-        success: false,
-
-        error:
-          error.message,
-
-      });
 
     }
 
   }
-
 );
-
-/**
- * ============================================
- * EXPORT
- * ============================================
- */
 
 module.exports =
   router;

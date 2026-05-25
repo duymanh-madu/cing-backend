@@ -1,7 +1,5 @@
 const EventEmitter =
-  require(
-    "events"
-  );
+  require("events");
 
 const {
 
@@ -17,6 +15,14 @@ const {
 
 } = require(
   "./realtimeMetricsService"
+);
+
+const {
+
+  validateRealtimeEvent,
+
+} = require(
+  "./realtimeEventValidator"
 );
 
 const logger =
@@ -36,7 +42,23 @@ class RealtimeEventBus extends EventEmitter {
 
     super();
 
+    /**
+     * ===============================================
+     * SOCKET IO INSTANCE
+     * ===============================================
+     */
+
     this.io = null;
+
+    /**
+     * ===============================================
+     * MEMORY PROTECTION
+     * ===============================================
+     */
+
+    this.setMaxListeners(
+      100
+    );
 
   }
 
@@ -50,6 +72,22 @@ class RealtimeEventBus extends EventEmitter {
 
     this.io = io;
 
+    logger.info(
+      "Realtime bus IO attached"
+    );
+
+  }
+
+  /**
+   * ============================================
+   * GET IO
+   * ============================================
+   */
+
+  getIO() {
+
+    return this.io;
+
   }
 
   /**
@@ -62,40 +100,135 @@ class RealtimeEventBus extends EventEmitter {
     realtimeEvent
   ) {
 
-    if (!this.io) {
+    try {
 
-      logger.warn(
+      /**
+       * ==========================================
+       * VALIDATE
+       * ==========================================
+       */
 
-        "Realtime bus has no io instance"
+      validateRealtimeEvent({
+
+        event:
+          realtimeEvent.event,
+
+        payload:
+          realtimeEvent.payload,
+
+        room:
+          realtimeEvent.room,
+
+        socketId:
+          realtimeEvent.socketId,
+
+      });
+
+      /**
+       * ==========================================
+       * IO CHECK
+       * ==========================================
+       */
+
+      if (!this.io) {
+
+        logger.warn(
+
+          "Realtime bus has no io instance"
+
+        );
+
+        return false;
+
+      }
+
+      /**
+       * ==========================================
+       * NORMALIZE EVENT
+       * ==========================================
+       */
+
+      const normalizedEvent = {
+
+        ...realtimeEvent,
+
+        timestamp:
+          realtimeEvent.timestamp ||
+
+          new Date().toISOString(),
+
+      };
+
+      /**
+       * ==========================================
+       * METRICS
+       * ==========================================
+       */
+
+      trackRealtimePublished({
+
+        channel:
+          normalizedEvent.channel ||
+
+          normalizedEvent.event,
+
+      });
+
+      /**
+       * ==========================================
+       * DISPATCH
+       * ==========================================
+       */
+
+      dispatchRealtimeEvent({
+
+        io: this.io,
+
+        realtimeEvent:
+          normalizedEvent,
+
+      });
+
+      /**
+       * ==========================================
+       * INTERNAL EVENT BUS
+       * ==========================================
+       */
+
+      this.emit(
+
+        normalizedEvent.event,
+
+        normalizedEvent
 
       );
 
-      return;
+      return true;
+
+    } catch (error) {
+
+      logger.error(
+
+        "Realtime publish failed",
+
+        {
+
+          message:
+            error.message,
+
+          stack:
+            error.stack,
+
+          event:
+            realtimeEvent?.event,
+
+        }
+
+      );
+
+      return false;
 
     }
-
-    trackRealtimePublished({
-
-      channel:
-        realtimeEvent.channel,
-
-    });
-
-    dispatchRealtimeEvent({
-
-      io: this.io,
-
-      realtimeEvent,
-
-    });
-
-    this.emit(
-
-      realtimeEvent.event,
-
-      realtimeEvent
-
-    );
 
   }
 

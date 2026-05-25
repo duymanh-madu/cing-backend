@@ -10,6 +10,33 @@ const router =
  * =====================================================
  */
 
+router.use("/obs", require("./observability"));
+
+router.use(
+  "/admin/governance",
+  require("./adminGovernanceRoutes")
+);
+
+router.use(
+  "/admin/system",
+  require("./adminSystemRoutes")
+);
+
+router.use(
+  "/admin/payment-telemetry",
+  require("./adminPaymentTelemetryRoutes")
+);
+
+router.use(
+  "/admin/payment-provider",
+  require("./adminPaymentProviderRoutes")
+);
+
+router.use(
+  "/admin/payment-queues",
+  require("./adminPaymentQueueRoutes")
+);
+
 router.use(
   "/auth",
   require("./authRoutes")
@@ -28,11 +55,6 @@ router.use(
 router.use(
   "/runtime",
   require("./runtimeRoutes")
-);
-
-router.use(
-  "/auth",
-  require("./authRoutes")
 );
 
 router.use(
@@ -74,6 +96,11 @@ router.use(
   "/leaderboard",
   require("./leaderboardRoutes")
 );
+router.use(
+  "/membership",
+  require("./membershipRoutes")
+);
+
 
 /**
  * =====================================================
@@ -92,13 +119,23 @@ router.use(
 );
 
 router.use(
+  "/shipping",
+  require("./shippingRoutes")
+);
+
+router.use(
   "/payments",
   require("./paymentRoutes")
 );
 
 router.use(
-  "/shipping",
-  require("./shippingRoutes")
+  "/payment",
+  require("./paymentRoutes")
+);
+
+router.use(
+  "/payment/webhook",
+  require("./paymentWebhookRoutes")
 );
 
 router.use(
@@ -191,6 +228,21 @@ router.use(
   require("./adminRoleRoutes")
 );
 
+router.use(
+  "/admin/payments",
+  require("./adminPaymentRoutes")
+);
+
+router.use(
+  "/admin/payment-failures",
+  require("./adminPaymentFailureRoutes")
+);
+
+router.use(
+  "/admin/payment-audit",
+  require("./adminPaymentAuditRoutes")
+);
+
 /**
  * =====================================================
  * WEBHOOK APIs
@@ -200,6 +252,22 @@ router.use(
 router.use(
   "/integrations/webhook",
   require("./webhookRoutes")
+);
+
+/**
+ * =====================================================
+ * INTERNAL APIs
+ * =====================================================
+ */
+
+router.use(
+  "/internal",
+  require("./internalRoutes")
+);
+
+router.use(
+  "/internal/payment",
+  require("./internalPaymentRoutes")
 );
 
 /**
@@ -224,17 +292,10 @@ router.use(
   require("./automationRoutes")
 );
 
-/**
- * =====================================================
- * INTERNAL APIs
- * =====================================================
- */
-
 router.use(
-  "/internal",
-  require("./internalRoutes")
+  "/activation",
+  require("./activationRoutes")
 );
-
 
 /**
  * =====================================================

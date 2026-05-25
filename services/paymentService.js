@@ -1,31 +1,72 @@
-const crypto =
-  require("crypto");
+const crypto = require("crypto");
+const axios = require("axios");
 
 const supabase =
   require("../supabase");
 
 const {
   createOrder,
-} = require(
-  "./orderService"
-);
+} = require("./orderService");
 
 const {
   createNotification,
-} = require(
-  "./notificationService"
-);
+} = require("./notificationService");
 
 const {
   pushOrderToIPOS,
-} = require(
-  "./iposOrderService"
-);
+} = require("./iposOrderService");
 
 /**
- * ============================================
+ * =====================================================
+ * MOMO CONFIG
+ * =====================================================
+ */
+
+const MOMO_CONFIG = {
+
+  endpoint:
+    process.env.MOMO_ENDPOINT ||
+    "https://test-payment.momo.vn/v2/gateway/api/create",
+
+  partnerCode:
+    process.env.MOMO_PARTNER_CODE,
+
+  accessKey:
+    process.env.MOMO_ACCESS_KEY,
+
+  secretKey:
+    process.env.MOMO_SECRET_KEY,
+
+  redirectUrl:
+    process.env.MOMO_REDIRECT_URL,
+
+  ipnUrl:
+    process.env.MOMO_IPN_URL,
+
+};
+
+/**
+ * =====================================================
+ * VALIDATE ENV
+ * =====================================================
+ */
+
+if (
+  !MOMO_CONFIG.partnerCode ||
+  !MOMO_CONFIG.accessKey ||
+  !MOMO_CONFIG.secretKey
+) {
+
+  console.warn(
+    "MOMO ENV NOT FULLY CONFIGURED"
+  );
+
+}
+
+/**
+ * =====================================================
  * GENERATE TRANSACTION CODE
- * ============================================
+ * =====================================================
  */
 
 function generateTransactionCode() {
@@ -44,15 +85,13 @@ function generateTransactionCode() {
 }
 
 /**
- * ============================================
- * GENERATE BANK QR CONTENT
- * ============================================
+ * =====================================================
+ * GENERATE BANK CONTENT
+ * =====================================================
  */
 
 function generateBankTransferContent({
-
   transaction_code,
-
 }) {
 
   return `CINGHU-${transaction_code}`;
@@ -60,9 +99,135 @@ function generateBankTransferContent({
 }
 
 /**
- * ============================================
+ * =====================================================
+ * GENERATE SIGNATURE
+ * =====================================================
+ */
+
+function generateMomoSignature(
+  rawSignature
+) {
+
+  return crypto
+    .createHmac(
+      "sha256",
+      MOMO_CONFIG.secretKey
+    )
+    .update(rawSignature)
+    .digest("hex");
+
+}
+
+/**
+ * =====================================================
+ * CREATE MOMO PAYMENT
+ * =====================================================
+ */
+
+async function createMomoPayment({
+
+  transaction_code,
+
+  amount,
+
+  orderInfo,
+
+}) {
+
+  const requestId =
+    `${transaction_code}-${Date.now()}`;
+
+  const orderId =
+    transaction_code;
+
+  const rawSignature =
+
+    `accessKey=${MOMO_CONFIG.accessKey}` +
+    `&amount=${amount}` +
+    `&extraData=` +
+    `&ipnUrl=${MOMO_CONFIG.ipnUrl}` +
+    `&orderId=${orderId}` +
+    `&orderInfo=${orderInfo}` +
+    `&partnerCode=${MOMO_CONFIG.partnerCode}` +
+    `&redirectUrl=${MOMO_CONFIG.redirectUrl}` +
+    `&requestId=${requestId}` +
+    `&requestType=captureWallet`;
+
+  const signature =
+    generateMomoSignature(
+      rawSignature
+    );
+
+  const requestBody = {
+
+    partnerCode:
+      MOMO_CONFIG.partnerCode,
+
+    accessKey:
+      MOMO_CONFIG.accessKey,
+
+    requestId,
+
+    amount:
+      String(amount),
+
+    orderId,
+
+    orderInfo,
+
+    redirectUrl:
+      MOMO_CONFIG.redirectUrl,
+
+    ipnUrl:
+      MOMO_CONFIG.ipnUrl,
+
+    requestType:
+      "captureWallet",
+
+    autoCapture:
+      true,
+
+    lang:
+      "vi",
+
+    extraData:
+      "",
+
+    signature,
+
+  };
+
+  console.log(
+    "MOMO REQUEST:",
+    requestBody
+  );
+
+  const response =
+    await axios.post(
+      MOMO_CONFIG.endpoint,
+      requestBody,
+      {
+        timeout: 15000,
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+      }
+    );
+
+  console.log(
+    "MOMO RESPONSE:",
+    response.data
+  );
+
+  return response.data;
+
+}
+
+/**
+ * =====================================================
  * CREATE PAYMENT SESSION
- * ============================================
+ * =====================================================
  */
 
 async function createPaymentSession({
@@ -96,9 +261,9 @@ async function createPaymentSession({
    */
 
   if (
-    !user_id ||
     !payment_provider ||
-    !payment_method
+    !payment_method ||
+    !total_amount
   ) {
 
     throw new Error(
@@ -108,80 +273,20 @@ async function createPaymentSession({
   }
 
   /**
-   * DUPLICATE PAYMENT CHECK
-   */
-
-  const {
-
-    data: existing,
-
-  } = await supabase
-
-    .from(
-      "payment_transactions"
-    )
-
-    .select("*")
-
-    .eq(
-      "user_id",
-      user_id
-    )
-
-    .eq(
-      "payment_status",
-      "pending"
-    )
-
-    .gte(
-      "created_at",
-      new Date(
-        Date.now() -
-          1000 * 60 * 5
-      ).toISOString()
-    )
-
-    .limit(1)
-
-    .maybeSingle();
-
-  /**
-   * REUSE PENDING SESSION
-   */
-
-  if (existing) {
-
-    return {
-
-      success: true,
-
-      reused: true,
-
-      payment:
-        existing,
-
-    };
-
-  }
-
-  /**
-   * GENERATE CODE
+   * TRANSACTION
    */
 
   const transaction_code =
-
     generateTransactionCode();
 
   /**
-   * EXPIRE TIME
+   * EXPIRE
    */
 
   const expired_at =
     new Date(
       Date.now() +
-        1000 *
-          60 *
-          15
+      1000 * 60 * 15
     ).toISOString();
 
   /**
@@ -189,22 +294,17 @@ async function createPaymentSession({
    */
 
   const qr_content =
-
     generateBankTransferContent({
-
       transaction_code,
-
     });
 
   /**
-   * CREATE PAYMENT
+   * CREATE DB
    */
 
   const {
-
     data,
     error,
-
   } = await supabase
 
     .from(
@@ -213,7 +313,8 @@ async function createPaymentSession({
 
     .insert({
 
-      user_id,
+      user_id:
+        user_id || null,
 
       transaction_code,
 
@@ -233,7 +334,24 @@ async function createPaymentSession({
       qr_code:
         qr_content,
 
-      cart_snapshot,
+      cart_snapshot: {
+
+        customer_name,
+
+        customer_phone,
+
+        items:
+          cart_snapshot?.items || [],
+
+        subtotal,
+
+        shipping_fee,
+
+        shipping_address,
+
+        shipping_distance,
+
+      },
 
       expired_at,
 
@@ -252,7 +370,121 @@ async function createPaymentSession({
   }
 
   /**
-   * RETURN SESSION
+   * MOMO
+   */
+
+  let momoPayment =
+    null;
+
+  if (
+    payment_provider ===
+    "momo"
+  ) {
+
+    try {
+
+      momoPayment =
+        await createMomoPayment({
+
+          transaction_code,
+
+          amount:
+            total_amount,
+
+          orderInfo:
+            `Thanh toán đơn hàng ${transaction_code}`,
+
+        });
+
+      /**
+       * VALIDATE MOMO
+       */
+
+      if (
+        !momoPayment ||
+        momoPayment.resultCode !== 0
+      ) {
+
+        console.log(
+          "MOMO ERROR:",
+          momoPayment
+        );
+
+        throw new Error(
+          momoPayment?.message ||
+          "MoMo gateway failed"
+        );
+
+      }
+
+      /**
+       * SAVE MOMO RESPONSE
+       */
+
+      await supabase
+
+        .from(
+          "payment_transactions"
+        )
+
+        .update({
+
+          provider_transaction_id:
+            momoPayment.requestId,
+
+          provider_response:
+            momoPayment,
+
+        })
+
+        .eq(
+          "id",
+          data.id
+        );
+
+    } catch (momoError) {
+
+      console.log(
+        "MOMO CREATE ERROR:",
+        momoError?.response?.data ||
+        momoError.message
+      );
+
+      /**
+       * UPDATE FAILED
+       */
+
+      await supabase
+
+        .from(
+          "payment_transactions"
+        )
+
+        .update({
+
+          payment_status:
+            "failed",
+
+          payment_session_status:
+            "failed",
+
+        })
+
+        .eq(
+          "id",
+          data.id
+        );
+
+      throw new Error(
+        "Không thể tạo thanh toán MoMo"
+      );
+
+    }
+
+  }
+
+  /**
+   * RETURN
    */
 
   return {
@@ -260,6 +492,20 @@ async function createPaymentSession({
     success: true,
 
     payment: data,
+
+    paymentUrl:
+  momoPayment?.payUrl ||
+  momoPayment?.shortLink ||
+  null,
+
+    deeplink:
+      momoPayment?.deeplink || null,
+
+    qrCodeUrl:
+      momoPayment?.qrCodeUrl || null,
+
+    momo:
+      momoPayment || null,
 
     bank_transfer: {
 
@@ -278,9 +524,9 @@ async function createPaymentSession({
 }
 
 /**
- * ============================================
+ * =====================================================
  * VERIFY PAYMENT
- * ============================================
+ * =====================================================
  */
 
 async function verifyPayment({
@@ -291,16 +537,9 @@ async function verifyPayment({
 
 }) {
 
-  /**
-   * FIND PAYMENT
-   */
-
   const {
-
     data: payment,
-
     error,
-
   } = await supabase
 
     .from(
@@ -332,40 +571,36 @@ async function verifyPayment({
 
   }
 
-  /**
-   * ALREADY PAID
-   */
-
   if (
     payment.payment_status ===
     "paid"
   ) {
 
     return {
+  success: true,
 
-      success: true,
+  payment: data,
 
-      duplicated: true,
+  paymentUrl:
+    momoPayment?.payUrl || null,
 
-      payment,
+  deeplink:
+    momoPayment?.deeplink || null,
 
-    };
+  qrCodeUrl:
+    momoPayment?.qrCodeUrl || null,
 
-  }
+  momo:
+    momoPayment || null,
 
-  /**
-   * EXPIRED
-   */
+  bank_transfer: {
+    amount: total_amount,
 
-  if (
-    new Date(
-      payment.expired_at
-    ) < new Date()
-  ) {
+    content: qr_content,
 
-    throw new Error(
-      "Payment expired"
-    );
+    expired_at,
+  },
+};
 
   }
 
@@ -374,11 +609,8 @@ async function verifyPayment({
    */
 
   const {
-
     data: updated,
-
     error: updateError,
-
   } = await supabase
 
     .from(
@@ -395,15 +627,8 @@ async function verifyPayment({
 
       provider_transaction_id,
 
-      callback_received:
-        true,
-
-      webhook_verified:
-        true,
-
       paid_at:
-        new Date()
-          .toISOString(),
+        new Date().toISOString(),
 
     })
 
@@ -429,49 +654,22 @@ async function verifyPayment({
    */
 
   const orderResult =
-
     await createOrder({
 
       user_id:
         payment.user_id,
 
-      customer_name:
-        payment
-          .cart_snapshot
-          ?.customer_name,
-
-      customer_phone:
-        payment
-          .cart_snapshot
-          ?.customer_phone,
-
       items:
-        payment
-          .cart_snapshot
-          ?.items || [],
+        payment.cart_snapshot?.items || [],
 
       subtotal:
-        payment
-          .cart_snapshot
-          ?.subtotal || 0,
+        payment.cart_snapshot?.subtotal || 0,
 
       shipping_fee:
-        payment
-          .cart_snapshot
-          ?.shipping_fee || 0,
+        payment.cart_snapshot?.shipping_fee || 0,
 
       total:
         payment.amount,
-
-      shipping_address:
-        payment
-          .cart_snapshot
-          ?.shipping_address,
-
-      shipping_distance:
-        payment
-          .cart_snapshot
-          ?.shipping_distance,
 
       payment_status:
         "paid",
@@ -485,54 +683,24 @@ async function verifyPayment({
     });
 
   /**
-   * UPDATE PAYMENT -> ORDER
+   * PUSH IPOS
    */
 
-  await supabase
+  try {
 
-    .from(
-      "payment_transactions"
-    )
+    await pushOrderToIPOS({
+      order:
+        orderResult.order,
+    });
 
-    .update({
+  } catch (err) {
 
-      order_created:
-        true,
-
-      order_id:
-        orderResult.order.id,
-
-    })
-
-    .eq(
-      "id",
-      payment.id
+    console.log(
+      "IPOS ERROR:",
+      err.message
     );
 
-    /**
- * PUSH ORDER TO IPOS
- */
-
-try {
-
-  await pushOrderToIPOS({
-
-    order:
-      orderResult.order,
-
-  });
-
-} catch (iposError) {
-
-  console.log(
-
-    "iPOS push error:",
-
-    iposError.message
-
-  );
-
-}
+  }
 
   /**
    * NOTIFICATION
@@ -566,15 +734,11 @@ try {
   } catch (err) {
 
     console.log(
-      "Notification error:",
+      "NOTIFICATION ERROR:",
       err.message
     );
 
   }
-
-  /**
-   * RETURN
-   */
 
   return {
 
@@ -591,17 +755,15 @@ try {
 }
 
 /**
- * ============================================
- * EXPIRE OLD PAYMENTS
- * ============================================
+ * =====================================================
+ * EXPIRE PAYMENTS
+ * =====================================================
  */
 
 async function expireOldPayments() {
 
   const {
-
     error,
-
   } = await supabase
 
     .from(
@@ -622,8 +784,7 @@ async function expireOldPayments() {
 
     .lt(
       "expired_at",
-      new Date()
-        .toISOString()
+      new Date().toISOString()
     );
 
   if (error) {
@@ -639,9 +800,9 @@ async function expireOldPayments() {
 }
 
 /**
- * ============================================
+ * =====================================================
  * EXPORTS
- * ============================================
+ * =====================================================
  */
 
 module.exports = {

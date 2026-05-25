@@ -1,8 +1,10 @@
-const {
-  Server,
-} = require(
-  "socket.io"
-);
+const { Server } =
+  require("socket.io");
+
+const attachRedisAdapter =
+  require(
+    "../services/infrastructure/cache/socketRedisAdapter"
+  );
 
 const realtimeConnectionHandler =
   require(
@@ -14,6 +16,12 @@ const logger =
     "../services/loggerService"
   );
 
+const {
+  registerPaymentAdminSocket,
+} = require(
+  "../socket/paymentAdminSocket"
+);
+
 /**
  * =====================================================
  * SOCKET BOOTSTRAP
@@ -24,117 +32,169 @@ function initializeSocket({
   server,
 }) {
 
+  /**
+   * =====================================================
+   * ALLOWED ORIGINS
+   * =====================================================
+   */
+
   const allowedOrigins = [
+
     "http://localhost:3000",
+
     "http://localhost:5173",
+
     "https://cinghutangkinhbac.vercel.app",
-  ];
 
-  const io =
-    new Server(
-      server,
-      {
+    process.env.FRONTEND_URL,
 
-        /**
-         * ============================================
-         * CORS
-         * ============================================
-         */
+    process.env.ZALO_MINIAPP_URL,
 
-        cors: {
+  ].filter(Boolean);
 
-          origin: (
-            origin,
-            callback
-          ) => {
+  /**
+   * =====================================================
+   * SOCKET SERVER
+   * =====================================================
+   */
 
-            /**
-             * Browserless / mobile / Zalo
-             */
+  const io = new Server(
+    server,
+    {
 
-            if (!origin) {
+      cors: {
 
-              return callback(
-                null,
-                true
-              );
+        origin: (
+          origin,
+          callback
+        ) => {
 
-            }
-
-            if (
-              allowedOrigins.includes(
-                origin
-              )
-            ) {
-
-              return callback(
-                null,
-                true
-              );
-
-            }
+          if (!origin) {
 
             return callback(
-              new Error(
-                "CORS blocked"
-              )
+              null,
+              true
             );
 
-          },
+          }
 
-          methods: [
-            "GET",
-            "POST",
-          ],
+          const normalizedOrigin =
+            origin.trim();
 
-          credentials:
-            true,
+          if (
+            allowedOrigins.includes(
+              normalizedOrigin
+            )
+          ) {
+
+            return callback(
+              null,
+              true
+            );
+
+          }
+
+          logger.error(
+            "Socket CORS blocked",
+            {
+              origin:
+                normalizedOrigin,
+            }
+          );
+
+          return callback(
+            new Error(
+              "CORS blocked"
+            )
+          );
 
         },
 
-        /**
-         * ============================================
-         * SOCKET ENGINE
-         * ============================================
-         */
-
-        path:
-          "/socket.io",
-
-        transports: [
-          "websocket",
-          "polling",
+        methods: [
+          "GET",
+          "POST",
         ],
 
-        allowEIO3:
-          true,
+        credentials: true,
 
-        pingTimeout:
-          60000,
+      },
 
-        pingInterval:
-          25000,
+      path: "/socket.io",
 
-        upgradeTimeout:
-          30000,
+      transports: [
+        "websocket",
+        "polling",
+      ],
 
-        connectTimeout:
-          30000,
+      allowEIO3: true,
 
-        /**
-         * Railway / proxy stability
-         */
+      pingTimeout: 60000,
 
-        serveClient:
-          false,
+      pingInterval: 25000,
 
+      upgradeTimeout: 30000,
+
+      connectTimeout: 30000,
+
+      serveClient: false,
+
+      perMessageDeflate: false,
+
+      httpCompression: true,
+
+      maxHttpBufferSize:
+        1e6,
+
+    }
+  );
+
+  /**
+   * =====================================================
+   * REDIS SOCKET ADAPTER
+   * =====================================================
+   */
+
+  try {
+
+    logger.info(
+      "Attaching Redis adapter"
+    );
+
+    attachRedisAdapter(io);
+
+    logger.info(
+      "Redis adapter attached"
+    );
+
+  } catch (error) {
+
+    logger.error(
+      "Redis adapter attach failed",
+      {
+        message:
+          error.message,
+
+        stack:
+          error.stack,
       }
     );
 
+  }
+
   /**
-   * ============================================
-   * CONNECTION
-   * ============================================
+   * =====================================================
+   * PAYMENT ADMIN SOCKET
+   * =====================================================
+   */
+
+  registerPaymentAdminSocket(
+    io
+  );
+
+  /**
+   * =====================================================
+   * SOCKET CONNECTION
+   * =====================================================
    */
 
   io.on(
@@ -148,6 +208,9 @@ function initializeSocket({
         {
           socketId:
             socket.id,
+
+          transport:
+            socket.conn.transport.name,
         }
       );
 
@@ -163,33 +226,39 @@ function initializeSocket({
   );
 
   /**
-   * ============================================
-   * ENGINE ERROR
-   * ============================================
+   * =====================================================
+   * ENGINE ERRORS
+   * =====================================================
    */
 
   io.engine.on(
     "connection_error",
     (
-      err
+      error
     ) => {
 
       logger.error(
         "Socket connection error",
         {
           message:
-            err.message,
+            error.message,
 
           code:
-            err.code,
+            error.code,
 
           context:
-            err.context,
+            error.context,
         }
       );
 
     }
   );
+
+  /**
+   * =====================================================
+   * SOCKET READY
+   * =====================================================
+   */
 
   logger.info(
     "Socket initialized"
@@ -200,7 +269,5 @@ function initializeSocket({
 }
 
 module.exports = {
-
   initializeSocket,
-
 };

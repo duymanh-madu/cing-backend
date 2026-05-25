@@ -1,0 +1,11 @@
+{
+  "version": "3.0",
+  "status": "LOCKED",
+  "description": "Financial-grade payment system core locked after Phase 3",
+  "rules": [
+    "No new payment services allowed",
+    "Only enhancement via enforcer layers",
+    "All transactions must pass flow validation",
+    "Idempotency is mandatory"
+  ]
+}

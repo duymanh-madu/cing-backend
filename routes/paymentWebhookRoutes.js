@@ -7,19 +7,30 @@ const router =
 const {
   verifyPayment,
 } = require(
-  "../services/paymentVerificationService"
+  "../services/payment/paymentVerificationService"
 );
 
-/**
- * ========================================
- * BANK WEBHOOK
- * ========================================
- */
+const {
+  verifyWebhookSignature,
+} = require(
+  "../services/payment/paymentWebhookGuardService"
+);
+
+const {
+  isPaymentAlreadyProcessed,
+} = require(
+  "../services/payment/paymentIdempotencyService"
+);
+
+const {
+  executePaymentOrderPipeline,
+} = require(
+  "../services/payment/paymentOrderOrchestratorService"
+);
+
 
 router.post(
-
-  "/bank-transfer",
-
+  "/momo",
   async (
     req,
     res
@@ -27,141 +38,77 @@ router.post(
 
     try {
 
+      const raw_body =
+        JSON.stringify(
+          req.body
+        );
+
+      const signature =
+        req.headers[
+          "x-signature"
+        ];
+
+      const verified =
+
+        verifyWebhookSignature({
+
+          raw_body,
+
+          signature,
+
+          secret:
+            process.env
+              .PAYMENT_WEBHOOK_SECRET,
+
+        });
+
+      if (!verified) {
+
+        incrementMetric(
+          "payment_webhook_rejected"
+        );
+
+        return res.status(401).json({
+
+          success: false,
+
+          message:
+            "Invalid webhook signature",
+
+        });
+
+      }
+
       const {
-
-        transaction_code,
-
-        provider_transaction_id,
-
+        orderId,
+        transId,
       } = req.body;
 
-      /**
-       * VALIDATE
-       */
+      const alreadyProcessed =
+
+        await isPaymentAlreadyProcessed({
+
+          transaction_code:
+            orderId,
+
+        });
 
       if (
-        !transaction_code
+        alreadyProcessed
       ) {
 
-        return res
-          .status(400)
-          .json({
+        return res.json({
 
-            success:
-              false,
+          success: true,
 
-            message:
-              "transaction_code required",
+          duplicated: true,
 
-          });
+        });
 
       }
 
-      /**
-       * VERIFY PAYMENT
-       */
+      const payment =
 
-      const result =
-        await verifyPayment({
-
-          transaction_code,
-
-          provider_transaction_id,
-
-        });
-
-      return res
-        .status(200)
-        .json({
-
-          success:
-            true,
-
-          message:
-            "Payment verified",
-
-          data:
-            result,
-
-        });
-
-    } catch (error) {
-
-      console.error(
-
-        "bank webhook error:",
-
-        error.message
-
-      );
-
-      return res
-        .status(500)
-        .json({
-
-          success:
-            false,
-
-          message:
-            error.message,
-
-        });
-
-    }
-
-  }
-);
-
-/**
- * ========================================
- * MOMO WEBHOOK
- * ========================================
- */
-
-router.post(
-
-  "/momo",
-
-  async (
-    req,
-    res
-  ) => {
-
-    try {
-
-      const {
-
-        orderId,
-
-        transId,
-
-      } = req.body;
-
-      /**
-       * VALIDATE
-       */
-
-      if (!orderId) {
-
-        return res
-          .status(400)
-          .json({
-
-            success:
-              false,
-
-            message:
-              "orderId required",
-
-          });
-
-      }
-
-      /**
-       * VERIFY
-       */
-
-      const result =
         await verifyPayment({
 
           transaction_code:
@@ -172,47 +119,52 @@ router.post(
 
         });
 
-      return res
-        .status(200)
-        .json({
+      const orderResult =
 
-          success:
-            true,
+        await executePaymentOrderPipeline({
 
-          message:
-            "MoMo payment verified",
-
-          data:
-            result,
+          payment,
 
         });
+
+      incrementMetric(
+        "payment_paid"
+      );
+
+      return res.json({
+
+        success: true,
+
+        payment,
+
+        order:
+          orderResult.order,
+
+      });
 
     } catch (error) {
 
-      console.error(
-
-        "momo webhook error:",
-
-        error.message
-
+      incrementMetric(
+        "payment_failed"
       );
 
-      return res
-        .status(500)
-        .json({
+      console.log(
+        "MOMO WEBHOOK ERROR:",
+        error.message
+      );
 
-          success:
-            false,
+      return res.status(500).json({
 
-          message:
-            error.message,
+        success: false,
 
-        });
+        message:
+          error.message,
+
+      });
 
     }
 
   }
 );
 
-module.exports =
-  router;
+module.exports = router;

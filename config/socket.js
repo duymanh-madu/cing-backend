@@ -1,52 +1,72 @@
-const {
-  Server,
-} = require(
-  "socket.io"
+const { Server } = require("socket.io");
+
+const attachRedisAdapter = require(
+  "../services/infrastructure/cache/socketRedisAdapter"
 );
 
-function createSocket(
-  server
-) {
+function createSocket(server) {
 
-  const io =
-    new Server(server, {
+  const io = new Server(server, {
 
-      cors: {
+    cors: {
 
-        origin:
+      origin:
+        process.env.SOCKET_CORS_ORIGIN || "*",
 
-          process.env
-            .SOCKET_CORS_ORIGIN ||
+      credentials: true,
 
-          "*",
+    },
 
-        credentials:
-          true,
+    transports: [
+      "websocket",
+      "polling",
+    ],
 
-      },
+    pingTimeout: 60000,
 
-      transports: [
-        "websocket",
-        "polling",
-      ],
+    pingInterval: 25000,
 
-      pingTimeout:
-        60000,
+    maxHttpBufferSize: 1e6,
 
-      pingInterval:
-        25000,
+  });
 
-      maxHttpBufferSize:
-        1e6,
+  /**
+   * ==================================================
+   * REDIS SOCKET ADAPTER
+   * ==================================================
+   */
 
-    });
+  try {
+
+    console.log(
+      "🔥 attachRedisAdapter called"
+    );
+
+    attachRedisAdapter(io);
+
+  } catch (error) {
+
+    console.error(
+      "❌ Failed to attach Redis adapter:",
+      error
+    );
+
+  }
+
+  /**
+   * ==================================================
+   * SOCKET READY
+   * ==================================================
+   */
+
+  console.log(
+    "✅ Socket.IO server created"
+  );
 
   return io;
 
 }
 
 module.exports = {
-
   createSocket,
-
 };
