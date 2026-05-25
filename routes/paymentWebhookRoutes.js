@@ -26,11 +26,11 @@ router.post("/momo", async (req, res) => {
     // Kiem tra da xu ly chua
     const { data: existing } = await supabase
       .from("payment_transactions")
-      .select("id, payment_status")
+      .select("id, payment_status, order_created")
       .eq("transaction_code", orderId)
       .maybeSingle();
 
-    if (existing?.payment_status === "paid") {
+    if (existing?.payment_status === "paid" && existing?.order_created === true) {
       console.log("[MOMO IPN] Already processed:", orderId);
       return res.json({ success: true, duplicated: true });
     }
