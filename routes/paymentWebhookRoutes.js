@@ -59,9 +59,7 @@ router.post(
 
       if (!verified) {
 
-        incrementMetric(
-          "payment_webhook_rejected"
-        );
+        
 
         return res.status(401).json({
 
@@ -122,9 +120,7 @@ router.post(
 
         });
 
-      incrementMetric(
-        "payment_paid"
-      );
+      console.log("[MOMO IPN] Payment paid:", orderId);
 
       return res.json({
 
@@ -139,9 +135,7 @@ router.post(
 
     } catch (error) {
 
-      incrementMetric(
-        "payment_failed"
-      );
+      console.log("[MOMO IPN] Payment failed:", error.message);
 
       console.log(
         "MOMO WEBHOOK ERROR:",
