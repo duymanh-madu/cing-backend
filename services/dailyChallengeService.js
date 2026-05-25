@@ -1,6 +1,7 @@
 const supabase = require("../supabase");
 const { realtimeEventBus } = require("./realtime/realtimeEventBus");
 const { broadcastNotification } = require("./notificationService");
+const { addPoints } = require("./loyaltyPointService");
 
 function todayVN() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
@@ -64,14 +65,13 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, game_
   try {
     const { awardPlays } = require("./dailyMissionService");
     // Cap nhat diem trong players table
-    const { data: player } = await supabase.from("players").select("total_points").eq("user_id", user_id).maybeSingle();
-    const currentPoints = Number(player?.total_points || 0);
-    await supabase.from("players").upsert({
+    // Cong diem va sync ve iPOS
+    await addPoints({
+      phone: user_id,
       user_id,
-      zalo_name: player_name,
-      avatar,
-      total_points: currentPoints + challenge.reward_points,
-    }, { onConflict: "user_id" });
+      points: challenge.reward_points,
+      reason: "Phan thuong thu thach ngay",
+    });
   } catch(e) {
     console.warn("[CHALLENGE] Points award failed:", e.message);
   }
