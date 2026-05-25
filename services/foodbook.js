@@ -558,7 +558,26 @@ async function getMemberVouchers(
  * =====================================================
  */
 
+
+async function updateMemberPoint({ phone, type_change, point_change, note }) {
+  const axios = require("axios");
+  const params = new URLSearchParams();
+  params.append('pos_parent', process.env.IPOS_POS_PARENT);
+  const iposPhone = String(phone).replace(/\D/g,"");
+  params.append('phone_number', iposPhone.startsWith('84') ? iposPhone : '84' + iposPhone.slice(1));
+  params.append('type_change', type_change);
+  params.append('point_change', String(point_change));
+  params.append('note', note || 'Cap nhat tu app');
+  const res = await axios.post(
+    'https://api.foodbook.vn/ipos/ws/partner/mbs/update_point',
+    params,
+    { headers: { 'access_token': process.env.IPOS_ACCESS_TOKEN } }
+  );
+  return res.data;
+}
+
 module.exports = {
+  updateMemberPoint,
 
   getMenu,
 
