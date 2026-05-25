@@ -104,13 +104,13 @@ const REALTIME_EVENTS = {
 
   ORDER_STATUS_CHANGED:
     "order.status.changed",
-  "payment.created",
-  "payment.status.updated", 
-  "payment.paid",
-  "payment.failed",
-  "mission.completed",
-  "missions.config.updated",
-  "user.updated",
+  PAYMENT_CREATED: "payment.created",
+  PAYMENT_STATUS_UPDATED: "payment.status.updated",
+  PAYMENT_PAID: "payment.paid",
+  PAYMENT_FAILED: "payment.failed",
+  MISSION_COMPLETED: "mission.completed",
+  MISSIONS_CONFIG_UPDATED: "missions.config.updated",
+  USER_UPDATED: "user.updated",
   
 
   /**
