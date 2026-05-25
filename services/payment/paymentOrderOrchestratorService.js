@@ -21,6 +21,8 @@ async function executePaymentOrderPipeline({
 }) {
 
   const orderResult =
+  console.log("[PIPELINE] payment keys:", Object.keys(payment));
+  console.log("[PIPELINE] cart_snapshot:", JSON.stringify(payment.cart_snapshot));
     await createOrder({
 
       user_id:
