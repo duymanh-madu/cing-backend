@@ -9,7 +9,7 @@ const {
   "./realtimeEventConstants"
 );
 
-const realtimeEventBus =
+const { realtimeEventBus } =
   require(
     "./realtimeEventBus"
   );
