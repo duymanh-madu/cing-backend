@@ -42,3 +42,4 @@
 4. **Voucher checkout** — apply voucher khi đặt hàng
 5. **Order pipeline** — orchestrate đầy đủ sau khi thanh toán
 6. **iPOS voucher sync** — voucher từ app sync về iPOS CRM
+- `services/loyalty/loyaltyTierService.js` - auto upgrade tier dựa trên điểm tích lũy
