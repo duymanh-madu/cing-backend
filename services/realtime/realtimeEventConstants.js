@@ -104,6 +104,14 @@ const REALTIME_EVENTS = {
 
   ORDER_STATUS_CHANGED:
     "order.status.changed",
+  "payment.created",
+  "payment.status.updated", 
+  "payment.paid",
+  "payment.failed",
+  "mission.completed",
+  "missions.config.updated",
+  "user.updated",
+  
 
   /**
    * ===================================================
