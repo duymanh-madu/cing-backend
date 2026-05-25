@@ -1,77 +1,27 @@
-const realtimeEmitterService =
-  require("../realtime/realtimeEmitterService");
+const { realtimeEventBus } = require("../realtime/realtimeEventBus");
 
-function broadcastPaymentCreated(
-  payment
-) {
-
-  realtimeEmitterService.emit(
-
-    "payment.created",
-
-    {
-      transaction_code:
-        payment.transaction_code,
-
-      amount:
-        payment.amount,
-
-      payment_status:
-        payment.payment_status,
-
-      created_at:
-        new Date().toISOString(),
-
-    }
-  );
-
+function broadcastPaymentCreated(data) {
+  try {
+    realtimeEventBus.publish({
+      event: "payment.created",
+      delivery_type: "BROADCAST",
+      payload: data,
+      channel: "payment",
+      timestamp: new Date().toISOString(),
+    });
+  } catch(e) {}
 }
 
-function broadcastPaymentPaid(
-  payment
-) {
-
-  realtimeEmitterService.emit(
-
-    "payment.paid",
-
-    {
-      transaction_code:
-        payment.transaction_code,
-
-      amount:
-        payment.amount,
-
-      payment_status:
-        payment.payment_status,
-
-      paid_at:
-        payment.paid_at,
-
-    }
-  );
-
+function broadcastPaymentStatus(data) {
+  try {
+    realtimeEventBus.publish({
+      event: "payment.status.updated",
+      delivery_type: "BROADCAST",
+      payload: data,
+      channel: "payment",
+      timestamp: new Date().toISOString(),
+    });
+  } catch(e) {}
 }
 
-function broadcastPaymentFailed(
-  payload
-) {
-
-  realtimeEmitterService.emit(
-
-    "payment.failed",
-
-    payload
-  );
-
-}
-
-module.exports = {
-
-  broadcastPaymentCreated,
-
-  broadcastPaymentPaid,
-
-  broadcastPaymentFailed,
-
-};
+module.exports = { broadcastPaymentCreated, broadcastPaymentStatus };
