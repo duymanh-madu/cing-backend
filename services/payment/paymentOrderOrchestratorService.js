@@ -40,7 +40,7 @@ async function executePaymentOrderPipeline({
         payment.cart_snapshot
           ?.shipping_fee || 0,
 
-      total:
+      total_amount:
         payment.amount,
 
       payment_status:
