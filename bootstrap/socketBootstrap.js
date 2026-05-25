@@ -2,6 +2,8 @@ const { Server } =
   require("socket.io");
 const { realtimeEventBus } =
   require("../services/realtime/realtimeEventBus");
+const { realtimeEventBus } =
+  require("../services/realtime/realtimeEventBus");
 
 const attachRedisAdapter =
   require(
@@ -182,6 +184,13 @@ function initializeSocket({
     );
 
   }
+
+  /**
+   * =====================================================
+   * ATTACH IO TO EVENT BUS - enables realtime dispatch
+   * =====================================================
+   */
+  realtimeEventBus.setIO(io);
 
   /**
    * =====================================================
