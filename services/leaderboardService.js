@@ -19,7 +19,7 @@ async function getGlobalLeaderboard() {
     .select("*")
 
     .order(
-      "total_spent",
+      "total_spent_all_time_all_time",
       {
         ascending: false,
       }
@@ -53,7 +53,7 @@ async function getTopSpenders() {
     .select("*")
 
     .order(
-      "total_spent",
+      "total_spent_all_time_all_time",
       {
         ascending: false,
       }
@@ -130,7 +130,7 @@ async function getUserRank(
     .select("*")
 
     .order(
-      "total_spent",
+      "total_spent_all_time_all_time",
       {
         ascending: false,
       }
