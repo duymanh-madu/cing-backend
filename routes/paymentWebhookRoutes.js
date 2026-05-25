@@ -10,11 +10,6 @@ const {
   "../services/payment/paymentVerificationService"
 );
 
-const {
-  verifyWebhookSignature,
-} = require(
-  "../services/payment/paymentWebhookGuardService"
-);
 
 const {
   isPaymentAlreadyProcessed,
