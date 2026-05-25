@@ -41,5 +41,9 @@ router.use(
  * /webhook/automation
  */
 
-module.exports =
-  router;
+router.use(
+  "/ipos",
+  require("./iposWebhookRoutes")
+);
+
+module.exports = router;
