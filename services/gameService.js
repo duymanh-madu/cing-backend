@@ -167,6 +167,17 @@ async function saveGameScore({
 
     });
 
+  try {
+    const { data: top10 } = await supabase
+      .from("game_scores")
+      .select("user_id, player_name, avatar, score")
+      .eq("game_key", game_key)
+      .order("score", { ascending: false })
+      .limit(10);
+    await emitLeaderboardUpdate({ leaderboard: top10 || [] });
+  } catch(e) {
+    console.warn("[GAME] Leaderboard emit failed:", e.message);
+  }
   return data;
 
 }
