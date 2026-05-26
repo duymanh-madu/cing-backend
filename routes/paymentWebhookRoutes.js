@@ -43,6 +43,8 @@ router.post("/momo", async (req, res) => {
       .insert({
         order_code: orderCode,
         user_id: payment.user_id,
+        customer_name: payment.cart_snapshot?.customer_name || payment.customer_name || "Khách hàng",
+        customer_phone: payment.cart_snapshot?.customer_phone || payment.customer_phone || "",
         items: items,
         subtotal: payment.amount,
         shipping_fee: payment.cart_snapshot?.shipping_fee || 0,
