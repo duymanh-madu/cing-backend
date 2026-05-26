@@ -433,3 +433,34 @@ router.post(
 
 module.exports =
   router;
+const supabase = require("../supabase");
+
+router.get("/by-transaction/:transactionCode", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("payment_transaction_id", req.params.transactionCode)
+      .single();
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get("/latest/:userId", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("user_id", req.params.userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
