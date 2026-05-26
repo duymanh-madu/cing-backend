@@ -576,6 +576,127 @@ async function updateMemberPoint({ phone, type_change, point_change, note }) {
   return res.data;
 }
 
+
+/**
+ * =====================================================
+ * GET MEMBER TRANSACTIONS
+ * Lấy lịch sử tiêu dùng thật từ iPos CRM
+ * API: GET /ipos/ws/xpartner/member_transactions
+ * =====================================================
+ * @param {string} userId  - phone hoặc zalo_user_id
+ * @param {number} page    - trang (default 1)
+ * @returns {{ success, data: { transactions[], total_spent, total_orders } }}
+ */
+async function getMemberTransactions(userId, page = 1) {
+  try {
+    const response = await client.get(
+      "/ipos/ws/xpartner/member_transactions",
+      {
+        params: {
+          access_token: ACCESS_TOKEN,
+          pos_parent:   POS_PARENT,
+          user_id:      userId,
+          page,
+        },
+      }
+    );
+ 
+    const raw = response.data;
+ 
+    // Foodhub trả nhiều dạng — handle tất cả
+    const list = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw?.data?.list)
+          ? raw.data.list
+          : [];
+ 
+    // Tính tổng tiêu dùng từ transactions
+    const total_spent = list.reduce((sum, t) => {
+      const amount = Number(t.total_amount || t.amount || t.bill_amount || 0);
+      return sum + amount;
+    }, 0);
+ 
+    return {
+      success: true,
+      data: {
+        transactions: list,
+        total_spent,
+        total_orders: list.length,
+        raw_response: raw,
+      },
+    };
+  } catch (error) {
+    console.error("❌ getMemberTransactions ERROR:", error.message);
+    return {
+      success: false,
+      data: { transactions: [], total_spent: 0, total_orders: 0 },
+      error: error.message,
+    };
+  }
+}
+ 
+/**
+ * =====================================================
+ * GET MEMBERSHIP LOG (lịch sử tích điểm có filter ngày)
+ * API: GET /ipos/ws/xpartner/membership_log
+ * =====================================================
+ * @param {string} userId
+ * @param {object} opts - { page, log_type, create_from, create_to, page_size }
+ */
+async function getMembershipLog(userId, opts = {}) {
+  try {
+    const {
+      page      = 1,
+      log_type  = "PAY",       // PAY = giao dịch thanh toán
+      create_from,
+      create_to,
+      page_size = 100,
+    } = opts;
+ 
+    const params = {
+      access_token: ACCESS_TOKEN,
+      pos_parent:   POS_PARENT,
+      user_id:      userId,
+      page,
+      log_type,
+      page_size,
+    };
+ 
+    if (create_from) params.create_from = create_from;
+    if (create_to)   params.create_to   = create_to;
+ 
+    const response = await client.get(
+      "/ipos/ws/xpartner/membership_log",
+      { params }
+    );
+ 
+    const raw = response.data;
+    const list = Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw)
+        ? raw
+        : [];
+ 
+    const total_spent = list.reduce((sum, t) => {
+      return sum + Number(t.total_amount || t.amount || t.bill_amount || 0);
+    }, 0);
+ 
+    return {
+      success: true,
+      data: { logs: list, total_spent, count: list.length },
+    };
+  } catch (error) {
+    console.error("❌ getMembershipLog ERROR:", error.message);
+    return {
+      success: false,
+      data: { logs: [], total_spent: 0, count: 0 },
+      error: error.message,
+    };
+  }
+}
+
 module.exports = {
   updateMemberPoint,
 
@@ -584,5 +705,9 @@ module.exports = {
   getMember,
 
   getMemberVouchers,
+
+  getMemberTransactions,
+
+  getMembershipLog,
 
 };

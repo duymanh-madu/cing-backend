@@ -4,6 +4,9 @@ const express =
 const router =
   express.Router();
 
+  const crmSyncRoutes = require("./crmSyncRoutes");
+router.use("/crm", crmSyncRoutes);
+
 /**
  * =====================================================
  * PUBLIC APIs
