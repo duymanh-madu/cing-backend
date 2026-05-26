@@ -1,27 +1,52 @@
 const supabase = require('../../supabase');
 const foodbook = require('../foodbook');
 
+/**
+ * Lấy thời điểm hiện tại theo giờ VN (UTC+7)
+ * Trả về object Date đã được điều chỉnh
+ */
+function nowVN() {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+}
+
+/**
+ * Format date thành string cho iPos API
+ * iPos nhận format: "2026-01-01 00:00:00"
+ */
+function fmtIpos(date) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+/**
+ * Tính period ranges theo giờ VN thật
+ * Tất cả mốc thời gian đều tính theo Asia/Ho_Chi_Minh
+ */
 function getPeriodDates() {
-  const VN  = 7 * 60 * 60 * 1000;
-  const now = new Date(Date.now() + VN);
-  const pad = n => String(n).padStart(2,'0');
-  const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const now = nowVN();
 
+  // Tuần: thứ 2 đầu tuần 00:00:00 VN
   const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - ((now.getDay()+6)%7));
-  weekStart.setHours(0,0,0,0);
+  weekStart.setDate(now.getDate() - ((now.getDay()+6) % 7));
+  weekStart.setHours(0, 0, 0, 0);
 
-  const monthStart   = new Date(now.getFullYear(), now.getMonth(), 1);
-  const quarter      = Math.floor(now.getMonth()/3);
-  const quarterStart = new Date(now.getFullYear(), quarter*3, 1);
-  const yearStart    = new Date(now.getFullYear(), 0, 1);
-  const nowStr       = fmt(now);
+  // Tháng: ngày 1 đầu tháng 00:00:00 VN
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+
+  // Quý: ngày 1 đầu quý 00:00:00 VN
+  const quarter      = Math.floor(now.getMonth() / 3);
+  const quarterStart = new Date(now.getFullYear(), quarter * 3, 1, 0, 0, 0);
+
+  // Năm: 01/01 00:00:00 VN
+  const yearStart = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
+
+  const nowStr = fmtIpos(now);
 
   return {
-    week:    { from: fmt(weekStart),    to: nowStr },
-    month:   { from: fmt(monthStart),   to: nowStr },
-    quarter: { from: fmt(quarterStart), to: nowStr },
-    year:    { from: fmt(yearStart),    to: nowStr },
+    week:    { from: fmtIpos(weekStart),    to: nowStr },
+    month:   { from: fmtIpos(monthStart),   to: nowStr },
+    quarter: { from: fmtIpos(quarterStart), to: nowStr },
+    year:    { from: fmtIpos(yearStart),    to: nowStr },
   };
 }
 
@@ -35,8 +60,6 @@ async function fetchPeriodSpend(userId, from, to) {
   return result.data?.total_spent || 0;
 }
 
-// user_id trong Supabase chính là số điện thoại (0xxx hoặc 84xxx)
-// iPos chấp nhận cả 2 format
 function isPhoneId(userId) {
   return /^(0|84)\d{8,10}$/.test(String(userId));
 }
@@ -46,8 +69,8 @@ async function syncOnePlayer(player) {
   if (!userId || !isPhoneId(userId)) return null;
 
   try {
-    const memberResult  = await foodbook.getMember(userId);
-    const memberData    = memberResult?.data?.data || {};
+    const memberResult = await foodbook.getMember(userId);
+    const memberData   = memberResult?.data?.data || {};
 
     if (!memberData.phone_number) {
       console.log(`Skip ${userId}: not found in iPos`);
@@ -58,6 +81,7 @@ async function syncOnePlayer(player) {
     const allTimeOrders = Number(memberData.eat_times || 0);
 
     const periods = getPeriodDates();
+
     const [weekly, monthly, quarterly, yearly] = await Promise.all([
       fetchPeriodSpend(userId, periods.week.from,    periods.week.to),
       fetchPeriodSpend(userId, periods.month.from,   periods.month.to),
@@ -65,6 +89,7 @@ async function syncOnePlayer(player) {
       fetchPeriodSpend(userId, periods.year.from,    periods.year.to),
     ]);
 
+    // Lưu vào Supabase — timestamp dùng UTC chuẩn (Supabase tự xử lý)
     const { error } = await supabase
       .from('players')
       .update({
@@ -74,7 +99,7 @@ async function syncOnePlayer(player) {
         crm_spend_quarterly: quarterly,
         crm_spend_yearly:    yearly,
         crm_orders_alltime:  allTimeOrders,
-        crm_synced_at:       new Date().toISOString(),
+        crm_synced_at:       new Date().toISOString(), // UTC — Supabase chuẩn
       })
       .eq('user_id', userId);
 
@@ -93,7 +118,7 @@ async function syncOnePlayer(player) {
 }
 
 async function syncAllPlayersCrmSpending({ batchSize=3, delayMs=2000 } = {}) {
-  console.log('START CRM SYNC...');
+  console.log('START CRM SYNC... VN time:', fmtIpos(nowVN()));
   const t0 = Date.now();
 
   const { data: players, error } = await supabase
@@ -102,7 +127,6 @@ async function syncAllPlayersCrmSpending({ batchSize=3, delayMs=2000 } = {}) {
 
   if (error) return { success: false, error: error.message };
 
-  // Chỉ sync những user_id là số điện thoại
   const filtered = players.filter(p => isPhoneId(p.user_id));
   console.log(`Players: ${players.length} total, ${filtered.length} with phone ID`);
 
@@ -137,4 +161,6 @@ module.exports = {
   syncOnePlayer,
   getPeriodDates,
   fetchPeriodSpend,
+  nowVN,
+  fmtIpos,
 };
