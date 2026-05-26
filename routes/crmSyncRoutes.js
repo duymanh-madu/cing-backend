@@ -80,3 +80,19 @@ router.get("/spending-preview/:userId", async (req, res) => {
 });
  
 module.exports = router;
+router.get("/log-preview/:userId", async (req, res) => {
+  try {
+    const foodbook = require("../services/foodbook");
+    const { userId } = req.params;
+    const { from, to } = req.query;
+    const result = await foodbook.getMembershipLog(userId, {
+      log_type: "PAY",
+      create_from: from || "2026-01-01 00:00:00",
+      create_to: to || "2026-12-31 23:59:59",
+      page_size: 500,
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
