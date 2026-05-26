@@ -606,17 +606,15 @@ async function getMemberTransactions(userId, page = 1) {
     // Foodhub trả nhiều dạng — handle tất cả
     const list = Array.isArray(raw)
       ? raw
-      : Array.isArray(raw?.data?.sale_logs)
-        ? raw.data.sale_logs
-        : Array.isArray(raw?.data)
-          ? raw.data
-          : Array.isArray(raw?.data?.list)
-            ? raw.data.list
-            : [];
+      : Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw?.data?.list)
+          ? raw.data.list
+          : [];
  
     // Tính tổng tiêu dùng từ transactions
     const total_spent = list.reduce((sum, t) => {
-      const amount = Number(t.bill_amount || t.total_amount || t.amount || 0);
+      const amount = Number(t.total_amount || t.amount || t.bill_amount || 0);
       return sum + amount;
     }, 0);
  
