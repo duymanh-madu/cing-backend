@@ -78,12 +78,21 @@ async function importAllCrmCustomers() {
         };
       });
 
-    if (rows.length > 0) {
+    // Dedupe theo user_id trong cùng batch
+    const seen = new Set();
+    const uniqueRows = rows.filter(r => {
+      if (seen.has(r.user_id)) return false;
+      seen.add(r.user_id);
+      return true;
+    });
+
+    if (uniqueRows.length > 0) {
       const { error } = await supabase
         .from("players")
         .upsert(rows, {
           onConflict:        "user_id",
           ignoreDuplicates:  false,
+          defaultToNull: false,
         });
 
       if (error) {
