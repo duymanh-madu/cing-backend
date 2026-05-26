@@ -4,103 +4,9 @@ const redisClient = require("../services/infrastructure/cache/redisClient");
 const redisPublisher = require("../services/infrastructure/cache/redisPublisher");
 const { realtimeEventBus } = require("../services/realtime/realtimeEventBus");
 const { getMember } = require("../services/foodbook");
+const { syncSingleUserSpending } = require("../services/crm/crmSpendingSyncService");
 
 const IPOS_WEBHOOK_SECRET = process.env.IPOS_WEBHOOK_SECRET || "";
-
-/**
- * POST /webhook/ipos/member-updated
- * iPOS goi khi: cap nhat hang, tich diem, doi diem
- */
-router.post("/member-updated", async (req, res) => {
-  try {
-    const body = req.body || {};
-
-    // Support ca 2 format: Foodbook format va custom format
-    let phone = "";
-    let eventType = body.event_type || body.event || "unknown";
-
-    if (body.membership_log) {
-      // Foodbook format: membership_log.membership_id
-      const mid = String(body.membership_log.membership_id || "");
-      // membership_id co the la 84984966336 (co 84) hoac 0984966336
-      phone = mid.startsWith("84") ? "0" + mid.slice(2) : mid.replace(/\D/g,"");
-      eventType = body.event || "membership_log";
-    } else {
-      // Custom format
-      phone = String(body.phone_number || body.user_id || "").replace(/\D/g,"");
-    }
-
-    if (!phone) {
-      return res.status(400).json({ success: false, message: "Missing phone" });
-    }
-
-    console.log(`[IPOS WEBHOOK] ${eventType} for phone: ${phone}`);
-
-    // 1. Xoa cache cu
-    await redisClient.del(`membership:${phone}`);
-
-    // 2. Fetch data moi tu iPOS
-    const result = await getMember(phone);
-    if (result.success && result.data?.data) {
-      const d = result.data.data;
-      const memberData = {
-        id: d.id,
-        phone: String(d.phone_number),
-        name: d.name,
-        tierKey: mapTierKey(d.membership_type_name),
-        tierName: d.membership_type_name,
-        points: Math.floor(d.point || 0),
-        pointAmount: d.point_amount || 0,
-        paymentAmount: d.payment_amount || 0,
-        eatTimes: d.eat_times || 0,
-        tags: d.tags || [],
-        updatedAt: Date.now(),
-      };
-
-      // 3. Luu vao Redis cache 10 phut
-      await redisClient.setex(
-        `membership:${phone}`,
-        600,
-        JSON.stringify(memberData)
-      );
-
-      // 4. Push realtime qua Redis pub/sub -> Socket.IO
-      await redisPublisher.publish("realtime.events", JSON.stringify({
-        event: "user.updated",
-        delivery_type: "BROADCAST",  // broadcast toi tat ca client
-        payload: { phone, data: memberData },
-        channel: "membership",
-        timestamp: new Date().toISOString(),
-      }));
-
-      console.log(`[IPOS WEBHOOK] Cache updated + pushed for ${phone}`);
-    }
-
-    return res.json({ success: true, message: "Processed" });
-  } catch (err) {
-    console.error("[IPOS WEBHOOK] Error:", err.message);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-/**
- * POST /webhook/ipos/order-completed
- * iPOS goi khi don hang hoan thanh - cap nhat diem
- */
-router.post("/order-completed", async (req, res) => {
-  try {
-    const { phone_number } = req.body;
-    const phone = String(phone_number || "").replace(/\D/g, "");
-    if (phone) {
-      // Xoa cache -> next fetch se lay data moi
-      await redisClient.del(`membership:${phone}`);
-      console.log(`[IPOS WEBHOOK] Order completed - cache cleared for ${phone}`);
-    }
-    return res.json({ success: true });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 function mapTierKey(name) {
   if (!name) return "member";
@@ -114,28 +20,127 @@ function mapTierKey(name) {
   return "member";
 }
 
+/**
+ * POST /webhook/ipos/callback
+ * Unified endpoint - iPos push về khi có giao dịch mới
+ */
+router.post("/callback", async (req, res) => {
+  try {
+    const body  = req.body || {};
+    const event = body.event || "unknown";
+
+    console.log(`[FOODBOOK] Event: ${event}`, JSON.stringify(body).slice(0, 200));
+
+    // Lưu last callback để debug
+    await redisClient.setex("foodbook:last_callback", 3600,
+      JSON.stringify({ headers: req.headers, body, ts: Date.now() }));
+
+    // Trả về 200 ngay — không để iPos timeout
+    res.json({ success: true });
+
+    // Xử lý async sau khi đã trả response
+    let phone = "";
+    if (body.membership_log?.membership_id) {
+      const mid = String(body.membership_log.membership_id);
+      phone = mid.startsWith("84") ? "0" + mid.slice(2) : mid.replace(/\D/g, "");
+    } else if (body.order?.phone_number) {
+      phone = String(body.order.phone_number).replace(/\D/g, "");
+    } else if (body.phone_number) {
+      phone = String(body.phone_number).replace(/\D/g, "");
+    }
+
+    if (!phone) return;
+
+    // 1. Xóa Redis cache
+    const p84 = phone.startsWith("84") ? phone : "84" + phone.slice(1);
+    const p0  = phone.startsWith("84") ? "0" + phone.slice(2) : phone;
+    await Promise.all([
+      redisClient.del(`membership:${p84}`),
+      redisClient.del(`membership:${p0}`),
+      redisClient.del(`membership:${phone}`),
+    ]);
+
+    // 2. Fetch data mới từ iPos
+    const result = await getMember(phone);
+    if (result.success && result.data?.data) {
+      const d = result.data.data;
+      const memberData = {
+        id:            d.id,
+        phone:         p0,
+        name:          d.name,
+        tierKey:       mapTierKey(d.membership_type_name),
+        tierName:      d.membership_type_name,
+        points:        Math.floor(d.point || 0),
+        pointAmount:   d.point_amount || 0,
+        paymentAmount: d.payment_amount || 0,
+        eatTimes:      d.eat_times || 0,
+        tags:          d.tags || [],
+        updatedAt:     Date.now(),
+      };
+
+      // 3. Lưu Redis cache mới
+      await redisClient.setex(`membership:${p0}`, 600, JSON.stringify(memberData));
+
+      // 4. Push realtime Socket.IO
+      realtimeEventBus.publish({
+        event:         "user.updated",
+        delivery_type: "BROADCAST",
+        payload:       { phone: p0, data: memberData },
+        channel:       "membership",
+        timestamp:     new Date().toISOString(),
+      });
+
+      // 5. Sync spending vào Supabase → leaderboard cập nhật ngay
+      try {
+        await syncSingleUserSpending(p0);
+        console.log(`[FOODBOOK] Spending synced for ${p0} - event: ${event}`);
+      } catch (syncErr) {
+        console.warn(`[FOODBOOK] Spending sync failed for ${p0}:`, syncErr.message);
+      }
+
+      console.log(`[FOODBOOK] Full sync done for ${p0} - event: ${event}`);
+    }
+
+  } catch (err) {
+    console.error("[FOODBOOK CALLBACK] Error:", err.message);
+  }
+});
+
+/**
+ * POST /webhook/ipos/member-updated
+ * Legacy endpoint — giữ lại để tương thích
+ */
+router.post("/member-updated", async (req, res) => {
+  req.url = "/callback";
+  router.handle(req, res, () => {});
+});
+
+/**
+ * POST /webhook/ipos/order-completed
+ * Legacy endpoint — giữ lại để tương thích
+ */
+router.post("/order-completed", async (req, res) => {
+  req.url = "/callback";
+  router.handle(req, res, () => {});
+});
 
 /**
  * POST /webhook/ipos/test
- * Dung de capture format callback tu Foodbook
+ * Capture raw format từ Foodbook để debug
  */
 router.post("/test", async (req, res) => {
-  console.log("[FOODBOOK CALLBACK] Headers:", JSON.stringify(req.headers, null, 2));
-  console.log("[FOODBOOK CALLBACK] Body:", JSON.stringify(req.body, null, 2));
-  // Luu vao Redis de xem sau
+  console.log("[FOODBOOK TEST] Headers:", JSON.stringify(req.headers, null, 2));
+  console.log("[FOODBOOK TEST] Body:", JSON.stringify(req.body, null, 2));
   try {
-    await redisClient.setex(
-      "foodbook:last_callback",
-      3600,
-      JSON.stringify({ headers: req.headers, body: req.body, ts: Date.now() })
-    );
+    await redisClient.setex("foodbook:last_callback", 3600,
+      JSON.stringify({ headers: req.headers, body: req.body, ts: Date.now() }));
   } catch(e) {}
   return res.json({ success: true, received: true });
 });
 
 /**
  * GET /webhook/ipos/last-callback
- * Xem callback cuoi cung tu Foodbook
+ * Xem webhook cuối cùng từ Foodbook
  */
 router.get("/last-callback", async (req, res) => {
   const data = await redisClient.get("foodbook:last_callback");
@@ -143,90 +148,27 @@ router.get("/last-callback", async (req, res) => {
 });
 
 /**
- * POST /webhook/ipos/callback
- * Unified endpoint cho tat ca Foodbook callbacks
+ * GET /webhook/ipos/test-update-point
+ * Test trừ điểm từ Railway
  */
-router.post("/callback", async (req, res) => {
-  try {
-    const body = req.body || {};
-    const event = body.event || "unknown";
-    
-    console.log(`[FOODBOOK] Event: ${event}`, JSON.stringify(body).slice(0, 200));
-
-    // Luu last callback
-    await redisClient.setex("foodbook:last_callback", 3600,
-      JSON.stringify({ headers: req.headers, body, ts: Date.now() }));
-
-    let phone = "";
-    if (body.membership_log?.membership_id) {
-      const mid = String(body.membership_log.membership_id);
-      phone = mid.startsWith("84") ? "0" + mid.slice(2) : mid.replace(/\D/g,"");
-    } else if (body.order?.phone_number) {
-      phone = String(body.order.phone_number).replace(/\D/g,"");
-    }
-
-    if (phone) {
-      // Xoa cache -> next request se fetch moi
-      await redisClient.del(`membership:${phone}`);
-
-      // Fetch moi va cache lai
-      const result = await getMember(phone);
-      if (result.success && result.data?.data) {
-        const d = result.data.data;
-        const memberData = {
-          id: d.id,
-          phone: "0" + String(d.phone_number).slice(-9),
-          name: d.name,
-          tierKey: mapTierKey(d.membership_type_name),
-          tierName: d.membership_type_name,
-          points: Math.floor(d.point || 0),
-          pointAmount: d.point_amount || 0,
-          paymentAmount: d.payment_amount || 0,
-          eatTimes: d.eat_times || 0,
-          tags: d.tags || [],
-          updatedAt: Date.now(),
-        };
-        await redisClient.setex(`membership:${phone}`, 600, JSON.stringify(memberData));
-        
-        // Push Socket.IO realtime
-        const pushed = realtimeEventBus.publish({
-          event: "user.updated",
-          delivery_type: "BROADCAST",
-          payload: { phone, data: memberData },
-          channel: "membership",
-          timestamp: new Date().toISOString(),
-        });
-        console.log(`[FOODBOOK] Cache updated for ${phone} - event: ${event} - pushed: ${pushed}`);
-      }
-    }
-
-    return res.json({ success: true });
-  } catch(err) {
-    console.error("[FOODBOOK CALLBACK] Error:", err.message);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-module.exports = router;
-
-// GET /webhook/ipos/test-update-point - test tru diem tu Railway
 router.get("/test-update-point", async (req, res) => {
   try {
     const axios = require("axios");
     const params = new URLSearchParams();
-    params.append('pos_parent', process.env.IPOS_POS_PARENT);
-    params.append('phone_number', '84984966336');
-    params.append('type_change', 'MINUS');
-    params.append('point_change', '1');
-    params.append('note', 'Test tru diem tu app Railway');
-
+    params.append("pos_parent",   process.env.IPOS_POS_PARENT);
+    params.append("phone_number", "84984966336");
+    params.append("type_change",  "MINUS");
+    params.append("point_change", "1");
+    params.append("note",         "Test tru diem tu app Railway");
     const result = await axios.post(
-      'https://api.foodbook.vn/ipos/ws/partner/mbs/update_point',
+      "https://api.foodbook.vn/ipos/ws/partner/mbs/update_point",
       params,
-      { headers: { 'access_token': process.env.IPOS_ACCESS_TOKEN } }
+      { headers: { access_token: process.env.IPOS_ACCESS_TOKEN } }
     );
     res.json({ success: true, data: result.data });
   } catch(e) {
     res.status(500).json({ success: false, error: e.response?.data || e.message });
   }
 });
+
+module.exports = router;
