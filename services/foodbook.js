@@ -732,7 +732,7 @@ async function getEstimateShipFee({ lat, lng, amount }) {
       }
     );
     const raw = response.data;
-    const fee = raw?.data?.ship_fee ?? raw?.ship_fee ?? raw?.fee ?? null;
+    const fee = raw?.data?.fee ?? raw?.data?.ship_fee ?? raw?.ship_fee ?? null;
     return { success: true, ship_fee: Number(fee || 0), raw };
   } catch (error) {
     console.error("❌ getEstimateShipFee ERROR:", error.message);
