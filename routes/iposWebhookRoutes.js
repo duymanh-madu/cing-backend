@@ -98,6 +98,7 @@ router.post("/callback", async (req, res) => {
         console.warn(`[FOODBOOK] Spending sync failed for ${p0}:`, syncErr.message);
       }
 
+      realtimeEventBus.publish({ event: "leaderboard.updated", delivery_type: "BROADCAST", payload: { updated_user: p0 }, channel: "leaderboard", timestamp: new Date().toISOString() });
       console.log(`[FOODBOOK] Full sync done for ${p0} - event: ${event}`);
     }
 
