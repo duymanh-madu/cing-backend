@@ -431,13 +431,12 @@ router.post(
  * ============================================
  */
 
-module.exports =
-  router;
-const supabase = require("../supabase");
+
+const supabaseClient = require("../supabase");
 
 router.get("/by-transaction/:transactionCode", async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("orders")
       .select("*")
       .eq("payment_transaction_id", req.params.transactionCode)
@@ -451,7 +450,7 @@ router.get("/by-transaction/:transactionCode", async (req, res) => {
 
 router.get("/latest/:userId", async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("orders")
       .select("*")
       .eq("user_id", req.params.userId)
@@ -464,3 +463,6 @@ router.get("/latest/:userId", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+module.exports =
+  router;
