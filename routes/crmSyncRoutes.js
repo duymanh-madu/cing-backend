@@ -139,3 +139,26 @@ router.post("/sync-custom-range", async (req, res) => {
     console.error("Custom sync error:", err.message);
   }
 });
+
+router.get("/customers-preview", async (req, res) => {
+  try {
+    const axios = require("axios");
+    const { page = 1 } = req.query;
+    const response = await axios.get(
+      "https://api.foodbook.vn/ipos/ws/partner/data/customer",
+      {
+        params: {
+          pos_parent: process.env.IPOS_POS_PARENT,
+          page,
+          page_size: 10,
+        },
+        headers: {
+          access_token: process.env.IPOS_ACCESS_TOKEN,
+        },
+      }
+    );
+    res.json(response.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message, detail: err.response?.data });
+  }
+});
