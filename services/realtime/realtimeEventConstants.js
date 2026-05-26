@@ -51,6 +51,15 @@ const REALTIME_EVENTS = {
   NOTIFICATION_READ:
     "notification.read",
 
+  NOTIFICATION_NEW:
+    "notification.new",
+
+  NOTIFICATION_BROADCAST:
+    "notification.broadcast",
+
+  CHALLENGE_WON:
+    "challenge.won",
+
   /**
    * ===================================================
    * VOUCHER
