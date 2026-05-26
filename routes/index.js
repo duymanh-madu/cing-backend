@@ -319,5 +319,7 @@ router.use(
  * =====================================================
  */
 
+router.use("/profile-update", require("./profileUpdateRoutes"));
+
 module.exports =
   router;
