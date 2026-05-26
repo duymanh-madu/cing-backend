@@ -164,3 +164,42 @@ module.exports = {
   nowVN,
   fmtIpos,
 };
+
+/**
+ * Sync custom range cho tất cả players
+ * Gọi khi admin thay đổi custom_leaderboard_from/to
+ */
+async function syncCustomRangeSpending(from, to) {
+  console.log(`SYNC CUSTOM RANGE: ${from} -> ${to}`);
+
+  const { data: players, error } = await supabase
+    .from('players')
+    .select('user_id, zalo_name');
+
+  if (error) return { success: false, error: error.message };
+
+  const filtered = players.filter(p => isPhoneId(p.user_id));
+  const stats = { success:0, failed:0, skipped:0 };
+
+  for (let i = 0; i < filtered.length; i += 3) {
+    const batch = filtered.slice(i, i+3);
+    await Promise.all(batch.map(async p => {
+      try {
+        const spent = await fetchPeriodSpend(p.user_id, from, to);
+        await supabase
+          .from('players')
+          .update({ crm_spend_custom: spent })
+          .eq('user_id', p.user_id);
+        stats.success++;
+      } catch (e) {
+        stats.failed++;
+      }
+    }));
+    if (i+3 < filtered.length) await new Promise(r => setTimeout(r, 2000));
+  }
+
+  console.log('CUSTOM SYNC DONE', stats);
+  return { success: true, stats };
+}
+
+module.exports.syncCustomRangeSpending = syncCustomRangeSpending;

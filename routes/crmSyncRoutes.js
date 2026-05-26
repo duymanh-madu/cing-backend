@@ -121,3 +121,21 @@ router.get("/log-raw/:userId", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+router.post("/sync-custom-range", async (req, res) => {
+  const secret = req.headers["x-cron-secret"];
+  if (secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
+  try {
+    const { from, to } = req.body;
+    if (!from || !to) return res.status(400).json({ success: false, error: "Missing from/to" });
+
+    res.json({ success: true, message: "Custom range sync started" });
+
+    const { syncCustomRangeSpending } = require("../services/crm/crmSpendingSyncService");
+    await syncCustomRangeSpending(from, to);
+  } catch (err) {
+    console.error("Custom sync error:", err.message);
+  }
+});
