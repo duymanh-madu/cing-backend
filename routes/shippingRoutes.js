@@ -111,3 +111,21 @@ router.post(
 
 module.exports =
   router;
+const { getEstimateShipFee } = require("../services/foodbook");
+
+router.get("/estimate", async (req, res) => {
+  try {
+    const { lat, lng, amount } = req.query;
+    if (!lat || !lng) {
+      return res.status(400).json({ success: false, error: "Missing lat/lng" });
+    }
+    const result = await getEstimateShipFee({
+      lat:    parseFloat(lat),
+      lng:    parseFloat(lng),
+      amount: parseFloat(amount || 0),
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});

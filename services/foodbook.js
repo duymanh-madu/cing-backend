@@ -713,5 +713,29 @@ module.exports = {
   getMemberTransactions,
 
   getMembershipLog,
+  getEstimateShipFee,
 
 };
+async function getEstimateShipFee({ lat, lng, amount }) {
+  try {
+    const response = await client.get(
+      "/ipos/ws/xpartner/estimate_ship_fee",
+      {
+        params: {
+          access_token: ACCESS_TOKEN,
+          pos_parent:   POS_PARENT,
+          pos_id:       POS_ID,
+          lat,
+          lng,
+          amount,
+        },
+      }
+    );
+    const raw = response.data;
+    const fee = raw?.data?.ship_fee ?? raw?.ship_fee ?? raw?.fee ?? null;
+    return { success: true, ship_fee: Number(fee || 0), raw };
+  } catch (error) {
+    console.error("❌ getEstimateShipFee ERROR:", error.message);
+    return { success: false, ship_fee: null, error: error.message };
+  }
+}
