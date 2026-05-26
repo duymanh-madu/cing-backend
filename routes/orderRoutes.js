@@ -466,3 +466,34 @@ router.get("/latest/:userId", async (req, res) => {
 
 module.exports =
   router;
+
+router.get("/history/:phone", async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { page = 1 } = req.query;
+    const foodbook = require("../services/foodbook");
+
+    // Lấy từ iPos CRM - lịch sử tiêu dùng thật
+    const result = await foodbook.getMemberTransactions(phone, Number(page));
+    const logs   = result.data?.raw_response?.data?.sale_logs || [];
+
+    const orders = logs.map(t => ({
+      id:           t.tran_id,
+      tran_no:      t.tran_no,
+      date:         t.tran_date,
+      amount:       t.bill_amount || t.total_amount || 0,
+      items:        t.sale_details?.map(d => ({
+        name:     d.Description,
+        quantity: d.Quantity,
+        price:    d.Price_Sale,
+      })) || [],
+      payment:      t.payment_info?.[0]?.name || "Tiền mặt",
+      type:         t.sale_type,
+      pos_name:     t.pos_name,
+    }));
+
+    res.json({ success: true, data: orders, total: logs.length });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
