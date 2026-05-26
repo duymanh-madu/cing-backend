@@ -14,10 +14,7 @@ router.post("/avatar/:userId", upload.single("avatar"), async (req, res) => {
     const { userId } = req.params;
     if (!req.file) return res.status(400).json({ success: false, error: "Missing image" });
 
-    // Resize 150x150 bằng jimp
-    const image = await Jimp.read(req.file.buffer);
-    image.cover(150, 150);
-    const resized = await image.getBufferAsync(Jimp.MIME_JPEG);
+    const resized = req.file.buffer;
 
     const filePath = `avatars/${userId}-${Date.now()}.jpg`;
 
