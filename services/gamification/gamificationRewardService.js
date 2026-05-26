@@ -1,59 +1,21 @@
-const {
-
-  earnPoints,
-
-} = require(
-  "../loyalty/loyaltyPointService"
-);
+const { addPoints } = require("../loyaltyPointService");
 
 /**
- * =====================================================
  * GIVE REWARD
- * =====================================================
+ * Cong diem thuat - sync ve iPos
  */
-
-function giveReward({
-
-  user_id,
-
-  points,
-
-  reason,
-
-}) {
-
-  const balance =
-    earnPoints({
-
-      user_id,
-
-      points,
-
-    });
-
+async function giveReward({ user_id, phone, points, reason }) {
+  const result = await addPoints({
+    phone: phone || user_id,
+    user_id,
+    points,
+    reason: reason || "Phần thưởng game",
+  });
   return {
-
     success: true,
-
     reason,
-
-    balance,
-
-    rewarded_at:
-      Date.now(),
-
+    balance: result.total,
   };
-
 }
 
-/**
- * =====================================================
- * EXPORTS
- * =====================================================
- */
-
-module.exports = {
-
-  giveReward,
-
-};
+module.exports = { giveReward };
