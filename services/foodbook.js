@@ -675,14 +675,16 @@ async function getMembershipLog(userId, opts = {}) {
     );
  
     const raw = response.data;
-    const list = Array.isArray(raw?.data)
-      ? raw.data
-      : Array.isArray(raw)
-        ? raw
-        : [];
+    const list = Array.isArray(raw?.data?.logs_membership)
+      ? raw.data.logs_membership
+      : Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw)
+          ? raw
+          : [];
  
     const total_spent = list.reduce((sum, t) => {
-      return sum + Number(t.total_amount || t.amount || t.bill_amount || 0);
+      return sum + Number(t.amount || t.bill_amount || t.total_amount || 0);
     }, 0);
  
     return {
