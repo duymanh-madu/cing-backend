@@ -1,77 +1,141 @@
 const express  = require("express");
 const multer   = require("multer");
 const supabase = require("../supabase");
+const { deductPoints } = require("../services/loyaltyPointService");
 const router   = express.Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits:  { fileSize: 2 * 1024 * 1024 }, // 2MB max (frontend đã resize rồi)
+  limits:  { fileSize: 2 * 1024 * 1024 },
 });
 
-router.post("/avatar/:userId", upload.single("avatar"), async (req, res) => {
+const COOLDOWN_DAYS = 10;
+const POINT_COST    = 10;
+
+function getCooldownStatus(profileChangedAt, currentPoints) {
+  const now       = new Date();
+  const changedAt = profileChangedAt ? new Date(profileChangedAt) : null;
+  const diffDays  = changedAt
+    ? Math.floor((now - changedAt) / (1000 * 60 * 60 * 24))
+    : 999;
+  const canFree      = diffDays >= COOLDOWN_DAYS;
+  const daysLeft     = canFree ? 0 : COOLDOWN_DAYS - diffDays;
+  const nextFreeDate = changedAt
+    ? new Date(changedAt.getTime() + COOLDOWN_DAYS * 24 * 60 * 60 * 1000)
+    : null;
+  return {
+    can_change_free: canFree,
+    days_left:       daysLeft,
+    next_free_date:  nextFreeDate?.toISOString() || null,
+    can_use_points:  Number(currentPoints || 0) >= POINT_COST,
+    current_points:  Number(currentPoints || 0),
+    point_cost:      POINT_COST,
+  };
+}
+
+router.get("/status/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    if (!req.file) return res.status(400).json({ success: false, error: "Missing image" });
-
-    const filePath = `avatars/${userId}-${Date.now()}.jpg`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(filePath, req.file.buffer, { contentType: "image/jpeg", upsert: true });
-
-    if (uploadError) throw uploadError;
-
-    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-    const avatarUrl = urlData.publicUrl;
-
-    await supabase.from("players").update({ avatar: avatarUrl }).eq("user_id", userId);
-
-    res.json({ success: true, avatar_url: avatarUrl });
+    const { data: player } = await supabase
+      .from("players")
+      .select("profile_changed_at, total_points")
+      .eq("user_id", userId)
+      .single();
+    res.json({ success: true, data: getCooldownStatus(player?.profile_changed_at, player?.total_points) });
   } catch (err) {
-    console.error("Avatar upload error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-router.post("/display-name/:userId", async (req, res) => {
+router.post("/save/:userId", async (req, res) => {
   try {
-    const { userId }       = req.params;
-    const { display_name } = req.body;
+    const { userId } = req.params;
+    const { display_name, avatar_base64, use_points } = req.body;
 
-    if (!display_name?.trim()) {
-      return res.status(400).json({ success: false, error: "Missing display_name" });
+    if (!display_name?.trim() && !avatar_base64) {
+      return res.status(400).json({ success: false, error: "Không có thông tin nào để cập nhật" });
     }
 
-    const name = display_name.trim();
-
-    const { error } = await supabase
+    const { data: player } = await supabase
       .from("players")
-      .update({ zalo_name: name })
-      .eq("user_id", userId);
+      .select("profile_changed_at, total_points, zalo_name, avatar")
+      .eq("user_id", userId)
+      .single();
 
+    const status = getCooldownStatus(player?.profile_changed_at, player?.total_points);
+
+    if (!status.can_change_free && !use_points) {
+      return res.status(400).json({
+        success:        false,
+        error:          `Còn ${status.days_left} ngày nữa mới được đổi miễn phí`,
+        days_left:      status.days_left,
+        next_free_date: status.next_free_date,
+        can_use_points: status.can_use_points,
+        point_cost:     POINT_COST,
+      });
+    }
+
+    if (use_points && !status.can_change_free) {
+      if (!status.can_use_points) {
+        return res.status(400).json({
+          success: false,
+          error:   `Không đủ điểm. Cần ${POINT_COST} điểm, bạn có ${status.current_points} điểm.`,
+        });
+      }
+      await deductPoints({
+        phone:   userId,
+        user_id: userId,
+        points:  POINT_COST,
+        reason:  "Đổi thông tin hồ sơ",
+      });
+    }
+
+    const updates = { profile_changed_at: new Date().toISOString() };
+
+    let avatarUrl = player?.avatar || null;
+    if (avatar_base64) {
+      const buffer   = Buffer.from(avatar_base64, "base64");
+      const filePath = `avatars/${userId}-${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, buffer, { contentType: "image/jpeg", upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
+      avatarUrl      = urlData.publicUrl;
+      updates.avatar = avatarUrl;
+    }
+
+    const newName = display_name?.trim() || player?.zalo_name;
+    if (display_name?.trim()) updates.zalo_name = newName;
+
+    const { error } = await supabase.from("players").update(updates).eq("user_id", userId);
     if (error) throw error;
 
-    try {
-      const axios = require("axios");
-      await axios.post(
-        "https://api.foodbook.vn/ipos/ws/xpartner/update_membership",
-        null,
-        {
+    if (display_name?.trim()) {
+      try {
+        const axios = require("axios");
+        await axios.post("https://api.foodbook.vn/ipos/ws/xpartner/update_membership", null, {
           params: {
             access_token: process.env.IPOS_ACCESS_TOKEN,
             pos_parent:   process.env.IPOS_POS_PARENT,
             user_id:      userId,
-            full_name:    name,
+            full_name:    newName,
           },
-        }
-      );
-    } catch (crmErr) {
-      console.warn("iPos sync warning:", crmErr.message);
+        });
+      } catch (crmErr) {
+        console.warn("iPos name sync warning:", crmErr.message);
+      }
     }
 
-    res.json({ success: true, display_name: name });
+    res.json({
+      success:        true,
+      display_name:   newName,
+      avatar_url:     avatarUrl,
+      points_used:    (use_points && !status.can_change_free) ? POINT_COST : 0,
+      next_free_date: new Date(Date.now() + COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+    });
   } catch (err) {
-    console.error("Display name error:", err.message);
+    console.error("Profile save error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -81,7 +145,7 @@ router.get("/profile/:userId", async (req, res) => {
     const { userId } = req.params;
     const { data, error } = await supabase
       .from("players")
-      .select("user_id, zalo_name, avatar, crm_tier, crm_spend_alltime, crm_orders_alltime")
+      .select("user_id, zalo_name, avatar, crm_tier, crm_spend_alltime, crm_orders_alltime, total_points, profile_changed_at")
       .eq("user_id", userId)
       .single();
     if (error) throw error;
