@@ -1,12 +1,11 @@
 const express  = require("express");
 const multer   = require("multer");
-const Jimp     = require("jimp");
 const supabase = require("../supabase");
 const router   = express.Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits:  { fileSize: 5 * 1024 * 1024 },
+  limits:  { fileSize: 2 * 1024 * 1024 }, // 2MB max (frontend đã resize rồi)
 });
 
 router.post("/avatar/:userId", upload.single("avatar"), async (req, res) => {
@@ -14,13 +13,11 @@ router.post("/avatar/:userId", upload.single("avatar"), async (req, res) => {
     const { userId } = req.params;
     if (!req.file) return res.status(400).json({ success: false, error: "Missing image" });
 
-    const resized = req.file.buffer;
-
     const filePath = `avatars/${userId}-${Date.now()}.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from("avatars")
-      .upload(filePath, resized, { contentType: "image/jpeg", upsert: true });
+      .upload(filePath, req.file.buffer, { contentType: "image/jpeg", upsert: true });
 
     if (uploadError) throw uploadError;
 
