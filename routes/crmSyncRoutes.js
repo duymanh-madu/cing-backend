@@ -96,3 +96,28 @@ router.get("/log-preview/:userId", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+router.get("/log-raw/:userId", async (req, res) => {
+  try {
+    const axios = require("axios");
+    const { userId } = req.params;
+    const response = await axios.get(
+      "https://api.foodbook.vn/ipos/ws/xpartner/membership_log",
+      {
+        params: {
+          access_token: process.env.IPOS_ACCESS_TOKEN,
+          pos_parent:   process.env.IPOS_POS_PARENT,
+          user_id:      userId,
+          page:         1,
+          log_type:     "PAY",
+          create_from:  req.query.from || "2026-01-01 00:00:00",
+          create_to:    req.query.to   || "2026-12-31 23:59:59",
+          page_size:    500,
+        },
+      }
+    );
+    res.json(response.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
