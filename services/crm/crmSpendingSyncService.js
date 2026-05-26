@@ -101,9 +101,10 @@ async function syncOnePlayer(player) {
  
   try {
     // Lấy tất cả time (total all-time)
-    const allTimeResult = await foodbook.getMemberTransactions(userId, 1);
-    const allTimeSpent  = allTimeResult.data?.total_spent || 0;
-    const allTimeOrders = allTimeResult.data?.total_orders || 0;
+    const memberResult  = await foodbook.getMember(userId);
+    const memberData    = memberResult.data?.data || {};
+    const allTimeSpent  = Number(memberData.payment_amount || 0);
+    const allTimeOrders = Number(memberData.eat_times || 0);
  
     // Lấy theo period dùng membership_log
     const [weekSpent, monthSpent, quarterSpent, yearSpent] = await Promise.all([
