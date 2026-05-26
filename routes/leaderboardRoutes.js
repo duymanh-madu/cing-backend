@@ -93,8 +93,8 @@ router.get(
 
     try {
 
-      const data =
-        const { period="all", from, to, limit=100 } = req.query;
+      const { period="all", from, to, limit=100 } = req.query;
+
         const data = await getTopSpenders({ period, from, to, limit: Number(limit) });
 
       res.json({
