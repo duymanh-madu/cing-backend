@@ -55,4 +55,17 @@ router.post("/buy-plays", async (req, res) => {
   }
 });
 
+
+// POST /api/points/deduct
+router.post("/deduct", async (req, res) => {
+  try {
+    const { user_id, phone, points, reason } = req.body;
+    if (!user_id || !points) return res.status(400).json({ success: false, message: "Thiếu thông tin" });
+    const result = await deductPoints({ phone: phone || user_id, user_id, points, reason });
+    res.json({ success: true, ...result });
+  } catch(err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;
