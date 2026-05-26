@@ -474,7 +474,7 @@ async function pushOrderToIPOS({
 
       await axios.post(
 
-        `${IPOS_BASE_URL}/orders/create`,
+        `${IPOS_BASE_URL}/ipos/ws/xpartner/order_online`,
 
         payload,
 
