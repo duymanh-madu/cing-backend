@@ -162,3 +162,18 @@ router.get("/customers-preview", async (req, res) => {
     res.status(500).json({ error: err.message, detail: err.response?.data });
   }
 });
+
+router.post("/import-all-customers", async (req, res) => {
+  const secret = req.headers["x-cron-secret"];
+  if (secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
+  try {
+    res.json({ success: true, message: "Import started" });
+    const { importAllCrmCustomers } = require("../services/crm/crmCustomerImportService");
+    const result = await importAllCrmCustomers();
+    console.log("IMPORT DONE:", result);
+  } catch (err) {
+    console.error("Import error:", err.message);
+  }
+});
