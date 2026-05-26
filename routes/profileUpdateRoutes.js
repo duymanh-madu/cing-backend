@@ -1,6 +1,6 @@
 const express  = require("express");
 const multer   = require("multer");
-const sharp    = require("sharp");
+const Jimp     = require("jimp");
 const supabase = require("../supabase");
 const router   = express.Router();
 
@@ -14,10 +14,10 @@ router.post("/avatar/:userId", upload.single("avatar"), async (req, res) => {
     const { userId } = req.params;
     if (!req.file) return res.status(400).json({ success: false, error: "Missing image" });
 
-    const resized = await sharp(req.file.buffer)
-      .resize(150, 150, { fit: "cover", position: "center" })
-      .jpeg({ quality: 75 })
-      .toBuffer();
+    // Resize 150x150 bằng jimp
+    const image = await Jimp.read(req.file.buffer);
+    image.cover(150, 150);
+    const resized = await image.getBufferAsync(Jimp.MIME_JPEG);
 
     const filePath = `avatars/${userId}-${Date.now()}.jpg`;
 
