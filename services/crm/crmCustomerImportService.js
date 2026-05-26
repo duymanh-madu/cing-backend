@@ -1,10 +1,10 @@
 const axios    = require("axios");
 const supabase = require("../../supabase");
 
-const IPOS_BASE   = "https://api.foodbook.vn";
-const TOKEN       = process.env.IPOS_ACCESS_TOKEN;
-const POS_PARENT  = process.env.IPOS_POS_PARENT;
-const PAGE_SIZE   = 100;
+const IPOS_BASE  = "https://api.foodbook.vn";
+const TOKEN      = process.env.IPOS_ACCESS_TOKEN;
+const POS_PARENT = process.env.IPOS_POS_PARENT;
+const PAGE_SIZE  = 100;
 
 function normalizePhone(phone) {
   const str = String(phone).replace(/\D/g, "");
@@ -26,7 +26,7 @@ async function fetchCustomerPage(page) {
   const response = await axios.get(
     `${IPOS_BASE}/ipos/ws/partner/data/customer`,
     {
-      params: { pos_parent: POS_PARENT, page, page_size: PAGE_SIZE },
+      params:  { pos_parent: POS_PARENT, page, page_size: PAGE_SIZE },
       headers: { access_token: TOKEN },
       timeout: 15000,
     }
@@ -62,8 +62,8 @@ async function importAllCrmCustomers() {
       break;
     }
 
-    // Upsert từng batch vào Supabase
-    const rows = customers
+    // Map sang rows
+    const rawRows = customers
       .filter(c => c.phone_number)
       .map(c => {
         const phone = normalizePhone(c.phone_number);
@@ -78,48 +78,41 @@ async function importAllCrmCustomers() {
         };
       });
 
-    // Dedupe theo user_id trong cùng batch
-    const seen = new Set();
-    const uniqueRows = rows.filter(r => {
+    // DEDUPE trong cùng batch — tránh lỗi ON CONFLICT duplicate
+    const seen      = new Set();
+    const uniqueRows = rawRows.filter(r => {
       if (seen.has(r.user_id)) return false;
       seen.add(r.user_id);
       return true;
     });
 
+    skipped += customers.length - uniqueRows.length;
+
     if (uniqueRows.length > 0) {
       const { error } = await supabase
         .from("players")
-        .upsert(rows, {
-          onConflict:        "user_id",
-          ignoreDuplicates:  false,
-          defaultToNull: false,
-        });
+        .upsert(uniqueRows, { onConflict: "user_id", ignoreDuplicates: false });
 
       if (error) {
         console.error(`Upsert page ${page} error:`, error.message);
-        errors += rows.length;
+        errors += uniqueRows.length;
       } else {
-        imported += rows.length;
-        console.log(`Page ${page}: upserted ${rows.length} customers (total: ${imported})`);
+        imported += uniqueRows.length;
+        console.log(`Page ${page}: upserted ${uniqueRows.length} (total: ${imported})`);
       }
     }
 
-    skipped += customers.length - rows.length;
-
-    // Hết data nếu trả về ít hơn page_size
     if (customers.length < PAGE_SIZE) {
-      console.log("Last page reached at page", page);
+      console.log("Last page at", page);
       break;
     }
 
     page++;
-    // Rate limit
     await new Promise(r => setTimeout(r, 500));
   }
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`IMPORT DONE in ${elapsed}s — imported:${imported} skipped:${skipped} errors:${errors}`);
-
   return { success: true, imported, skipped, errors, elapsed_seconds: elapsed };
 }
 
