@@ -35,13 +35,25 @@ async function fetchPeriodSpend(userId, from, to) {
   return result.data?.total_spent || 0;
 }
 
+// user_id trong Supabase chính là số điện thoại (0xxx hoặc 84xxx)
+// iPos chấp nhận cả 2 format
+function isPhoneId(userId) {
+  return /^(0|84)\d{8,10}$/.test(String(userId));
+}
+
 async function syncOnePlayer(player) {
-  const userId = player.phone_number || player.zalo_user_id;
-  if (!userId) return null;
+  const userId = player.user_id;
+  if (!userId || !isPhoneId(userId)) return null;
 
   try {
     const memberResult  = await foodbook.getMember(userId);
     const memberData    = memberResult?.data?.data || {};
+
+    if (!memberData.phone_number) {
+      console.log(`Skip ${userId}: not found in iPos`);
+      return { user_id: userId, success: false, error: 'not in iPos' };
+    }
+
     const allTimeSpent  = Number(memberData.payment_amount || 0);
     const allTimeOrders = Number(memberData.eat_times || 0);
 
@@ -64,19 +76,19 @@ async function syncOnePlayer(player) {
         crm_orders_alltime:  allTimeOrders,
         crm_synced_at:       new Date().toISOString(),
       })
-      .eq('user_id', player.user_id);
+      .eq('user_id', userId);
 
     if (error) {
-      console.error('Supabase error:', player.user_id, error.message);
-      return { user_id: player.user_id, success: false };
+      console.error('Supabase error:', userId, error.message);
+      return { user_id: userId, success: false };
     }
 
-    console.log(`Synced ${player.zalo_name||userId}: all=${allTimeSpent} week=${weekly} month=${monthly}`);
-    return { user_id: player.user_id, success: true, allTimeSpent, weekly, monthly, quarterly, yearly };
+    console.log(`Synced ${memberData.name||userId}: all=${allTimeSpent} week=${weekly} month=${monthly}`);
+    return { user_id: userId, success: true, allTimeSpent, weekly, monthly, quarterly, yearly };
 
   } catch (err) {
     console.error('syncOnePlayer error:', userId, err.message);
-    return { user_id: player.user_id, success: false, error: err.message };
+    return { user_id: userId, success: false, error: err.message };
   }
 }
 
@@ -86,39 +98,36 @@ async function syncAllPlayersCrmSpending({ batchSize=3, delayMs=2000 } = {}) {
 
   const { data: players, error } = await supabase
     .from('players')
-    .select('user_id, zalo_user_id, phone_number, zalo_name')
-    .not('phone_number', 'is', null);
+    .select('user_id, zalo_name');
 
   if (error) return { success: false, error: error.message };
 
-  console.log('Players to sync:', players.length);
+  // Chỉ sync những user_id là số điện thoại
+  const filtered = players.filter(p => isPhoneId(p.user_id));
+  console.log(`Players: ${players.length} total, ${filtered.length} with phone ID`);
+
   const stats = { success:0, failed:0, skipped:0 };
 
-  for (let i = 0; i < players.length; i += batchSize) {
-    const batch   = players.slice(i, i+batchSize);
+  for (let i = 0; i < filtered.length; i += batchSize) {
+    const batch   = filtered.slice(i, i+batchSize);
     const results = await Promise.all(batch.map(p => syncOnePlayer(p)));
     results.forEach(r => {
       if (!r) stats.skipped++;
       else if (r.success) stats.success++;
       else stats.failed++;
     });
-    if (i+batchSize < players.length) {
+    if (i+batchSize < filtered.length) {
       await new Promise(r => setTimeout(r, delayMs));
     }
   }
 
   const elapsed = ((Date.now()-t0)/1000).toFixed(1);
   console.log(`SYNC DONE ${elapsed}s`, stats);
-  return { success: true, stats, elapsed_seconds: elapsed, total: players.length };
+  return { success: true, stats, elapsed_seconds: elapsed, total: filtered.length };
 }
 
 async function syncSingleUserSpending(userId) {
-  const { data: player, error } = await supabase
-    .from('players')
-    .select('user_id, zalo_user_id, phone_number, zalo_name')
-    .eq('user_id', userId)
-    .single();
-  if (error || !player) return { success: false, error: 'Player not found' };
+  const player = { user_id: String(userId) };
   return syncOnePlayer(player);
 }
 
