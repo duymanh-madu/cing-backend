@@ -154,6 +154,9 @@ function createApp() {
   // Serve static files from public folder
   app.use(require("express").static(require("path").join(__dirname, "../public")));
 
+  // Keep-alive endpoint
+  app.get('/ping', (req, res) => res.json({ ok:true, t:Date.now() }));
+
   // Zalo domain verification - must be at root level
   app.get("/zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu.html", (req, res) => {
     res.setHeader("Content-Type", "text/html");
