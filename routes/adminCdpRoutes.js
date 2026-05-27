@@ -44,9 +44,11 @@ router.get("/segments", requireAdmin, async (req, res) => {
 
     const todayMD = `${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
 
-    const [allPlayers, vip, newInactive, longInactive, dormant] = await Promise.all([
+    const [allPlayers, vip, newInactive, longInactive, dormant, partner, loyalPartner] = await Promise.all([
       supabase.from("players").select("user_id", { count:"exact", head:true }),
       supabase.from("players").select("user_id", { count:"exact", head:true }).eq("crm_tier", "diamond"),
+      supabase.from("players").select("user_id", { count:"exact", head:true }).eq("crm_tier", "partner"),
+      supabase.from("players").select("user_id", { count:"exact", head:true }).eq("crm_tier", "loyal_partner"),
       // Chua co giao dich tuan nay nhung co lich su mua hang
       supabase.from("players").select("user_id", { count:"exact", head:true })
         .eq("crm_spend_weekly", 0).gt("crm_orders_alltime", 0),
@@ -68,6 +70,10 @@ router.get("/segments", requireAdmin, async (req, res) => {
         { key:"dormant_90",   label:"Chưa mua trong quý này",          icon:"❄️", count: dormant.count || 0,     color:"#607D8B" },
         { key:"birthday",     label:"Sinh nhật hôm nay",          icon:"🎂", count: 0,                      color:"#E91E63",
           note:"Tính năng cần thêm ngày sinh vào CRM" },
+        { key:"partner",       label:"Đối tác",                     icon:"🤝", count: partner.count || 0,    color:"#7c3aed" },
+        { key:"loyal_partner", label:"Đối tác thân thiết",           icon:"👑", count: loyalPartner.count || 0, color:"#581c87" },
+        { key:"custom",        label:"Danh sách tuỳ chỉnh",          icon:"📋", count: 0,                      color:"#0891b2",
+          note:"Nhập SĐT hoặc upload Excel" },
       ]
     });
   } catch (err) {
@@ -93,6 +99,8 @@ router.get("/segment-users/:segmentKey", requireAdmin, async (req, res) => {
       .limit(Number(limit));
 
     if (segmentKey === "vip")          query = query.eq("crm_tier", "diamond");
+    if (segmentKey === "partner")      query = query.eq("crm_tier", "partner");
+    if (segmentKey === "loyal_partner") query = query.eq("crm_tier", "loyal_partner");
     if (segmentKey === "new_inactive") query = query.lt("crm_synced_at", day7ago).gt("crm_orders_alltime", 0);
     if (segmentKey === "inactive_30")  query = query.lt("crm_synced_at", day30ago).gt("crm_orders_alltime", 0);
     if (segmentKey === "dormant_90")   query = query.lt("crm_synced_at", day90ago).gt("crm_orders_alltime", 0);
@@ -121,6 +129,21 @@ router.post("/send-notification", requireAdmin, async (req, res) => {
         custom: { title, message },
       });
       return res.json({ success: true, message: "Đã broadcast đến tất cả người dùng online", sent: "all" });
+    }
+
+    // Custom phones list
+    if (segment_key === "custom") {
+      const phones = req.body.custom_phones || [];
+      if (phones.length === 0) return res.json({ success: true, message: "Không có SĐT nào", sent: 0 });
+      let sent = 0;
+      for (const phone of phones) {
+        await sendNotification({
+          user_id: phone, template_key: "CAMPAIGN_BROADCAST",
+          custom: { title, message },
+        });
+        sent++;
+      }
+      return res.json({ success: true, message: `Đã gửi đến ${sent} khách hàng`, sent });
     }
 
     // Lấy users trong segment
