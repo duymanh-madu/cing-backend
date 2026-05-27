@@ -114,8 +114,6 @@ function buildPayload(order) {
   };
 }
 
-}
-
 /**
  * ============================================
  * CREATE IPOS LOG
