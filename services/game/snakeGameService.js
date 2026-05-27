@@ -11,7 +11,7 @@
 
 const ROOM_COUNT    = 3;
 const MAX_PER_ROOM  = 30;
-const TICK_RATE     = 50;       // ms, 20fps
+const TICK_RATE     = 100;       // ms, 20fps
 const MAP_SIZE      = 8000;     // vô cực nhưng spawn trong vùng này
 const FOOD_COUNT    = 200;      // số mồi thường trên map mỗi room
 const SPECIAL_COUNT = 15;       // số vật phẩm đặc biệt
@@ -257,6 +257,9 @@ async function tickRoom(room, io) {
       }
     });
   });
+
+  // Skip broadcast mỗi tick lẻ để giảm tải
+  if (room.tick % 2 !== 0) return;
 
   // 4. Broadcast state (only nearby players)
   players.forEach(p => {

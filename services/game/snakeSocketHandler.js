@@ -3,6 +3,11 @@ const supabase = require('../../supabase');
 
 module.exports = function registerSnakeHandlers(io) {
   const gameNs = io.of('/snake');
+  // Override ping settings for game namespace
+  gameNs.use((socket, next) => {
+    socket.conn.setTimeout = () => {}; // disable timeout
+    next();
+  });
 
   gameNs.on('connection', (socket) => {
     console.log('[SNAKE] Client connected:', socket.id);
