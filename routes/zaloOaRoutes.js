@@ -58,3 +58,46 @@ router.post("/send-message", async (req, res) => {
 });
 
 module.exports = router;
+
+// Auto-refresh token
+async function refreshZaloToken() {
+  try {
+    const { data: config } = await supabase.from("app_configs")
+      .select("zalo_oa_refresh_token").eq("id", 1).single();
+    
+    const refresh_token = config?.zalo_oa_refresh_token || process.env.ZALO_OA_REFRESH_TOKEN;
+    if (!refresh_token) throw new Error("No refresh token");
+
+    const result = await axios.post("https://oauth.zaloapp.com/v4/oa/access_token", null, {
+      headers: { secret_key: process.env.ZALO_APP_SECRET },
+      params: {
+        app_id:        process.env.ZALO_APP_ID,
+        grant_type:    "refresh_token",
+        refresh_token,
+      }
+    });
+
+    const { access_token, refresh_token: new_refresh, expires_in } = result.data;
+
+    await supabase.from("app_configs").update({
+      zalo_oa_access_token:  access_token,
+      zalo_oa_refresh_token: new_refresh,
+      zalo_oa_token_expiry:  new Date(Date.now() + expires_in * 1000).toISOString(),
+    }).eq("id", 1);
+
+    console.log("[ZALO OA] Token refreshed successfully");
+    return access_token;
+  } catch(err) {
+    console.error("[ZALO OA] Refresh failed:", err.message);
+    return null;
+  }
+}
+
+// GET /api/zalo/refresh-token
+router.get("/refresh-token", async (req, res) => {
+  const token = await refreshZaloToken();
+  if (token) res.json({ success: true, message: "Token refreshed" });
+  else res.status(500).json({ success: false, error: "Refresh failed" });
+});
+
+module.exports.refreshZaloToken = refreshZaloToken;
