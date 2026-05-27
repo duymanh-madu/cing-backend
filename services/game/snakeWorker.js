@@ -15,7 +15,7 @@ const HIT_RADIUS    = 10;
 const SPECIAL_ITEMS    = ['x2','x5','x10','magnet','shield'];
 const SPECIAL_DURATION = { x2:15000, x5:15000, x10:15000, magnet:15000, shield:15000 };
 const SPECIAL_GROW     = { x2:2, x5:3, x10:5, magnet:1, shield:1 };
-const MAGNET_RADIUS    = 200; // Nam châm hút food trong bán kính này
+const MAGNET_RADIUS    = 350; // Nam châm hút food trong bán kính này
 
 const rooms = {};
 
@@ -149,7 +149,8 @@ function tick() {
         const dx = head.x-f.x, dy = head.y-f.y;
         const dist = Math.sqrt(dx*dx+dy*dy);
         if (dist < MAGNET_RADIUS && dist > 1) {
-          const force = 3 * (1 - dist/MAGNET_RADIUS);
+          // Lực hút mạnh, tăng theo khoảng cách gần
+          const force = 12 * (1 - dist/MAGNET_RADIUS) + 3;
           f.x += (dx/dist) * force;
           f.y += (dy/dist) * force;
           // Clamp
