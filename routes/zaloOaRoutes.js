@@ -77,6 +77,7 @@ async function refreshZaloToken() {
       }
     });
 
+    console.log("[ZALO OA] Response:", JSON.stringify(result.data));
     const { access_token, refresh_token: new_refresh, expires_in } = result.data;
 
     await supabase.from("app_configs").update({
