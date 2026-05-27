@@ -167,9 +167,22 @@ async function syncAllPlayersCrmSpending({ batchSize=3, delayMs=2000 } = {}) {
   console.log('START CRM SYNC... VN time:', fmtIpos(nowVN()));
   const t0 = Date.now();
 
-  const { data: players, error } = await supabase
-    .from('players')
-    .select('user_id, zalo_name');
+  // Supabase default limit 1000 — phải dùng pagination để lấy hết
+  let players = [];
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    const { data: page, error: pageErr } = await supabase
+      .from('players')
+      .select('user_id, zalo_name')
+      .range(from, from + pageSize - 1);
+    if (pageErr) { console.error('Fetch players error:', pageErr.message); break; }
+    if (!page || page.length === 0) break;
+    players = [...players, ...page];
+    if (page.length < pageSize) break;
+    from += pageSize;
+  }
+  const error = null;
 
   if (error) return { success: false, error: error.message };
 
