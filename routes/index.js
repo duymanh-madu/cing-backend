@@ -321,5 +321,7 @@ router.use(
 
 router.use("/profile-update", require("./profileUpdateRoutes"));
 
+router.use("/zalo", require("./zaloOaRoutes"));
+
 module.exports =
   router;
