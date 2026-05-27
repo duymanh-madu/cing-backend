@@ -186,9 +186,10 @@ router.get(
         userId,
       } = req.params;
 
+      const period = req.query.period || "alltime";
       const data =
         await getUserRank(
-          userId
+          userId, { period }
         );
 
       res.json({
@@ -216,6 +217,26 @@ router.get(
 
   }
 );
+
+router.get("/user-game-rank/:userId/:gameKey", async (req, res) => {
+  try {
+    const { userId, gameKey } = req.params;
+    const { data: scores } = await require("../supabase")
+      .from("game_scores")
+      .select("user_id, player_name, score")
+      .eq("game_key", gameKey)
+      .order("score", { ascending: false })
+      .limit(2000);
+    const all = scores || [];
+    const idx = all.findIndex(s => String(s.user_id) === String(userId));
+    if (idx === -1) {
+      return res.json({ success: true, data: { rank: null, total: all.length, score: 0 } });
+    }
+    res.json({ success: true, data: { rank: idx + 1, total: all.length, score: all[idx].score } });
+  } catch(err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 module.exports =
   router;
