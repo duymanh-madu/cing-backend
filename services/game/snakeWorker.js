@@ -1,6 +1,9 @@
 const { parentPort } = require('worker_threads');
 
-const MAP_SIZE      = 4000;  // Vừa đủ để gặp nhau
+const MAP_SIZE      = 4000;
+const MAP_RADIUS    = 1800;
+const MAP_CX        = MAP_SIZE / 2;
+const MAP_CY        = MAP_SIZE / 2;  // Vừa đủ để gặp nhau
 const TICK_RATE     = 33;    // 30fps
 const SNAKE_SPEED   = 4;
 const BOOST_SPEED   = 8;
@@ -31,8 +34,9 @@ function rndFood(MAP) {
 }
 function rndSpecial(MAP) {
   const type = SPECIAL_ITEMS[Math.floor(Math.random()*SPECIAL_ITEMS.length)];
+  const sa2=Math.random()*Math.PI*2, sr2=Math.random()*MAP_RADIUS*0.8;
   return { id:`s${Date.now()}${Math.random().toString(36).slice(2,5)}`, type,
-    x:Math.random()*MAP, y:Math.random()*MAP };
+    x:MAP_CX+Math.cos(sa2)*sr2, y:MAP_CY+Math.sin(sa2)*sr2 };
 }
 
 function initRooms() {
@@ -44,8 +48,9 @@ function initRooms() {
 }
 
 function createPlayer(userId, name, avatar, roomId) {
-  const cx = MAP_SIZE/2 + (Math.random()-0.5)*1000;
-  const cy = MAP_SIZE/2 + (Math.random()-0.5)*1000;
+  const sa = Math.random()*Math.PI*2, sr = Math.random()*MAP_RADIUS*0.65;
+  const cx = MAP_CX + Math.cos(sa)*sr;
+  const cy = MAP_CY + Math.sin(sa)*sr;
   const angle = Math.random()*Math.PI*2;
   const segments = [];
   for (let i=0;i<12;i++) segments.push({
@@ -113,7 +118,7 @@ function tick() {
       let da = p.targetAngle - p.angle;
       while (da>Math.PI)  da -= Math.PI*2;
       while (da<-Math.PI) da += Math.PI*2;
-      const turnRate = 0.12; // nhanh hơn để responsive hơn
+      const turnRate = 0.2; // nhanh hơn để responsive hơn
       p.angle += Math.max(-turnRate, Math.min(turnRate, da));
 
       const spd = p.boosting ? BOOST_SPEED : SNAKE_SPEED;

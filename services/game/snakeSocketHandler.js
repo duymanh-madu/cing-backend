@@ -46,6 +46,11 @@ module.exports = function registerSnakeHandlers(io) {
           }, { onConflict:'user_id,game_key' }).catch(()=>{});
         }
         break;
+      case 'BORDER_DEATH': {
+        const bs = userToSocket.get(msg.userId);
+        if (bs) bs.emit('game:border_death', { length:msg.length });
+        break;
+      }
       case 'ATE': {
         const aSock = userToSocket.get(msg.userId);
         if (aSock) aSock.emit('game:ate', { multiplier: msg.multiplier });
