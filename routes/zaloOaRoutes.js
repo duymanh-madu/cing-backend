@@ -17,6 +17,7 @@ router.get("/oa-callback", async (req, res) => {
     const { code } = req.query;
     if (!code) return res.status(400).send("Missing code");
 
+    console.log("[ZALO OA] Calling refresh with app_id:", process.env.ZALO_APP_ID, "refresh_token length:", refresh_token?.length);
     const result = await axios.post("https://oauth.zaloapp.com/v4/oa/access_token", null, {
       params: { app_id: APP_ID, app_secret: APP_SECRET, code, grant_type: "authorization_code" }
     });
