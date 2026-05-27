@@ -2,6 +2,7 @@ const { parentPort } = require('worker_threads');
 
 const MAP_SIZE      = 4000;
 const MAP_RADIUS    = 1800;
+const MAP_R         = MAP_RADIUS;
 const MAP_CX        = MAP_SIZE / 2;
 const MAP_CY        = MAP_SIZE / 2;  // Vừa đủ để gặp nhau
 const TICK_RATE     = 33;    // 30fps
@@ -124,6 +125,25 @@ function tick() {
       const spd = p.boosting ? BOOST_SPEED : SNAKE_SPEED;
       const nx = ((p.segments[0].x + Math.cos(p.angle)*spd) % MAP_SIZE + MAP_SIZE) % MAP_SIZE;
       const ny = ((p.segments[0].y + Math.sin(p.angle)*spd) % MAP_SIZE + MAP_SIZE) % MAP_SIZE;
+      // Circular boundary - tự nổ khi ra ngoài
+      const bdx=nx-MAP_CX, bdy=ny-MAP_CY;
+      if (bdx*bdx+bdy*bdy >= MAP_R*MAP_R) {
+        p.alive = false;
+        const rm = rooms[p.roomId];
+        if (rm) {
+          const fc = Math.min(p.length*2, 80);
+          for (let i=0;i<fc;i++) {
+            const fa=Math.random()*Math.PI*2, fr=Math.random()*MAP_R*.75;
+            rm.food.push({ id:'bd'+Date.now()+i,
+              x:MAP_CX+Math.cos(fa)*fr, y:MAP_CY+Math.sin(fa)*fr,
+              value:2, size:7, color:'#E8A030' });
+          }
+        }
+        parentPort.postMessage({ type:'BORDER_DEATH', roomId:p.roomId,
+          userId:p.id, userName:p.name, length:p.length });
+        setTimeout(()=>{ const rm2=rooms[p.roomId]; if(rm2) delete rm2.players[p.id]; }, 2000);
+        return;
+      }
       p.segments.unshift({ x:nx, y:ny });
 
       // Giữ độ dài đúng
