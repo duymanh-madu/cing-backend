@@ -108,6 +108,39 @@ async function syncOnePlayer(player) {
       return { user_id: userId, success: false };
     }
 
+    // Lấy player hiện tại để tính lượt chơi
+    const { data: currentPlayer } = await supabase
+      .from('players')
+      .select('game_plays, plays_from_spend, first_activated_at')
+      .eq('user_id', userId)
+      .single();
+
+    const playsUpdate = {};
+
+    // Logic 1: Lần đầu active -> tang 3 luot choi mien phi
+    if (!currentPlayer?.first_activated_at && allTimeOrders > 0) {
+      playsUpdate.first_activated_at = new Date().toISOString();
+      playsUpdate.game_plays = Number(currentPlayer?.game_plays || 0) + 3;
+      console.log('[GAME] First activation bonus: +3 plays for ' + userId);
+    }
+
+    // Logic 2: Moi 20.000d spending tich luy -> +1 luot choi
+    const SPEND_PER_PLAY = 20000;
+    const playsEarned    = Math.floor(allTimeSpent / SPEND_PER_PLAY);
+    const playsFromSpend = Number(currentPlayer?.plays_from_spend || 0);
+    const newPlays       = playsEarned - playsFromSpend;
+
+    if (newPlays > 0) {
+      const currentPlays = Number(playsUpdate.game_plays != null ? playsUpdate.game_plays : (currentPlayer?.game_plays || 0));
+      playsUpdate.game_plays       = currentPlays + newPlays;
+      playsUpdate.plays_from_spend = playsEarned;
+      console.log('[GAME] Spend bonus: +' + newPlays + ' plays for ' + userId + ' (total earned: ' + playsEarned + ')');
+    }
+
+    if (Object.keys(playsUpdate).length > 0) {
+      await supabase.from('players').update(playsUpdate).eq('user_id', userId);
+    }
+
     console.log(`Synced ${memberData.name||userId}: all=${allTimeSpent} week=${weekly} month=${monthly}`);
     return { user_id: userId, success: true, allTimeSpent, weekly, monthly, quarterly, yearly };
 
