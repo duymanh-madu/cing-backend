@@ -5,8 +5,8 @@ const supabase = require('../supabase');
 // GET /game/snake/rooms - danh sách phòng
 router.get('/rooms', (req, res) => {
   try {
-    const { getRoomList } = require('../services/game/snakeGameService');
-    res.json({ success: true, data: getRoomList() });
+    // Rooms managed by worker - return placeholder
+    res.json({ success: true, data: [] });
   } catch(e) {
     res.status(500).json({ success: false, error: e.message });
   }

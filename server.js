@@ -330,10 +330,8 @@ async function startServer() {
 
     // Snake game init
     try {
-      const { startGameLoop } = require('./services/game/snakeGameService');
       const registerSnakeHandlers = require('./services/game/snakeSocketHandler');
       registerSnakeHandlers(ioInstance);
-      startGameLoop(ioInstance);
       console.log('[GAME] Snake game initialized');
     } catch(e) { console.error('[GAME] Init failed:', e.message); }
 
