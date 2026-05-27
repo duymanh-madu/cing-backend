@@ -41,5 +41,6 @@ router.use(
   require("./voucherAdminRoutes")
 );
 
+router.use("/logs", require("./adminLogRoutes"));
 module.exports =
   router;
