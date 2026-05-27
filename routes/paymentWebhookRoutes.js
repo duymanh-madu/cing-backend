@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabase");
 const { pushOrderToIPOS } = require("../services/iposOrderService");
+const { calculateOrderPoints } = require("../services/membershipBenefitsService");
 
 router.post("/momo", async (req, res) => {
   const { resultCode, orderId, transId, amount, message } = req.body;
@@ -97,14 +98,33 @@ router.post("/momo", async (req, res) => {
       } catch(e) { console.warn("[MOMO IPN] Point deduction failed:", e.message); }
     }
 
-    // 5. Gui thong bao
+    // 5. Cong diem theo tier (tinh tren so tien thuc chi sau giam gia)
+    try {
+      const { addPoints } = require("../services/loyaltyPointService");
+      const { data: player } = await supabase.from("players")
+        .select("crm_tier").eq("user_id", order.user_id).single();
+      const tierKey     = player?.crm_tier || "member";
+      const finalAmount = order.total_amount || 0;
+      const pointsToAdd = calculateOrderPoints(finalAmount, tierKey);
+      if (pointsToAdd > 0) {
+        await addPoints({
+          phone:   order.user_id,
+          user_id: order.user_id,
+          points:  pointsToAdd,
+          reason:  "Tích điểm đơn hàng " + order.order_code + " (" + tierKey + ")",
+        });
+        console.log("[MOMO IPN] Added " + pointsToAdd + " points for " + order.user_id + " tier: " + tierKey);
+      }
+    } catch(e) { console.warn("[MOMO IPN] Point addition failed:", e.message); }
+
+    // 6. Gui thong bao
     try {
       const { sendNotification } = require("../services/notificationService");
       await sendNotification({ user_id: order.user_id, template_key: "MISSION_COMPLETED",
         custom: { title: "Đặt hàng thành công!", message: "Đơn hàng " + order.order_code + " đang được xử lý." } });
     } catch(e) {}
 
-    // 6. Emit leaderboard spending update
+    // 7. Emit leaderboard spending update
     try {
       const { realtimeEventBus } = require("../services/realtime/realtimeEventBus");
       const { data: topSpenders } = await supabase.from("players")

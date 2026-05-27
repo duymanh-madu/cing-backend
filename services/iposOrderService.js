@@ -76,74 +76,43 @@ function buildItems(
  * ============================================
  */
 
-function buildPayload(
-  order
-) {
-
+function buildPayload(order) {
+  const phone = (order.customer_phone || order.user_id || "").replace(/\D/g, "");
   return {
-
-    order_code:
-
-      order.order_code ||
-
-      `ORDER_${Date.now()}`,
-
-    customer_name:
-
-      order.customer_name ||
-
-      "Khách hàng",
-
-    customer_phone:
-
-      order.customer_phone ||
-
-      "",
-
-    shipping_address:
-
-      order.shipping_address ||
-
-      "",
-
-    subtotal:
-
-      order.subtotal || 0,
-
-    shipping_fee:
-
-      order.shipping_fee || 0,
-
-    total:
-
-      order.total ||
-
-      order.total_amount ||
-
-      0,
-
-    payment_status:
-
-      order.payment_status ||
-
-      "paid",
-
-    payment_method:
-
-      order.payment_method ||
-
-      "bank_transfer",
-
-    note:
-      order.note || "",
-
-    items:
-
-      buildItems(
-        order.items || []
-      ),
-
+    foodbook_code:   (order.order_code || "").replace(/[^A-Z0-9]/g,"").slice(0,15).toUpperCase(),
+    pos_id:          Number(process.env.IPOS_POS_ID),
+    pos_parent:      process.env.IPOS_POS_PARENT,
+    order_type:      order.order_type || "STORE",
+    user_id:         phone ? "84" + phone.slice(1) : "",
+    username:        order.customer_name || "Khách hàng",
+    note:            order.note || "",
+    to_address:      order.shipping_address || "",
+    ship_price_real: order.shipping_fee || 0,
+    amount:          order.subtotal || order.total_amount || 0,
+    total_amount:    order.total_amount || 0,
+    adapt_to_online: 1,
+    return_data:     "full",
+    coupon_log_id:   "",
+    newuser:         0,
+    PaymentInfo: {
+      Payment_Method: "MOMO_ORDER_ONLINE",
+      Amount:         order.total_amount || 0,
+    },
+    order_data_item: (order.items || []).map(item => ({
+      Item_Type_Id: item.category || "DU",
+      Item_Id:      String(item.item_id || item.id || ""),
+      Item_Name:    item.name || item.displayName || item.product_name || "",
+      Price:        item.price || 0,
+      Quantity:     item.quantity || item.qty || 1,
+      Note:         item.note || "",
+      Discount:     0,
+      Foc:          0,
+      Package_Id:   "",
+      Parent_Id:    "",
+      Fix:          0,
+    })),
   };
+}
 
 }
 
