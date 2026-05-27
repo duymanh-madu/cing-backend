@@ -103,3 +103,28 @@ router.get("/refresh-token", async (req, res) => {
 });
 
 module.exports.refreshZaloToken = refreshZaloToken;
+
+// POST /api/zalo/oa-webhook
+router.post("/oa-webhook", async (req, res) => {
+  try {
+    const body = req.body || {};
+    console.log("[ZALO OA WEBHOOK]", JSON.stringify(body).slice(0, 300));
+    const redis = require("../services/infrastructure/cache/redisClient");
+    await redis.setex("zalo:last_webhook", 3600, JSON.stringify(body));
+    res.status(200).json({ success: true });
+  } catch(err) {
+    console.error("[ZALO OA WEBHOOK] Error:", err.message);
+    res.status(200).json({ success: true }); // Luôn trả 200 để Zalo không retry
+  }
+});
+
+// GET /api/zalo/last-webhook
+router.get("/last-webhook", async (req, res) => {
+  try {
+    const redis = require("../services/infrastructure/cache/redisClient");
+    const data = await redis.get("zalo:last_webhook");
+    res.json({ data: data ? JSON.parse(data) : null });
+  } catch(err) {
+    res.json({ data: null });
+  }
+});
