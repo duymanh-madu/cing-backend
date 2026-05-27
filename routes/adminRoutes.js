@@ -45,6 +45,7 @@ router.use("/stats", require("./adminStatsRoutes"));
 router.use("/players", require("./adminPlayerRoutes"));
 router.use("/missions", require("./adminMissionRoutes"));
 router.use("/cdp", require("./adminCdpRoutes"));
+router.use("/leaderboard", require("./adminLeaderboardRoutes"));
 router.use("/logs", require("./adminLogRoutes"));
 module.exports =
   router;
