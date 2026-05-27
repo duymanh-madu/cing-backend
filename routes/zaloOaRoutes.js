@@ -88,7 +88,7 @@ async function refreshZaloToken() {
     console.log("[ZALO OA] Token refreshed successfully");
     return access_token;
   } catch(err) {
-    console.error("[ZALO OA] Refresh failed:", err.message);
+    console.error("[ZALO OA] Refresh failed:", err.message, JSON.stringify(err.response?.data));
     return null;
   }
 }
