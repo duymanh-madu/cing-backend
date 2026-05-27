@@ -6,13 +6,14 @@ const { getMember, getMemberVouchers } = require("../services/foodbook");
 const CACHE_TTL = 300; // 5 phut fallback TTL
 
 function mapTierKey(name) {
+  // QUAN TRONG: check "đối tác thân thiết" TRƯỚC "thân thiết"
   if (!name) return "member";
   const n = name.toLowerCase();
   if (n.includes("kim") && (n.includes("cuong") || n.includes("cương"))) return "diamond";
   if (n.includes("vàng") || n.includes("vang")) return "gold";
   if (n.includes("bạc") || n.includes("bac")) return "silver";
+  if (n.includes("đối tác thân thiết") || n.includes("doi tac than thiet") || n === "dttt") return "loyal_partner";
   if (n.includes("thân thiết") || n.includes("than thiet")) return "loyal";
-  if (n.includes("đối tác thân thiết")) return "loyal_partner";
   if (n.includes("đối tác") || n.includes("doi tac")) return "partner";
   return "member";
 }
