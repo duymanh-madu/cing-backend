@@ -1,0 +1,60 @@
+const express  = require("express");
+const router   = express.Router();
+const axios    = require("axios");
+const supabase = require("../supabase");
+
+const APP_ID     = process.env.ZALO_APP_ID;
+const APP_SECRET = process.env.ZALO_APP_SECRET;
+
+// Zalo domain verification
+router.get("/zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu.html", (req, res) => {
+  res.send("zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu");
+});
+
+// GET /api/zalo/oa-callback
+router.get("/oa-callback", async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code) return res.status(400).send("Missing code");
+
+    const result = await axios.post("https://oauth.zaloapp.com/v4/oa/access_token", null, {
+      params: { app_id: APP_ID, app_secret: APP_SECRET, code, grant_type: "authorization_code" }
+    });
+
+    const { access_token, refresh_token, expires_in } = result.data;
+
+    await supabase.from("app_configs").update({
+      zalo_oa_access_token:  access_token,
+      zalo_oa_refresh_token: refresh_token,
+      zalo_oa_token_expiry:  new Date(Date.now() + expires_in * 1000).toISOString(),
+    }).eq("id", 1);
+
+    console.log("[ZALO OA] Token saved successfully");
+    res.send("<h2>✅ Kết nối Zalo OA thành công! Bạn có thể đóng tab này.</h2>");
+  } catch(err) {
+    console.error("[ZALO OA] Callback error:", err.response?.data || err.message);
+    res.status(500).send("❌ Lỗi: " + (err.response?.data?.message || err.message));
+  }
+});
+
+// POST /api/zalo/send-message
+router.post("/send-message", async (req, res) => {
+  try {
+    const { user_id, message } = req.body;
+    const { data: config } = await supabase.from("app_configs")
+      .select("zalo_oa_access_token").eq("id", 1).single();
+    const token = config?.zalo_oa_access_token;
+    if (!token) return res.status(400).json({ success: false, error: "Chưa kết nối Zalo OA" });
+
+    const result = await axios.post("https://openapi.zalo.me/v3.0/oa/message/cs", {
+      recipient: { user_id },
+      message:   { text: message },
+    }, { headers: { access_token: token } });
+
+    res.json({ success: true, data: result.data });
+  } catch(err) {
+    res.status(500).json({ success: false, error: err.response?.data || err.message });
+  }
+});
+
+module.exports = router;
