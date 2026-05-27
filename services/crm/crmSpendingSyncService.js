@@ -64,6 +64,18 @@ function isPhoneId(userId) {
   return /^(0|84)\d{8,10}$/.test(String(userId));
 }
 
+function mapTierKey(name) {
+  if (!name) return "member";
+  const n = name.toLowerCase().trim();
+  if (n.includes("đối tác thân thiết") || n.includes("doi tac than thiet") || n === "dttt") return "loyal_partner";
+  if ((n.includes("đối tác") || n.includes("doi tac") || n === "dt") && !n.includes("thân thiết")) return "partner";
+  if (n.includes("kim") && (n.includes("cuong") || n.includes("cương"))) return "diamond";
+  if (n.includes("vàng") || n.includes("vang") || n.includes("gold")) return "gold";
+  if (n.includes("bạc") || n.includes("bac") || n.includes("silver")) return "silver";
+  if (n.includes("thân thiết") || n.includes("than thiet") || n.includes("loyal")) return "loyal";
+  return "member";
+}
+
 async function syncOnePlayer(player) {
   const userId = player.user_id;
   if (!userId || !isPhoneId(userId)) return null;
@@ -93,6 +105,7 @@ async function syncOnePlayer(player) {
     const { error } = await supabase
       .from('players')
       .update({
+        crm_tier:            mapTierKey(memberData.membership_type_name || ""),
         crm_spend_alltime:   allTimeSpent,
         crm_spend_weekly:    weekly,
         crm_spend_monthly:   monthly,
