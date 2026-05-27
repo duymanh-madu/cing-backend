@@ -151,6 +151,11 @@ function createApp() {
    * =================================================
    */
 
+  // Zalo domain verification - must be at root level
+  app.get("/zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu.html", (req, res) => {
+    res.send("zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu");
+  });
+
   app.use(
     "/api",
     routes
