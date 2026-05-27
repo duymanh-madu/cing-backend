@@ -154,7 +154,7 @@ function createApp() {
   // Zalo domain verification - must be at root level
   app.get("/zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu.html", (req, res) => {
     res.setHeader("Content-Type", "text/html");
-    res.send("<html><body>zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu</body></html>");
+    res.send("zalo-platform-site-verification=U8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu");
   });
 
   app.use(
