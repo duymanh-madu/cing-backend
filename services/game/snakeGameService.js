@@ -156,7 +156,7 @@ function setBoost(userId, boosting) {
 // ============================================
 // GAME LOOP
 // ============================================
-function tickRoom(room, io) {
+async function tickRoom(room, io) {
   room.tick++;
   const now = Date.now();
   const players = Object.values(room.players).filter(p => p.alive);
@@ -385,8 +385,12 @@ function getRoomList() {
 
 function startGameLoop(io) {
   initRooms();
-  setInterval(() => {
-    Object.values(rooms).forEach(room => tickRoom(room, io));
+  setInterval(async () => {
+    for (const room of Object.values(rooms)) {
+      await tickRoom(room, io);
+      // Yield để event loop xử lý ping/pong
+      await new Promise(r => setImmediate(r));
+    }
   }, TICK_RATE);
   console.log(`[GAME] Loop started @ ${1000/TICK_RATE}fps`);
 }
