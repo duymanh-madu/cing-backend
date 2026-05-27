@@ -322,6 +322,7 @@ router.use(
 router.use("/profile-update", require("./profileUpdateRoutes"));
 
 router.use("/zalo", require("./zaloOaRoutes"));
+router.use("/game/snake", require("./snakeGameRoutes"));
 
 module.exports =
   router;

@@ -154,6 +154,15 @@ function createApp() {
   // Serve static files from public folder
   app.use(require("express").static(require("path").join(__dirname, "../public")));
 
+  // Snake game
+  try {
+    const { startGameLoop } = require('../services/game/snakeGameService');
+    const registerSnakeHandlers = require('../services/game/snakeSocketHandler');
+    registerSnakeHandlers(io);
+    startGameLoop(io);
+    console.log('[GAME] Snake game initialized');
+  } catch(e) { console.error('[GAME] Init failed:', e.message); }
+
   // Zalo domain verification - must be at root level
   app.get("/zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu.html", (req, res) => {
     res.setHeader("Content-Type", "text/html");
