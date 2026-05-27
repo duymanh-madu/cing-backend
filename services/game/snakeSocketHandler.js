@@ -1,97 +1,124 @@
-const { addPlayer, removePlayer, setDirection, setBoost, getRoomList } = require('./snakeGameService');
+const { Worker } = require('worker_threads');
+const path = require('path');
 const supabase = require('../../supabase');
 
 module.exports = function registerSnakeHandlers(io) {
   const gameNs = io.of('/snake');
-  // Override ping settings for game namespace
-  gameNs.use((socket, next) => {
-    socket.conn.setTimeout = () => {}; // disable timeout
-    next();
+
+  // Khởi động worker thread
+  const worker = new Worker(path.join(__dirname, 'snakeWorker.js'));
+  console.log('[SNAKE] Worker thread started');
+
+  // Map socketId → userId
+  const socketToUser = new Map();
+  const userToSocket = new Map();
+
+  // Nhận messages từ worker
+  worker.on('message', (msg) => {
+    switch(msg.type) {
+      case 'JOINED':
+        const sock = userToSocket.get(msg.userId);
+        if (sock) {
+          sock.join(`room_${msg.roomId}`);
+          sock.emit('game:joined', { roomId:msg.roomId, playerId:msg.userId });
+        }
+        break;
+      case 'STATE':
+        const s = userToSocket.get(msg.userId);
+        if (s) s.emit('game:state', msg.state);
+        break;
+      case 'KILL':
+        gameNs.to(`room_${msg.roomId}`).emit('player:killed', {
+          killerId:msg.killerId, killerName:msg.killerName,
+          targetId:msg.targetId, targetName:msg.targetName,
+        });
+        const targetSock = userToSocket.get(msg.targetId);
+        if (targetSock) targetSock.emit('game:over', {
+          kills:msg.targetKills, length:msg.targetLen, killerName:msg.killerName,
+        });
+        // Lưu score
+        if (msg.targetKills > 0) {
+          supabase.from('game_scores').upsert({
+            user_id:msg.targetId, player_name:msg.targetName,
+            game_key:'tran-chau-dai-chien',
+            score:msg.targetKills*100, kills:msg.targetKills,
+            played_at:new Date().toISOString(),
+          }, { onConflict:'user_id,game_key' }).catch(()=>{});
+        }
+        break;
+      case 'ITEM_PICKUP':
+        gameNs.to(`room_${msg.roomId}`).emit('item:pickup', {
+          playerId:msg.playerId, itemType:msg.itemType,
+        });
+        break;
+      case 'LEADERBOARD':
+        gameNs.to(`room_${msg.roomId}`).emit('game:leaderboard', msg.data);
+        break;
+      case 'ROOMS':
+        // broadcast rooms to all
+        gameNs.emit('game:rooms', msg.data);
+        break;
+      case 'ERROR':
+        const es = userToSocket.get(msg.userId);
+        if (es) es.emit('game:error', { message:msg.message });
+        break;
+    }
+  });
+
+  worker.on('error', (err) => console.error('[SNAKE WORKER] Error:', err));
+  worker.on('exit', (code) => {
+    console.error('[SNAKE WORKER] Exited with code', code);
   });
 
   gameNs.on('connection', (socket) => {
     console.log('[SNAKE] Client connected:', socket.id);
     let currentUserId = null;
-    let currentRoomId = null;
 
-    // Join game
     socket.on('game:join', async ({ userId, name, avatar }) => {
       try {
-        // Kiểm tra lượt chơi
         const { data: player } = await supabase
-          .from('players').select('game_plays, zalo_name, avatar').eq('user_id', userId).single();
-
+          .from('players').select('game_plays,zalo_name,avatar').eq('user_id',userId).single();
         if (!player || player.game_plays <= 0) {
-          socket.emit('game:error', { message: 'Bạn không còn lượt chơi! Hãy đặt hàng để nhận thêm lượt.' });
-          return;
+          socket.emit('game:error', { message:'Bạn không còn lượt chơi!' }); return;
         }
-
-        // Trừ 1 lượt chơi
-        await supabase.from('players')
-          .update({ game_plays: player.game_plays - 1 })
-          .eq('user_id', userId);
-
-        // Join room
-        const result = addPlayer(userId, name || player.zalo_name, avatar || player.avatar);
-        if (!result.success) {
-          socket.emit('game:error', { message: result.error });
-          return;
-        }
+        await supabase.from('players').update({ game_plays:player.game_plays-1 }).eq('user_id',userId);
 
         currentUserId = userId;
-        currentRoomId = result.roomId;
+        socketToUser.set(socket.id, userId);
+        userToSocket.set(userId, socket);
 
-        // Join socket room
-        socket.join(`room_${result.roomId}`);
-        socket.join(userId); // personal room for state updates
-
-        socket.emit('game:joined', {
-          roomId:    result.roomId,
-          playerId:  userId,
-          rooms:     getRoomList(),
-        });
-
-        // Notify others
-        gameNs.to(`room_${result.roomId}`).emit('room:player_joined', {
-          name: name || player.zalo_name,
-          count: getRoomList().find(r=>r.id===result.roomId)?.players,
-        });
-
-        console.log(`[SNAKE] ${name} joined room ${result.roomId}`);
-
-
+        worker.postMessage({ type:'JOIN', userId, name:name||player.zalo_name, avatar:avatar||player.avatar });
+        console.log(`[SNAKE] ${name} joining...`);
       } catch(e) {
         console.error('[SNAKE] Join error:', e.message);
-        socket.emit('game:error', { message: 'Lỗi kết nối, thử lại!' });
+        socket.emit('game:error', { message:'Lỗi kết nối!' });
       }
     });
 
-    // Direction input
     socket.on('game:direction', ({ angle }) => {
-      if (currentUserId) setDirection(currentUserId, angle);
+      if (currentUserId) worker.postMessage({ type:'DIRECTION', userId:currentUserId, angle });
     });
 
-    // Boost
     socket.on('game:boost', ({ active }) => {
-      if (currentUserId) setBoost(currentUserId, active);
+      if (currentUserId) worker.postMessage({ type:'BOOST', userId:currentUserId, active });
     });
 
-    // Get room list
     socket.on('game:rooms', () => {
-      socket.emit('game:rooms', getRoomList());
+      worker.postMessage({ type:'ROOMS' });
     });
 
-    // Disconnect
     socket.on('disconnect', () => {
       if (currentUserId) {
-        removePlayer(currentUserId);
-        if (currentRoomId) {
-          gameNs.to(`room_${currentRoomId}`).emit('room:player_left', { playerId: currentUserId });
-        }
+        worker.postMessage({ type:'LEAVE', userId:currentUserId });
+        socketToUser.delete(socket.id);
+        userToSocket.delete(currentUserId);
       }
       console.log('[SNAKE] Client disconnected:', socket.id);
     });
   });
 
-  console.log('[SNAKE] Socket handlers registered on /snake namespace');
+  // Expose getRoomList cho REST API
+  module.exports.getRoomList = () => {
+    worker.postMessage({ type:'ROOMS' });
+  };
 };
