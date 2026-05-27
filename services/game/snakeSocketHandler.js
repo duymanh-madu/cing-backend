@@ -46,6 +46,11 @@ module.exports = function registerSnakeHandlers(io) {
           }, { onConflict:'user_id,game_key' }).catch(()=>{});
         }
         break;
+      case 'ATE': {
+        const aSock = userToSocket.get(msg.userId);
+        if (aSock) aSock.emit('game:ate', { multiplier: msg.multiplier });
+        break;
+      }
       case 'ITEM_PICKUP':
         gameNs.to(`room_${msg.roomId}`).emit('item:pickup', {
           playerId:msg.playerId, itemType:msg.itemType,
@@ -54,8 +59,7 @@ module.exports = function registerSnakeHandlers(io) {
       case 'LEADERBOARD':
         gameNs.to(`room_${msg.roomId}`).emit('game:leaderboard', msg.data);
         break;
-      case 'ROOMS':
-        // broadcast rooms to all
+      case 'ROOMS_DATA':
         gameNs.emit('game:rooms', msg.data);
         break;
       case 'ERROR':
