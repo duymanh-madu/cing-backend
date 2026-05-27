@@ -3,8 +3,26 @@ const router   = express.Router();
 const jwt      = require("jsonwebtoken");
 const supabase = require("../supabase");
 const { sendNotification, broadcastNotification } = require("../services/notificationService");
+const axios = require("axios");
 
 const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
+
+async function sendZaloMessage(zalo_user_id, message) {
+  try {
+    const { data: config } = await supabase.from("app_configs")
+      .select("zalo_oa_access_token").eq("id", 1).single();
+    const token = config?.zalo_oa_access_token;
+    if (!token) return false;
+    await axios.post("https://openapi.zalo.me/v3.0/oa/message/cs", {
+      recipient: { user_id: zalo_user_id },
+      message:   { text: message },
+    }, { headers: { access_token: token } });
+    return true;
+  } catch(e) {
+    console.warn("[CDP] Zalo send failed:", e.message);
+    return false;
+  }
+}
 
 function requireAdmin(req, res, next) {
   const token = req.headers.authorization?.replace("Bearer ", "");
