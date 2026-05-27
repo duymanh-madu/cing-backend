@@ -59,21 +59,7 @@ module.exports = function registerSnakeHandlers(io) {
 
         console.log(`[SNAKE] ${name} joined room ${result.roomId}`);
 
-        // Emit test state ngay để check canvas
-        const testPlayer = result.player;
-        setInterval(() => {
-          if (!testPlayer) return;
-          testPlayer.segments[0].x += 2;
-          socket.emit('game:state', {
-            self: testPlayer,
-            players: [],
-            food: Array.from({length:20}, (_,i) => ({
-              id: 'f'+i, x: 3000+i*100, y: 3000+i*80, size:8, color:'#C85010'
-            })),
-            special: [],
-            tick: Date.now(),
-          });
-        }, 100);
+
       } catch(e) {
         console.error('[SNAKE] Join error:', e.message);
         socket.emit('game:error', { message: 'Lỗi kết nối, thử lại!' });

@@ -388,13 +388,16 @@ function getRoomList() {
 
 function startGameLoop(io) {
   initRooms();
-  setInterval(async () => {
+  // Dùng recursive setTimeout thay setInterval để không block event loop
+  const tick = async () => {
     for (const room of Object.values(rooms)) {
-      await tickRoom(room, io);
-      // Yield để event loop xử lý ping/pong
-      await new Promise(r => setImmediate(r));
+      if (Object.keys(room.players).length === 0) continue; // Skip phòng trống
+      try { await tickRoom(room, io); } catch(e) { console.error('[GAME] Tick error:', e.message); }
+      await new Promise(r => setImmediate(r)); // Yield cho event loop
     }
-  }, TICK_RATE);
+    setTimeout(tick, TICK_RATE);
+  };
+  setTimeout(tick, TICK_RATE);
   console.log(`[GAME] Loop started @ ${1000/TICK_RATE}fps`);
 }
 
