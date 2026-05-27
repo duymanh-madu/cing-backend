@@ -1,0 +1,137 @@
+const express  = require("express");
+const router   = express.Router();
+const jwt      = require("jsonwebtoken");
+const supabase = require("../supabase");
+const { sendNotification, broadcastNotification } = require("../services/notificationService");
+
+const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
+
+function requireAdmin(req, res, next) {
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (!token) return res.status(401).json({ success: false, message: "Unauthorized" });
+  try { req.admin = jwt.verify(token, JWT_SECRET); next(); }
+  catch { res.status(401).json({ success: false, message: "Token không hợp lệ" }); }
+}
+
+/**
+ * GET /admin/cdp/segments
+ * Trả về danh sách segments và số lượng khách trong mỗi segment
+ */
+router.get("/segments", requireAdmin, async (req, res) => {
+  try {
+    const now     = new Date();
+    const day7ago = new Date(now - 7  * 24 * 60 * 60 * 1000).toISOString();
+    const day30ago= new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const day90ago= new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    const todayMD = `${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+
+    const [allPlayers, vip, newInactive, longInactive, dormant] = await Promise.all([
+      supabase.from("players").select("user_id", { count:"exact", head:true }),
+      supabase.from("players").select("user_id", { count:"exact", head:true }).eq("crm_tier", "diamond"),
+      supabase.from("players").select("user_id", { count:"exact", head:true })
+        .lt("crm_synced_at", day7ago).gt("crm_orders_alltime", 0),
+      supabase.from("players").select("user_id", { count:"exact", head:true })
+        .lt("crm_synced_at", day30ago).gt("crm_orders_alltime", 0),
+      supabase.from("players").select("user_id", { count:"exact", head:true })
+        .lt("crm_synced_at", day90ago).gt("crm_orders_alltime", 0),
+    ]);
+
+    res.json({
+      success: true,
+      data: [
+        { key:"all",          label:"Tất cả khách hàng",          icon:"👥", count: allPlayers.count || 0,  color:"#2196F3" },
+        { key:"vip",          label:"Khách VIP (Kim Cương)",       icon:"💎", count: vip.count || 0,         color:"#9C27B0" },
+        { key:"new_inactive", label:"Chưa giao dịch 7 ngày",      icon:"⚠️", count: newInactive.count || 0, color:"#FF9800" },
+        { key:"inactive_30",  label:"Không quay lại 30 ngày",     icon:"😴", count: longInactive.count || 0,color:"#f44336" },
+        { key:"dormant_90",   label:"Ngủ đông 90+ ngày",          icon:"❄️", count: dormant.count || 0,     color:"#607D8B" },
+        { key:"birthday",     label:"Sinh nhật hôm nay",          icon:"🎂", count: 0,                      color:"#E91E63",
+          note:"Tính năng cần thêm ngày sinh vào CRM" },
+      ]
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /admin/cdp/segment-users/:segmentKey
+ * Lấy danh sách user trong segment
+ */
+router.get("/segment-users/:segmentKey", requireAdmin, async (req, res) => {
+  try {
+    const { segmentKey } = req.params;
+    const { limit = 20 } = req.query;
+    const now      = new Date();
+    const day7ago  = new Date(now - 7  * 24 * 60 * 60 * 1000).toISOString();
+    const day30ago = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const day90ago = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    let query = supabase.from("players")
+      .select("user_id, zalo_name, crm_tier, crm_spend_alltime, crm_orders_alltime, crm_synced_at")
+      .limit(Number(limit));
+
+    if (segmentKey === "vip")          query = query.eq("crm_tier", "diamond");
+    if (segmentKey === "new_inactive") query = query.lt("crm_synced_at", day7ago).gt("crm_orders_alltime", 0);
+    if (segmentKey === "inactive_30")  query = query.lt("crm_synced_at", day30ago).gt("crm_orders_alltime", 0);
+    if (segmentKey === "dormant_90")   query = query.lt("crm_synced_at", day90ago).gt("crm_orders_alltime", 0);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /admin/cdp/send-notification
+ * Gửi notification đến segment hoặc broadcast
+ */
+router.post("/send-notification", requireAdmin, async (req, res) => {
+  try {
+    const { segment_key, title, message } = req.body;
+    if (!title || !message) return res.status(400).json({ success: false, error: "Thiếu title hoặc message" });
+
+    // Broadcast tất cả
+    if (segment_key === "all") {
+      await broadcastNotification({
+        template_key: "CAMPAIGN_BROADCAST",
+        custom: { title, message },
+      });
+      return res.json({ success: true, message: "Đã broadcast đến tất cả người dùng online", sent: "all" });
+    }
+
+    // Lấy users trong segment
+    const now      = new Date();
+    const day7ago  = new Date(now - 7  * 24 * 60 * 60 * 1000).toISOString();
+    const day30ago = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const day90ago = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    let query = supabase.from("players").select("user_id").limit(500);
+    if (segment_key === "vip")          query = query.eq("crm_tier", "diamond");
+    if (segment_key === "new_inactive") query = query.lt("crm_synced_at", day7ago).gt("crm_orders_alltime", 0);
+    if (segment_key === "inactive_30")  query = query.lt("crm_synced_at", day30ago).gt("crm_orders_alltime", 0);
+    if (segment_key === "dormant_90")   query = query.lt("crm_synced_at", day90ago).gt("crm_orders_alltime", 0);
+
+    const { data: users } = await query;
+    if (!users || users.length === 0) return res.json({ success: true, message: "Không có user trong segment", sent: 0 });
+
+    // Gửi lần lượt
+    let sent = 0;
+    for (const user of users) {
+      await sendNotification({
+        user_id: user.user_id,
+        template_key: "CAMPAIGN_BROADCAST",
+        custom: { title, message },
+      });
+      sent++;
+    }
+
+    res.json({ success: true, message: `Đã gửi đến ${sent} khách hàng`, sent });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+module.exports = router;
