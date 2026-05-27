@@ -1,15 +1,15 @@
 const { workerData, parentPort } = require('worker_threads');
 
-const MAP_SIZE     = 8000;
-const TICK_RATE    = 50;
-const SNAKE_SPEED  = 3.5;
-const BOOST_SPEED  = 7;
+const MAP_SIZE     = 3000;
+const TICK_RATE    = 33;
+const SNAKE_SPEED  = 5;
+const BOOST_SPEED  = 10;
 const SEGMENT_DIST = 12;
-const FOOD_COUNT   = 200;
-const SPECIAL_COUNT= 15;
+const FOOD_COUNT   = 500;
+const SPECIAL_COUNT= 30;
 const MAX_PER_ROOM = 30;
 const SPECIAL_ITEMS= ['x2','x5','x10','magnet','shield'];
-const SPECIAL_DURATION = { x2:5000, x5:5000, x10:5000, magnet:8000, shield:6000 };
+const SPECIAL_DURATION = { x2:15000, x5:15000, x10:15000, magnet:15000, shield:15000 };
 const SPECIAL_GROW = { x2:3, x5:6, x10:12, magnet:2, shield:1 };
 
 const rooms = {};
