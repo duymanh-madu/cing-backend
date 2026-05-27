@@ -29,12 +29,15 @@ router.get("/segments", requireAdmin, async (req, res) => {
     const [allPlayers, vip, newInactive, longInactive, dormant] = await Promise.all([
       supabase.from("players").select("user_id", { count:"exact", head:true }),
       supabase.from("players").select("user_id", { count:"exact", head:true }).eq("crm_tier", "diamond"),
+      // Chua co giao dich tuan nay nhung co lich su mua hang
       supabase.from("players").select("user_id", { count:"exact", head:true })
-        .lt("crm_synced_at", day7ago).gt("crm_orders_alltime", 0),
+        .eq("crm_spend_weekly", 0).gt("crm_orders_alltime", 0),
+      // Chua co giao dich thang nay nhung co lich su
       supabase.from("players").select("user_id", { count:"exact", head:true })
-        .lt("crm_synced_at", day30ago).gt("crm_orders_alltime", 0),
+        .eq("crm_spend_monthly", 0).gt("crm_orders_alltime", 0),
+      // Chua co giao dich quy nay nhung co lich su
       supabase.from("players").select("user_id", { count:"exact", head:true })
-        .lt("crm_synced_at", day90ago).gt("crm_orders_alltime", 0),
+        .eq("crm_spend_quarterly", 0).gt("crm_orders_alltime", 0),
     ]);
 
     res.json({
@@ -42,9 +45,9 @@ router.get("/segments", requireAdmin, async (req, res) => {
       data: [
         { key:"all",          label:"Tất cả khách hàng",          icon:"👥", count: allPlayers.count || 0,  color:"#2196F3" },
         { key:"vip",          label:"Khách VIP (Kim Cương)",       icon:"💎", count: vip.count || 0,         color:"#9C27B0" },
-        { key:"new_inactive", label:"Chưa giao dịch 7 ngày",      icon:"⚠️", count: newInactive.count || 0, color:"#FF9800" },
-        { key:"inactive_30",  label:"Không quay lại 30 ngày",     icon:"😴", count: longInactive.count || 0,color:"#f44336" },
-        { key:"dormant_90",   label:"Ngủ đông 90+ ngày",          icon:"❄️", count: dormant.count || 0,     color:"#607D8B" },
+        { key:"new_inactive", label:"Chưa mua trong tuần này",      icon:"⚠️", count: newInactive.count || 0, color:"#FF9800" },
+        { key:"inactive_30",  label:"Chưa mua trong tháng này",     icon:"😴", count: longInactive.count || 0,color:"#f44336" },
+        { key:"dormant_90",   label:"Chưa mua trong quý này",          icon:"❄️", count: dormant.count || 0,     color:"#607D8B" },
         { key:"birthday",     label:"Sinh nhật hôm nay",          icon:"🎂", count: 0,                      color:"#E91E63",
           note:"Tính năng cần thêm ngày sinh vào CRM" },
       ]
@@ -110,9 +113,9 @@ router.post("/send-notification", requireAdmin, async (req, res) => {
 
     let query = supabase.from("players").select("user_id").limit(500);
     if (segment_key === "vip")          query = query.eq("crm_tier", "diamond");
-    if (segment_key === "new_inactive") query = query.lt("crm_synced_at", day7ago).gt("crm_orders_alltime", 0);
-    if (segment_key === "inactive_30")  query = query.lt("crm_synced_at", day30ago).gt("crm_orders_alltime", 0);
-    if (segment_key === "dormant_90")   query = query.lt("crm_synced_at", day90ago).gt("crm_orders_alltime", 0);
+    if (segment_key === "new_inactive") query = query.eq("crm_spend_weekly", 0).gt("crm_orders_alltime", 0);
+    if (segment_key === "inactive_30")  query = query.eq("crm_spend_monthly", 0).gt("crm_orders_alltime", 0);
+    if (segment_key === "dormant_90")   query = query.eq("crm_spend_quarterly", 0).gt("crm_orders_alltime", 0);
 
     const { data: users } = await query;
     if (!users || users.length === 0) return res.json({ success: true, message: "Không có user trong segment", sent: 0 });
