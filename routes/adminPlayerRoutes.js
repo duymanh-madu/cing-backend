@@ -27,6 +27,13 @@ router.post("/adjust-plays", requireAdmin, async (req, res) => {
       .update({ game_plays: newPlays }).eq("user_id", uid);
 
     if (error) throw error;
+    // Log analytics
+    await supabase.from('analytics_events').insert({
+      event_name: 'plays_adjusted',
+      user_id: String(uid),
+      event_data: { plays: Number(amount), new_total: newPlays, admin: req.admin?.username || 'admin' },
+      created_at: new Date().toISOString()
+    }).catch(()=>{});
     res.json({ success: true, message: `Đã điều chỉnh ${amount > 0 ? "+" : ""}${amount} lượt`, new_plays: newPlays });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

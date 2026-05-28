@@ -132,6 +132,19 @@ router.post("/save/:userId", async (req, res) => {
       }
     }
 
+    // Log analytics profile change
+    try {
+      await supabase.from('analytics_events').insert({
+        event_name: 'profile_updated',
+        user_id: String(userId),
+        event_data: {
+          field: display_name?.trim() ? (avatar_base64 ? 'name+avatar' : 'name') : 'avatar',
+          points_used: (use_points && !status.can_change_free) ? POINT_COST : 0,
+        },
+        created_at: new Date().toISOString()
+      });
+    } catch(e) {}
+
     // Sync tên + avatar mới vào game_scores
     try {
       const updateData = {};
