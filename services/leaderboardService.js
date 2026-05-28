@@ -91,7 +91,7 @@ async function getUserRank(userId, { period = "alltime", from, to } = {}) {
     const col = PERIOD_COLUMN[period] || "crm_spend_alltime";
     const { data: player } = await supabase
       .from("players")
-      .select("user_id, zalo_name, avatar, crm_spend_alltime, crm_spend_weekly, crm_spend_monthly, crm_spend_custom")
+      .select("user_id, zalo_name, avatar, crm_spend_alltime, crm_spend_weekly, crm_spend_monthly, crm_spend_custom, crm_spend_yearly")
       .eq("user_id", userId)
       .single();
 
@@ -100,6 +100,7 @@ async function getUserRank(userId, { period = "alltime", from, to } = {}) {
       total:               all.length,
       user_id:             userId,
       player_name:         player?.zalo_name || "Bạn",
+      avatar:              player?.avatar || "",
       total_spent:         player?.[col] || 0,
       total_spent_all_time: player?.crm_spend_alltime || 0,
     };
