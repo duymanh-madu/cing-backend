@@ -36,6 +36,7 @@ router.post("/adjust-plays", requireAdmin, async (req, res) => {
     }).catch(()=>{});
     res.json({ success: true, message: `Đã điều chỉnh ${amount > 0 ? "+" : ""}${amount} lượt`, new_plays: newPlays });
   } catch (err) {
+    console.error('[ADJUST-PLAYS ERROR]', err.message, err.stack);
     res.status(500).json({ success: false, error: err.message });
   }
 });
