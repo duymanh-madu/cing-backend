@@ -63,6 +63,7 @@ router.get("/segments", requireAdmin, async (req, res) => {
         { key:"new_inactive", label:"Chưa mua trong tuần này",      icon:"⚠️", count: newInactive.count || 0, color:"#FF9800" },
         { key:"inactive_30",  label:"Chưa mua trong tháng này",     icon:"😴", count: longInactive.count || 0,color:"#f44336" },
         { key:"dormant_90",   label:"Chưa mua trong quý này",          icon:"❄️", count: dormant.count || 0,     color:"#607D8B" },
+        { key:"inactive_custom", label:"Chưa quay lại (tùy chỉnh ngày)", icon:"📅", count: -1, color:"#FF5722" },
         { key:"birthday",     label:"Sinh nhật hôm nay",          icon:"🎂", count: 0,                      color:"#E91E63",
           note:"Tính năng cần thêm ngày sinh vào CRM" },
         { key:"partner",       label:"Đối tác",                     icon:"🤝", count: partner.count || 0,    color:"#7c3aed" },
@@ -99,6 +100,18 @@ router.get("/segment-users/:segmentKey", requireAdmin, async (req, res) => {
     if (segmentKey === "new_inactive") query = query.lt("crm_synced_at", day7ago).gt("crm_orders_alltime", 0);
     if (segmentKey === "inactive_30")  query = query.lt("crm_synced_at", day30ago).gt("crm_orders_alltime", 0);
     if (segmentKey === "dormant_90")   query = query.lt("crm_synced_at", day90ago).gt("crm_orders_alltime", 0);
+    if (segmentKey === "inactive_custom") {
+      const days = parseInt(req.query.days) || 30;
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      // Lấy từ game_scores hoặc crm_synced_at - dùng crm_synced_at như proxy lần mua cuối
+      const { data: inactive, count: inactiveCount } = await supabase.from("players")
+        .select("user_id, zalo_name, avatar, crm_spend_alltime, crm_orders_alltime", { count:"exact" })
+        .lt("crm_synced_at", cutoff)
+        .gt("crm_orders_alltime", 0)
+        .order("crm_synced_at", { ascending: false })
+        .limit(limit);
+      return res.json({ success:true, data: inactive||[], count: inactiveCount||0 });
+    }
 
     const { data, error } = await query;
     if (error) throw error;
@@ -152,6 +165,11 @@ router.post("/send-notification", requireAdmin, async (req, res) => {
     if (segment_key === "new_inactive") query = query.eq("crm_spend_weekly", 0).gt("crm_orders_alltime", 0);
     if (segment_key === "inactive_30")  query = query.eq("crm_spend_monthly", 0).gt("crm_orders_alltime", 0);
     if (segment_key === "dormant_90")   query = query.eq("crm_spend_quarterly", 0).gt("crm_orders_alltime", 0);
+    if (segment_key === "inactive_custom") {
+      const days = parseInt(req.body.custom_days) || 30;
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      query = query.lt("crm_synced_at", cutoff).gt("crm_orders_alltime", 0);
+    }
 
     const { data: users } = await query;
     if (!users || users.length === 0) return res.json({ success: true, message: "Không có user trong segment", sent: 0 });
