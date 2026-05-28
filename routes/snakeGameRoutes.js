@@ -2,17 +2,12 @@ const express  = require('express');
 const router   = express.Router();
 const supabase = require('../supabase');
 
-// GET /game/snake/rooms - danh sách phòng
+// GET /game/snake/rooms
 router.get('/rooms', (req, res) => {
-  try {
-    // Rooms managed by worker - return placeholder
-    res.json({ success: true, data: [] });
-  } catch(e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
+  res.json({ success: true, data: [] });
 });
 
-// GET /game/snake/leaderboard/weekly - top 100 tuần này
+// GET /game/snake/leaderboard/weekly
 router.get('/leaderboard/weekly', async (req, res) => {
   try {
     const monday = getMonday();
@@ -29,27 +24,7 @@ router.get('/leaderboard/weekly', async (req, res) => {
   }
 });
 
-// GET /game/leaderboard/alltime - top 100 kỷ lục mọi thời đại TẤT CẢ game
-router.get('/leaderboard/alltime', async (req, res) => {
-  try {
-    const GAMES = ['black-pearl-rush', 'tran-chau-dai-chien'];
-    const results = await Promise.all(GAMES.map(async gameKey => {
-      const { data } = await supabase
-        .from('game_scores')
-        .select('user_id, player_name, score, kills, game_key, played_at')
-        .eq('game_key', gameKey)
-        .order('score', { ascending: false })
-        .limit(100);
-      return { gameKey, records: data || [] };
-    }));
-
-    res.json({ success: true, data: results });
-  } catch(e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-// GET /game/leaderboard/alltime/:gameKey - top 100 kỷ lục 1 game
+// GET /game/leaderboard/alltime/:gameKey
 router.get('/leaderboard/alltime/:gameKey', async (req, res) => {
   try {
     const { gameKey } = req.params;
@@ -65,104 +40,87 @@ router.get('/leaderboard/alltime/:gameKey', async (req, res) => {
   }
 });
 
+// GET /game/snake/leaderboard/alltime-games - public, lấy rewards từ leaderboard_config
+router.get('/leaderboard/alltime-games', async (req, res) => {
+  try {
+    const { data: cfgRow } = await supabase.from('app_configs')
+      .select('leaderboard_config, alltime_games_config').eq('id', 1).single();
+
+    const lbCfg  = cfgRow?.leaderboard_config  || {};
+    const altCfg = cfgRow?.alltime_games_config || {};
+
+    const defaultGames = {
+      'black-pearl-rush':    { enabled:true, display_name:'Bay cùng trân châu',  icon:'🫧' },
+      'tran-chau-dai-chien': { enabled:true, display_name:'Trân Châu Đại Chiến', icon:'⚔️' },
+    };
+    const gamesMap = (altCfg.games && Object.keys(altCfg.games).length > 0)
+      ? altCfg.games : defaultGames;
+
+    const enabledGames = Object.entries(gamesMap)
+      .filter(([k, v]) => lbCfg.games?.[k]?.enabled !== false && v.enabled !== false)
+      .map(([k, v]) => ({
+        key:          k,
+        display_name: v.display_name || k,
+        icon:         v.icon || '🎮',
+        rewards:      lbCfg.games?.[k]?.rewards || v.rewards || [],
+      }));
+
+    const results = await Promise.all(enabledGames.map(async (game) => {
+      const { data: scores } = await supabase.from('game_scores')
+        .select('user_id, player_name, avatar, score, kills')
+        .eq('game_key', game.key)
+        .order('score', { ascending: false })
+        .limit(2000);
+
+      const bestMap = new Map();
+      for (const s of (scores || [])) {
+        const uid = String(s.user_id);
+        if (!bestMap.has(uid) || s.score > bestMap.get(uid).score) bestMap.set(uid, s);
+      }
+
+      const userIds = [...bestMap.keys()].slice(0, 200);
+      const { data: players } = userIds.length > 0
+        ? await supabase.from('players').select('user_id, zalo_name, avatar').in('user_id', userIds)
+        : { data: [] };
+
+      const pMap = new Map((players || []).map(p => [String(p.user_id), p]));
+
+      const top100 = [...bestMap.values()]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 100)
+        .map((s, i) => {
+          const p = pMap.get(String(s.user_id));
+          return {
+            rank:        i + 1,
+            user_id:     s.user_id,
+            player_name: p?.zalo_name || s.player_name || 'Cing iu',
+            avatar:      p?.avatar    || s.avatar || '',
+            score:       s.score,
+            kills:       s.kills || 0,
+          };
+        });
+
+      return {
+        game_key:     game.key,
+        display_name: game.display_name,
+        icon:         game.icon,
+        rewards:      game.rewards,
+        data:         top100,
+      };
+    }));
+
+    res.json({ success: true, data: results });
+  } catch(err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 function getMonday() {
   const d = new Date();
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff); d.setHours(0,0,0,0);
+  d.setDate(diff); d.setHours(0, 0, 0, 0);
   return d.toISOString();
 }
-
-
-// GET /game/leaderboard/alltime-games - public, chỉ game đang bật
-
-      return {game_key:game.key,display_name:game.display_name,
-        icon:game.icon,rewards:game.rewards,data:top100};
-    }));
-    res.json({ success:true, data:results });
-  } catch(err) {
-    res.status(500).json({ success:false, error:err.message });
-  }
-});
-
-    const enabledGames = Object.entries(cfg.games||{})
-      .filter(([,v])=>v.enabled).map(([k,v])=>({key:k,...v}));
-
-    const results = await Promise.all(enabledGames.map(async (game) => {
-      const { data: scores } = await supabase
-        .from("game_scores").select("user_id,player_name,avatar,score,kills")
-        .eq("game_key", game.key).order("score",{ascending:false}).limit(2000);
-      const bestMap = new Map();
-      for (const s of (scores||[])) {
-        const uid = String(s.user_id);
-        if (!bestMap.has(uid)||s.score>bestMap.get(uid).score) bestMap.set(uid,s);
-      }
-      const userIds=[...bestMap.keys()].slice(0,200);
-      const {data:players} = await supabase.from("players")
-        .select("user_id,zalo_name,avatar").in("user_id",userIds);
-      const pMap=new Map((players||[]).map(p=>[String(p.user_id),p]));
-      const top100=[...bestMap.values()].sort((a,b)=>b.score-a.score).slice(0,100)
-        .map((s,i)=>{
-          const p=pMap.get(String(s.user_id));
-          return {rank:i+1,user_id:s.user_id,
-            player_name:p?.zalo_name||s.player_name||"Cing iu",
-            avatar:p?.avatar||s.avatar||"",score:s.score,kills:s.kills||0};
-        });
-      return {game_key:game.key,display_name:game.display_name,
-        icon:game.icon,rewards:game.rewards,data:top100};
-    }));
-    res.json({ success:true, data:results });
-  } catch(err) {
-    res.status(500).json({ success:false, error:err.message });
-  }
-});
-
-
-router.get('/leaderboard/alltime-games', async (req, res) => {
-  try {
-    const { data: cfgRow } = await supabase.from("app_configs")
-      .select("leaderboard_config, alltime_games_config").eq("id", 1).single();
-    const lbCfg  = cfgRow?.leaderboard_config  || {};
-    const altCfg = cfgRow?.alltime_games_config || {};
-    const defaultGames = {
-      "black-pearl-rush":    { enabled:true, display_name:"Bay cùng trân châu",  icon:"🫧" },
-      "tran-chau-dai-chien": { enabled:true, display_name:"Trân Châu Đại Chiến", icon:"⚔️" },
-    };
-    const gamesMap = altCfg.games || defaultGames;
-    const enabledGames = Object.entries(gamesMap)
-      .filter(([k,v]) => lbCfg.games?.[k]?.enabled !== false && v.enabled !== false)
-      .map(([k,v]) => ({
-        key: k, display_name: v.display_name||k, icon: v.icon||"🎮",
-        rewards: lbCfg.games?.[k]?.rewards || v.rewards || [],
-      }));
-    const results = await Promise.all(enabledGames.map(async (game) => {
-      const { data: scores } = await supabase.from("game_scores")
-        .select("user_id,player_name,avatar,score,kills")
-        .eq("game_key", game.key).order("score",{ascending:false}).limit(2000);
-      const bestMap = new Map();
-      for (const s of (scores||[])) {
-        const uid = String(s.user_id);
-        if (!bestMap.has(uid)||s.score>bestMap.get(uid).score) bestMap.set(uid,s);
-      }
-      const userIds = [...bestMap.keys()].slice(0,200);
-      const {data:players} = userIds.length > 0
-        ? await supabase.from("players").select("user_id,zalo_name,avatar").in("user_id",userIds)
-        : {data:[]};
-      const pMap = new Map((players||[]).map(p=>[String(p.user_id),p]));
-      const top100 = [...bestMap.values()].sort((a,b)=>b.score-a.score).slice(0,100)
-        .map((s,i)=>{
-          const p=pMap.get(String(s.user_id));
-          return {rank:i+1,user_id:s.user_id,
-            player_name:p?.zalo_name||s.player_name||"Cing iu",
-            avatar:p?.avatar||s.avatar||"",score:s.score,kills:s.kills||0};
-        });
-      return {game_key:game.key,display_name:game.display_name,
-        icon:game.icon,rewards:game.rewards,data:top100};
-    }));
-    res.json({ success:true, data:results });
-  } catch(err) {
-    res.status(500).json({ success:false, error:err.message });
-  }
-});
 
 module.exports = router;
