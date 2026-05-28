@@ -327,6 +327,14 @@ async function startServer() {
     logger.info(
       "Socket initialized"
     );
+    app.set('io', ioInstance);
+
+    // Weekly leaderboard reset cron - mỗi thứ 2 00:00 VN
+    try {
+      const { scheduleWeeklyReset } = require('./services/leaderboardResetService');
+      scheduleWeeklyReset(ioInstance);
+      console.log('[CRON] Weekly leaderboard reset scheduled');
+    } catch(e) { console.error('[CRON] Schedule failed:', e.message); }
 
     // Snake game init
     try {

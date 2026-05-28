@@ -252,4 +252,21 @@ router.get("/alltime-games", requireAdmin, async (req, res) => {
   }
 });
 
+
+// POST /admin/leaderboard/manual-weekly-reset - trigger thủ công
+router.post("/manual-weekly-reset", requireAdmin, async (req, res) => {
+  try {
+    const { manualWeeklyReset } = require('../services/leaderboardResetService');
+    // Reset last_weekly_reset để force chạy lại
+    await require('../supabase').from('app_configs')
+      .update({ last_weekly_reset: null }).eq('id', 1);
+    res.json({ success:true, message:"Reset started..." });
+    // Chạy async
+    const io = req.app.get('io');
+    manualWeeklyReset(io).then(r => console.log('[RESET] Manual done:', r));
+  } catch(e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+});
+
 module.exports = router;
