@@ -94,15 +94,14 @@ async function syncOnePlayer(player) {
 
     const periods = getPeriodDates();
 
-    // Lấy custom period từ app_configs
+    // Lấy custom period từ app_configs (row id=1, columns trực tiếp)
     let customFrom = null, customTo = null;
     try {
       const { data: cfg } = await supabase.from('app_configs')
-        .select('value').eq('key','app_config').single();
-      const appCfg = cfg?.value || {};
-      customFrom = appCfg.custom_leaderboard_from || null;
-      customTo   = appCfg.custom_leaderboard_to   || null;
-    } catch(e) {}
+        .select('custom_leaderboard_from, custom_leaderboard_to').eq('id', 1).single();
+      customFrom = cfg?.custom_leaderboard_from || null;
+      customTo   = cfg?.custom_leaderboard_to   || null;
+    } catch(e) { console.warn('Custom config fetch failed:', e.message); }
 
     const [weekly, monthly, quarterly, yearly, custom] = await Promise.all([
       fetchPeriodSpend(userId, periods.week.from,    periods.week.to),
