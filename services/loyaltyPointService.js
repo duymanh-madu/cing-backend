@@ -79,6 +79,18 @@ async function deductPoints({ phone, user_id, points, reason = "Sử dụng đi�
       channel: "user",
       timestamp: new Date().toISOString(),
     });
+  // Emit membership.points để frontend update ngay
+  try {
+    const { data: updated2 } = await supabase.from('players')
+      .select('total_points').eq('user_id', user_id).single();
+    realtimeEventBus.publish({
+      event: "membership.points",
+      delivery_type: "BROADCAST",
+      payload: { user_id, points: updated2?.total_points || 0 },
+      channel: "membership",
+      timestamp: new Date().toISOString(),
+    });
+  } catch(e) {}
   } catch(e) {}
   return { success: true, points_deducted: points, remaining: currentPoints - points };
 }
@@ -124,6 +136,18 @@ async function addPoints({ phone, user_id, points, reason = "Nhận điểm thư
       channel: "user",
       timestamp: new Date().toISOString(),
     });
+  // Emit membership.points để frontend update ngay
+  try {
+    const { data: updated2 } = await supabase.from('players')
+      .select('total_points').eq('user_id', user_id).single();
+    realtimeEventBus.publish({
+      event: "membership.points",
+      delivery_type: "BROADCAST",
+      payload: { user_id, points: updated2?.total_points || 0 },
+      channel: "membership",
+      timestamp: new Date().toISOString(),
+    });
+  } catch(e) {}
   } catch(e) {}
   return { success: true, points_added: points, total: currentPoints + points };
 }
