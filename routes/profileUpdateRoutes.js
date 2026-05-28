@@ -127,6 +127,16 @@ router.post("/save/:userId", async (req, res) => {
       }
     }
 
+    // Sync tên + avatar mới vào game_scores
+    try {
+      const updateData = {};
+      if (display_name?.trim()) updateData.player_name = newName;
+      if (avatar_base64) updateData.avatar = avatarUrl;
+      if (Object.keys(updateData).length > 0) {
+        await supabase.from('game_scores').update(updateData).eq('user_id', userId);
+      }
+    } catch(e) { console.warn('game_scores sync warning:', e.message); }
+
     res.json({
       success:        true,
       display_name:   newName,
