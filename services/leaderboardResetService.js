@@ -110,6 +110,12 @@ async function doWeeklyReset(io) {
       }
     }
 
+    // 2b. Reset crm_spend_weekly về 0 cho tất cả players
+    try {
+      await supabase.from('players').update({ crm_spend_weekly: 0 }).gt('crm_spend_weekly', 0);
+      console.log('[RESET] crm_spend_weekly reset to 0');
+    } catch(e) { console.warn('[RESET] Reset weekly failed:', e.message); }
+
     // 3. Lưu last_weekly_reset
     await supabase.from('app_configs')
       .update({ last_weekly_reset: new Date().toISOString() }).eq('id', 1);
