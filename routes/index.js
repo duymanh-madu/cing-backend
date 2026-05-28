@@ -323,5 +323,7 @@ router.use("/profile-update", require("./profileUpdateRoutes"));
 
 router.use("/zalo", require("./zaloOaRoutes"));
 
+router.use("/game/chess", require("./chessRoutes"));
+
 module.exports =
   router;
