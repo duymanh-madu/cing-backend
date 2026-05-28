@@ -102,14 +102,27 @@ router.get("/segment-users/:segmentKey", requireAdmin, async (req, res) => {
     if (segmentKey === "dormant_90")   query = query.lt("crm_synced_at", day90ago).gt("crm_orders_alltime", 0);
     if (segmentKey === "inactive_custom") {
       const days = parseInt(req.query.days) || 30;
-      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-      // Lấy từ game_scores hoặc crm_synced_at - dùng crm_synced_at như proxy lần mua cuối
-      const { data: inactive, count: inactiveCount } = await supabase.from("players")
-        .select("user_id, zalo_name, avatar, crm_spend_alltime, crm_orders_alltime", { count:"exact" })
-        .lt("crm_synced_at", cutoff)
-        .gt("crm_orders_alltime", 0)
-        .order("crm_synced_at", { ascending: false })
-        .limit(limit);
+      // Logic: dùng crm_spend columns để xác định chưa mua
+      // 7 ngày = weekly=0, 30 ngày = monthly=0, 90 ngày = quarterly=0
+      // Ngoài ra dùng last_order_at nếu có
+      let inactiveQuery = supabase.from("players")
+        .select("user_id, zalo_name, avatar, crm_spend_alltime, crm_orders_alltime, last_order_at, crm_synced_at", { count:"exact" })
+        .gt("crm_orders_alltime", 0);
+
+      if (days <= 7) {
+        inactiveQuery = inactiveQuery.eq("crm_spend_weekly", 0);
+      } else if (days <= 30) {
+        inactiveQuery = inactiveQuery.eq("crm_spend_monthly", 0);
+      } else if (days <= 90) {
+        inactiveQuery = inactiveQuery.eq("crm_spend_quarterly", 0);
+      } else if (days <= 365) {
+        inactiveQuery = inactiveQuery.eq("crm_spend_yearly", 0);
+      }
+
+      const { data: inactive, count: inactiveCount } = await inactiveQuery
+        .order("crm_spend_alltime", { ascending: false })
+        .limit(Number(limit));
+
       return res.json({ success:true, data: inactive||[], count: inactiveCount||0 });
     }
 
@@ -167,8 +180,11 @@ router.post("/send-notification", requireAdmin, async (req, res) => {
     if (segment_key === "dormant_90")   query = query.eq("crm_spend_quarterly", 0).gt("crm_orders_alltime", 0);
     if (segment_key === "inactive_custom") {
       const days = parseInt(req.body.custom_days) || 30;
-      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-      query = query.lt("crm_synced_at", cutoff).gt("crm_orders_alltime", 0);
+      query = query.gt("crm_orders_alltime", 0);
+      if (days <= 7)        query = query.eq("crm_spend_weekly", 0);
+      else if (days <= 30)  query = query.eq("crm_spend_monthly", 0);
+      else if (days <= 90)  query = query.eq("crm_spend_quarterly", 0);
+      else                  query = query.eq("crm_spend_yearly", 0);
     }
 
     const { data: users } = await query;
