@@ -44,20 +44,15 @@ router.get("/segments", requireAdmin, async (req, res) => {
 
     const todayMD = `${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
 
-    const [allPlayers, vip, newInactive, longInactive, dormant, partner, loyalPartner] = await Promise.all([
+    const [allPlayers, vip, newInactive, longInactive, dormant, birthday, partner, loyalPartner] = await Promise.all([
       supabase.from("players").select("user_id", { count:"exact", head:true }),
       supabase.from("players").select("user_id", { count:"exact", head:true }).eq("crm_tier", "diamond"),
+      supabase.from("players").select("user_id", { count:"exact", head:true }).eq("crm_spend_weekly", 0).gt("crm_orders_alltime", 0),
+      supabase.from("players").select("user_id", { count:"exact", head:true }).eq("crm_spend_monthly", 0).gt("crm_orders_alltime", 0),
+      supabase.from("players").select("user_id", { count:"exact", head:true }).eq("crm_spend_quarterly", 0).gt("crm_orders_alltime", 0),
+      supabase.from("players").select("user_id", { count:"exact", head:true }).not("birthday", "is", null),
       supabase.from("players").select("user_id", { count:"exact", head:true }).eq("crm_tier", "partner"),
       supabase.from("players").select("user_id", { count:"exact", head:true }).eq("crm_tier", "loyal_partner"),
-      // Chua co giao dich tuan nay nhung co lich su mua hang
-      supabase.from("players").select("user_id", { count:"exact", head:true })
-        .eq("crm_spend_weekly", 0).gt("crm_orders_alltime", 0),
-      // Chua co giao dich thang nay nhung co lich su
-      supabase.from("players").select("user_id", { count:"exact", head:true })
-        .eq("crm_spend_monthly", 0).gt("crm_orders_alltime", 0),
-      // Chua co giao dich quy nay nhung co lich su
-      supabase.from("players").select("user_id", { count:"exact", head:true })
-        .eq("crm_spend_quarterly", 0).gt("crm_orders_alltime", 0),
     ]);
 
     res.json({
