@@ -28,12 +28,14 @@ router.post("/adjust-plays", requireAdmin, async (req, res) => {
 
     if (error) throw error;
     // Log analytics
-    await supabase.from('analytics_events').insert({
-      event_name: 'plays_adjusted',
-      user_id: String(uid),
-      event_data: { plays: Number(amount), new_total: newPlays, admin: req.admin?.username || 'admin' },
-      created_at: new Date().toISOString()
-    }).catch(()=>{});
+    try {
+      await supabase.from('analytics_events').insert({
+        event_name: 'plays_adjusted',
+        user_id: String(uid),
+        event_data: { plays: Number(amount), new_total: newPlays, admin: req.admin?.username || 'admin' },
+        created_at: new Date().toISOString()
+      });
+    } catch(e) {}
     res.json({ success: true, message: `Đã điều chỉnh ${amount > 0 ? "+" : ""}${amount} lượt`, new_plays: newPlays });
   } catch (err) {
     console.error('[ADJUST-PLAYS ERROR]', err.message, err.stack);
