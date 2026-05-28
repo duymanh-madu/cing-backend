@@ -3,6 +3,7 @@ const router   = express.Router();
 const jwt      = require("jsonwebtoken");
 const supabase = require("../supabase");
 const { sendZaloOAMessage, sendByUID, sendZBS } = require("../services/zaloMessageService");
+const { sendZBSBroadcast } = require("../services/zaloZBSService");
 const { sendNotification, broadcastNotification } = require("../services/notificationService");
 const axios = require("axios");
 
@@ -228,6 +229,97 @@ router.post("/send-zbs", requireAdmin, async (req, res) => {
     res.json({ success:true, message:"ZBS đang gửi..." });
     const result = await sendZBS({ title, message, follower_ids });
     console.log('[ZBS] Done:', result);
+  } catch(e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+});
+
+
+// GET /admin/cdp/zbs-templates - lấy danh sách ZBS templates đã config
+router.get("/zbs-templates", requireAdmin, async (req, res) => {
+  try {
+    const { data } = await supabase.from('app_configs')
+      .select('zbs_templates').eq('id', 1).single();
+    res.json({ success:true, data: data?.zbs_templates || [] });
+  } catch(e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+});
+
+// PUT /admin/cdp/zbs-templates - lưu danh sách templates
+router.put("/zbs-templates", requireAdmin, async (req, res) => {
+  try {
+    const { templates } = req.body;
+    const { error } = await supabase.from('app_configs')
+      .update({ zbs_templates: templates }).eq('id', 1);
+    if (error) throw error;
+    res.json({ success:true, message:'Đã lưu templates' });
+  } catch(e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+});
+
+// POST /admin/cdp/send-uid - gửi tin qua UID (Zalo OA CS message)
+router.post("/send-uid", requireAdmin, async (req, res) => {
+  try {
+    const { segment_key, user_ids = [], title, message, custom_phones = [] } = req.body;
+    if (!title || !message) return res.status(400).json({ success:false, error:'Thiếu title/message' });
+
+    let targetUsers = user_ids;
+
+    // Nếu không có user_ids, lấy từ segment
+    if (!targetUsers.length && segment_key) {
+      const { data: players } = await supabase.from('players')
+        .select('user_id').not('zalo_user_id', 'is', null).limit(500);
+      targetUsers = (players||[]).map(p => p.user_id);
+    }
+    if (custom_phones.length) targetUsers = [...targetUsers, ...custom_phones];
+
+    res.json({ success:true, message:'Đang gửi UID...' });
+
+    let sent=0, failed=0;
+    for (const uid of targetUsers) {
+      const { data: p } = await supabase.from('players')
+        .select('zalo_user_id').eq('user_id', uid).single();
+      if (!p?.zalo_user_id) { failed++; continue; }
+      const r = await sendZaloOAMessage({ zalo_user_id: p.zalo_user_id, title, message });
+      if (r.success) sent++; else failed++;
+      await new Promise(r => setTimeout(r, 200));
+    }
+    console.log('[UID] Done: sent=' + sent + ' failed=' + failed);
+  } catch(e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+});
+
+// POST /admin/cdp/send-zbs-template - gửi ZBS với template
+router.post("/send-zbs-template", requireAdmin, async (req, res) => {
+  try {
+    const { segment_key, user_ids = [], custom_phones = [],
+            template_id, extra_vars = {} } = req.body;
+    if (!template_id) return res.status(400).json({ success:false, error:'Thiếu template_id' });
+
+    let targetIds = [...user_ids, ...custom_phones];
+
+    // Lấy từ segment nếu không có user_ids
+    if (!targetIds.length && segment_key) {
+      let query = supabase.from('players').select('user_id').not('zalo_user_id','is',null).limit(2000);
+      if (segment_key === 'vip')         query = query.eq('crm_tier','diamond');
+      if (segment_key === 'partner')     query = query.eq('crm_tier','partner');
+      if (segment_key === 'loyal_partner') query = query.eq('crm_tier','loyal_partner');
+      if (segment_key === 'new_inactive') query = query.eq('crm_spend_weekly',0).gt('crm_orders_alltime',0);
+      if (segment_key === 'inactive_30')  query = query.eq('crm_spend_monthly',0).gt('crm_orders_alltime',0);
+      if (segment_key === 'dormant_90')   query = query.eq('crm_spend_quarterly',0).gt('crm_orders_alltime',0);
+      const { data: players } = await query;
+      targetIds = (players||[]).map(p => p.user_id);
+    }
+
+    if (!targetIds.length) return res.json({ success:true, message:'Không có user nào', sent:0 });
+
+    res.json({ success:true, message:`Đang gửi ZBS đến ${targetIds.length} users...` });
+
+    const result = await sendZBSBroadcast({ user_ids: targetIds, template_id, extra_vars });
+    console.log('[ZBS Template] Done:', result);
   } catch(e) {
     res.status(500).json({ success:false, error:e.message });
   }
