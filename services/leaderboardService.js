@@ -42,14 +42,45 @@ async function getGlobalLeaderboard({ limit = 100 } = {}) {
 }
 
 async function getGameLeaderboard(gameKey, { limit = 100 } = {}) {
+  // Lấy tất cả scores rồi group by user_id lấy best score
   const { data, error } = await supabase
     .from("game_scores")
-    .select("user_id, player_name, avatar, score, created_at")
+    .select("user_id, player_name, avatar, score, kills, max_length, played_at")
     .eq("game_key", gameKey)
     .order("score", { ascending: false })
-    .limit(limit);
+    .limit(2000);
   if (error) throw error;
-  return (data || []).map((s, i) => ({ ...s, rank: i + 1 }));
+
+  // Group by user_id - lấy best score per user + tên mới nhất từ players
+  const bestMap = new Map();
+  for (const s of (data || [])) {
+    const uid = String(s.user_id);
+    if (!bestMap.has(uid) || s.score > bestMap.get(uid).score) {
+      bestMap.set(uid, s);
+    }
+  }
+
+  // Lấy tên + avatar mới nhất từ players table
+  const userIds = [...bestMap.keys()];
+  const { data: players } = await supabase
+    .from("players")
+    .select("user_id, zalo_name, avatar")
+    .in("user_id", userIds.slice(0, 500));
+
+  const playerMap = new Map((players||[]).map(p => [String(p.user_id), p]));
+
+  return [...bestMap.values()]
+    .sort((a,b) => b.score - a.score)
+    .slice(0, limit)
+    .map((s, i) => {
+      const p = playerMap.get(String(s.user_id));
+      return {
+        ...s,
+        rank:        i + 1,
+        player_name: p?.zalo_name || s.player_name || "Cing iu",
+        avatar:      p?.avatar    || s.avatar || "",
+      };
+    });
 }
 
 async function getUserRank(userId, { period = "alltime", from, to } = {}) {

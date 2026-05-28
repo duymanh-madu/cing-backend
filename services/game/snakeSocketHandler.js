@@ -36,14 +36,25 @@ module.exports = function registerSnakeHandlers(io) {
         if (targetSock) targetSock.emit('game:over', {
           kills:msg.targetKills, length:msg.targetLen, killerName:msg.killerName,
         });
-        // Lưu score
+        // Lưu score - INSERT từng ván
         if (msg.targetKills > 0) {
-          supabase.from('game_scores').upsert({
-            user_id:msg.targetId, player_name:msg.targetName,
-            game_key:'tran-chau-dai-chien',
-            score:msg.targetKills*100, kills:msg.targetKills,
-            played_at:new Date().toISOString(),
-          }, { onConflict:'user_id,game_key' }).catch(()=>{});
+          supabase.from('players')
+            .select('zalo_name, avatar')
+            .eq('user_id', msg.targetId)
+            .single()
+            .then(({ data: p }) => {
+              return supabase.from('game_scores').insert({
+                user_id:     msg.targetId,
+                player_name: p?.zalo_name || msg.targetName,
+                avatar:      p?.avatar || '',
+                game_key:    'tran-chau-dai-chien',
+                score:       msg.targetKills * 100,
+                kills:       msg.targetKills,
+                max_length:  msg.targetLen || 0,
+                played_at:   new Date().toISOString(),
+              });
+            })
+            .catch(e => console.warn('[GAME] Save score failed:', e.message));
         }
         break;
       case 'BORDER_DEATH': {

@@ -94,11 +94,25 @@ async function syncOnePlayer(player) {
 
     const periods = getPeriodDates();
 
-    const [weekly, monthly, quarterly, yearly] = await Promise.all([
+    // Lấy custom period từ app_configs
+    let customFrom = null, customTo = null;
+    try {
+      const { data: cfg } = await supabase.from('app_configs')
+        .select('value').eq('key','app_config').single();
+      const appCfg = cfg?.value || {};
+      customFrom = appCfg.custom_leaderboard_from || null;
+      customTo   = appCfg.custom_leaderboard_to   || null;
+    } catch(e) {}
+
+    const [weekly, monthly, quarterly, yearly, custom] = await Promise.all([
       fetchPeriodSpend(userId, periods.week.from,    periods.week.to),
       fetchPeriodSpend(userId, periods.month.from,   periods.month.to),
       fetchPeriodSpend(userId, periods.quarter.from, periods.quarter.to),
       fetchPeriodSpend(userId, periods.year.from,    periods.year.to),
+      customFrom ? fetchPeriodSpend(userId,
+        customFrom + ' 00:00:00',
+        (customTo || new Date().toISOString().slice(0,10)) + ' 23:59:59'
+      ) : Promise.resolve(0),
     ]);
 
     // Lưu vào Supabase — timestamp dùng UTC chuẩn (Supabase tự xử lý)
@@ -111,6 +125,7 @@ async function syncOnePlayer(player) {
         crm_spend_monthly:   monthly,
         crm_spend_quarterly: quarterly,
         crm_spend_yearly:    yearly,
+        crm_spend_custom:    custom,
         crm_orders_alltime:  allTimeOrders,
         crm_synced_at:       new Date().toISOString(), // UTC — Supabase chuẩn
       })
