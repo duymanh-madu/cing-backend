@@ -328,15 +328,14 @@ async function startServer() {
       "Socket initialized"
     );
     app.set('io', ioInstance);
+    global._ioInstance = ioInstance;
 
     // Weekly leaderboard reset cron - mỗi thứ 2 00:00 VN
     try {
       const { scheduleWeeklyReset, checkAndNotifyTop1Changes } = require('./services/leaderboardResetService');
       scheduleWeeklyReset(ioInstance);
       console.log('[CRON] Weekly leaderboard reset scheduled');
-    // Check top1 changes mỗi 5 phút
-    setInterval(() => checkAndNotifyTop1Changes(ioInstance), 5 * 60 * 1000);
-    console.log('[CRON] Top1 change detector started');
+    console.log('[CRON] Top1 change detector: event-driven mode');
     } catch(e) { console.error('[CRON] Schedule failed:', e.message); }
 
     // Snake game init

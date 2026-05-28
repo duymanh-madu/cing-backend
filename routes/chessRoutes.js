@@ -60,4 +60,16 @@ router.get('/leaderboard', async (req, res) => {
   }
 });
 
+
+// POST /game/chess/game-ended - được gọi từ game server sau khi ván kết thúc
+router.post('/game-ended', async (req, res) => {
+  res.json({ ok: true });
+  // Check top1 async
+  try {
+    const { checkAndNotifyTop1Changes } = require('../services/leaderboardResetService');
+    const io = global._ioInstance;
+    await checkAndNotifyTop1Changes(io);
+  } catch(e) { console.warn('[TOP1] Chess game-ended check:', e.message); }
+});
+
 module.exports = router;

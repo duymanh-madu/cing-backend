@@ -220,6 +220,12 @@ async function syncAllPlayersCrmSpending({ batchSize=3, delayMs=2000 } = {}) {
 
   const elapsed = ((Date.now()-t0)/1000).toFixed(1);
   console.log(`SYNC DONE ${elapsed}s`, stats);
+  // Check top1 thay đổi sau sync
+  try {
+    const { checkAndNotifyTop1Changes } = require('../leaderboardResetService');
+    const io = global._ioInstance;
+    await checkAndNotifyTop1Changes(io);
+  } catch(e) { console.warn('[TOP1] CRM sync check failed:', e.message); }
   return { success: true, stats, elapsed_seconds: elapsed, total: filtered.length };
 }
 
