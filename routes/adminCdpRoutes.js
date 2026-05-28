@@ -2,6 +2,7 @@ const express  = require("express");
 const router   = express.Router();
 const jwt      = require("jsonwebtoken");
 const supabase = require("../supabase");
+const { sendZaloOAMessage, sendByUID, sendZBS } = require("../services/zaloMessageService");
 const { sendNotification, broadcastNotification } = require("../services/notificationService");
 const axios = require("axios");
 
@@ -140,7 +141,8 @@ router.get("/segment-users/:segmentKey", requireAdmin, async (req, res) => {
  */
 router.post("/send-notification", requireAdmin, async (req, res) => {
   try {
-    const { segment_key, title, message } = req.body;
+    const { segment_key, title, message, channels = ['socket'] } = req.body;
+    // channels: ['socket', 'zalo_oa', 'uid', 'zbs']
     if (!title || !message) return res.status(400).json({ success: false, error: "Thiếu title hoặc message" });
 
     // Broadcast tất cả
@@ -204,6 +206,30 @@ router.post("/send-notification", requireAdmin, async (req, res) => {
     res.json({ success: true, message: `Đã gửi đến ${sent} khách hàng`, sent });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+// POST /admin/cdp/send-zbs - Zalo Broadcast Service
+router.post("/send-zbs", requireAdmin, async (req, res) => {
+  try {
+    const { title, message, user_ids = [] } = req.body;
+    if (!title || !message) return res.status(400).json({ success:false, error:"Thiếu title/message" });
+
+    let follower_ids = [];
+    if (user_ids.length > 0) {
+      // Lấy zalo_user_id từ danh sách user_id
+      const { data: players } = await supabase.from('players')
+        .select('zalo_user_id').in('user_id', user_ids)
+        .not('zalo_user_id', 'is', null);
+      follower_ids = (players||[]).map(p => p.zalo_user_id).filter(Boolean);
+    }
+
+    res.json({ success:true, message:"ZBS đang gửi..." });
+    const result = await sendZBS({ title, message, follower_ids });
+    console.log('[ZBS] Done:', result);
+  } catch(e) {
+    res.status(500).json({ success:false, error:e.message });
   }
 });
 
