@@ -154,7 +154,7 @@ function getMonday() {
 router.get("/alltime-games-config", requireAdmin, async (req, res) => {
   try {
     const { data } = await supabase.from("app_configs")
-      .select("value").eq("key", "alltime_games_config").single();
+      .select("alltime_games_config").eq("id", 1).single();
     const defaultConfig = {
       enabled: true,
       games: {
@@ -180,7 +180,7 @@ router.get("/alltime-games-config", requireAdmin, async (req, res) => {
         }
       }
     };
-    res.json({ success:true, data: data?.value || defaultConfig });
+    res.json({ success:true, data: data?.alltime_games_config || defaultConfig });
   } catch(err) {
     res.status(500).json({ success:false, error:err.message });
   }
@@ -191,7 +191,7 @@ router.put("/alltime-games-config", requireAdmin, async (req, res) => {
   try {
     const { config } = req.body;
     const { error } = await supabase.from("app_configs")
-      .upsert({ key:"alltime_games_config", value:config }, { onConflict:"key" });
+      .update({ alltime_games_config: config }).eq("id", 1);
     if (error) throw error;
     res.json({ success:true, message:"Đã lưu cấu hình alltime games" });
   } catch(err) {
@@ -203,8 +203,8 @@ router.put("/alltime-games-config", requireAdmin, async (req, res) => {
 router.get("/alltime-games", requireAdmin, async (req, res) => {
   try {
     const { data: cfgRow } = await supabase.from("app_configs")
-      .select("value").eq("key","alltime_games_config").single();
-    const cfg = cfgRow?.value || {};
+      .select("alltime_games_config").eq("id", 1).single();
+    const cfg = cfgRow?.alltime_games_config || {};
     if (!cfg.enabled) return res.json({ success:true, data:[] });
 
     const enabledGames = Object.entries(cfg.games||{})

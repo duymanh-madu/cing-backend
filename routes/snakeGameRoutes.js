@@ -78,8 +78,8 @@ function getMonday() {
 router.get('/leaderboard/alltime-games', async (req, res) => {
   try {
     const { data: cfgRow } = await supabase.from("app_configs")
-      .select("value").eq("key","alltime_games_config").single();
-    const cfg = cfgRow?.value || { enabled:true, games:{
+      .select("alltime_games_config").eq("id", 1).single();
+    const cfg = cfgRow?.alltime_games_config || { enabled:true, games:{
       "black-pearl-rush":{ enabled:true, display_name:"Bay cùng trân châu", icon:"🫧",
         rewards:[{rank:1,points:500,label:"🥇"},{rank:2,points:300,label:"🥈"},{rank:3,points:200,label:"🥉"}] },
       "tran-chau-dai-chien":{ enabled:true, display_name:"Trân Châu Đại Chiến", icon:"⚔️",
