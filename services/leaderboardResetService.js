@@ -150,4 +150,89 @@ async function manualWeeklyReset(io) {
   return doWeeklyReset(io);
 }
 
-module.exports = { scheduleWeeklyReset, manualWeeklyReset, doWeeklyReset };
+
+/**
+ * Check và notify khi có top 1 mới ở bất kỳ BXH nào
+ */
+async function checkAndNotifyTop1Changes(io) {
+  try {
+    const { data: cfg } = await supabase.from('app_configs')
+      .select('leaderboard_config, top1_cache').eq('id', 1).single();
+    const lbCfg = cfg?.leaderboard_config || {};
+    const cache = cfg?.top1_cache || {};
+    const newCache = { ...cache };
+    const notifications = [];
+
+    // Check BXH tiêu dùng tuần
+    if (lbCfg.spending?.weekly?.enabled) {
+      const { data } = await supabase.from('players')
+        .select('user_id, zalo_name').gt('crm_spend_weekly', 0)
+        .order('crm_spend_weekly', { ascending: false }).limit(1).single();
+      if (data && cache.weekly_top1 !== data.user_id) {
+        newCache.weekly_top1 = data.user_id;
+        notifications.push({ name: data.zalo_name||data.user_id, board: 'BXH Chi tiêu tuần' });
+      }
+    }
+
+    // Check BXH tiêu dùng tháng
+    if (lbCfg.spending?.monthly?.enabled) {
+      const { data } = await supabase.from('players')
+        .select('user_id, zalo_name').gt('crm_spend_monthly', 0)
+        .order('crm_spend_monthly', { ascending: false }).limit(1).single();
+      if (data && cache.monthly_top1 !== data.user_id) {
+        newCache.monthly_top1 = data.user_id;
+        notifications.push({ name: data.zalo_name||data.user_id, board: 'BXH Chi tiêu tháng' });
+      }
+    }
+
+    // Check BXH chess - thắng nhiều nhất
+    const { data: chessTop } = await supabase.from('chess_stats')
+      .select('user_id').order('wins', { ascending: false }).limit(1).single();
+    if (chessTop) {
+      const { data: p } = await supabase.from('players')
+        .select('zalo_name').eq('user_id', chessTop.user_id).single();
+      if (cache.chess_top1 !== chessTop.user_id) {
+        newCache.chess_top1 = chessTop.user_id;
+        notifications.push({ name: p?.zalo_name||chessTop.user_id, board: 'BXH Kỳ thủ cờ vua' });
+      }
+    }
+
+    // Check BXH game scores
+    const games = Object.entries(lbCfg.games||{}).filter(([,v])=>v.enabled);
+    for (const [gameKey, gameCfg] of games) {
+      const { data: scores } = await supabase.from('game_scores')
+        .select('user_id, player_name, score').eq('game_key', gameKey)
+        .order('score', { ascending: false }).limit(1).single();
+      if (scores) {
+        const cacheKey = `game_${gameKey}_top1`;
+        if (cache[cacheKey] !== scores.user_id) {
+          newCache[cacheKey] = scores.user_id;
+          notifications.push({ name: scores.player_name||scores.user_id, board: gameCfg.display_name||gameKey });
+        }
+      }
+    }
+
+    // Update cache
+    if (Object.keys(newCache).length) {
+      await supabase.from('app_configs').update({ top1_cache: newCache }).eq('id', 1);
+    }
+
+    // Broadcast notifications
+    for (const notif of notifications) {
+      const msg = `🏆 Chúc mừng ${notif.name} đã xuất sắc leo lên Top 1 ${notif.board}!`;
+      console.log('[TOP1]', msg);
+      if (io) {
+        io.emit('notification.broadcast', {
+          notification: {
+            title: '🏆 Top 1 mới!',
+            message: msg,
+            type: 'leaderboard',
+            created_at: new Date().toISOString(),
+          }
+        });
+      }
+    }
+  } catch(e) { console.warn('[TOP1] Error:', e.message); }
+}
+
+module.exports = { scheduleWeeklyReset, manualWeeklyReset, doWeeklyReset, checkAndNotifyTop1Changes };
