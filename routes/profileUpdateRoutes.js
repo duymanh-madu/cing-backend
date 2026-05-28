@@ -52,6 +52,11 @@ router.post("/save/:userId", async (req, res) => {
     const { userId } = req.params;
     const { display_name, avatar_base64, use_points } = req.body;
 
+    // Validate userId phải là số điện thoại VN hợp lệ
+    if (!/^(0|84)d{8,10}$/.test(String(userId))) {
+      return res.status(400).json({ success:false, error:"userId không hợp lệ" });
+    }
+
     if (!display_name?.trim() && !avatar_base64) {
       return res.status(400).json({ success: false, error: "Không có thông tin nào để cập nhật" });
     }
