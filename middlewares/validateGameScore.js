@@ -106,6 +106,10 @@ module.exports =
 
         "lucky-wheel",
 
+        "black-pearl-rush",
+
+        "chess",
+
       ];
 
       if (
