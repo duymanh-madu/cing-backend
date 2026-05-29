@@ -8,9 +8,9 @@ async function decodePhoneToken(token) {
   try {
     if (!token) return null;
 
-    const secretKey = process.env.ZALO_MINI_APP_SECRET;
+    const secretKey = process.env.ZALO_APP_SECRET;
     if (!secretKey) {
-      console.warn("[ZALO_PHONE] ZALO_MINI_APP_SECRET not set");
+      console.warn("[ZALO_PHONE] ZALO_APP_SECRET not set");
       return null;
     }
 
