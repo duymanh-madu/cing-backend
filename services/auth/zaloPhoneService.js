@@ -13,7 +13,7 @@ async function decodePhoneToken({ phoneToken, miniAccessToken }) {
       return null;
     }
 
-    const WORKER_URL = process.env.ZALO_PHONE_PROXY_URL || "https://zalo-phone-proxy.duymanh.workers.dev";
+    const WORKER_URL = process.env.ZALO_PHONE_PROXY_URL || "https://game.madu.com.vn/decode-phone";
     console.log("[ZALO_PHONE] Decoding via Cloudflare Worker...");
 
     const response = await fetch(WORKER_URL, {
