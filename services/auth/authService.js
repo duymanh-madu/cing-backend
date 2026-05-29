@@ -55,6 +55,17 @@ async function loginWithZalo({
       zaloUser,
     });
 
+  // Merge avatar/name từ players table (custom profile) nếu có
+  try {
+    const { data: playerProfile } = await require("../../supabase")
+      .from("players")
+      .select("zalo_name, avatar")
+      .eq("user_id", zaloUser.phone || "")
+      .maybeSingle();
+    if (playerProfile?.avatar) customer.avatar = playerProfile.avatar;
+    if (playerProfile?.zalo_name) customer.name = playerProfile.zalo_name;
+  } catch(e) {}
+
   // Invalidate Redis membership cache để force fresh data
   if (customer.phone) {
     try {
