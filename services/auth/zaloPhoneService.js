@@ -1,16 +1,32 @@
+const supabase = require("../../supabase");
+
+async function getOAAccessToken() {
+  // Ưu tiên lấy từ Supabase (được refresh tự động)
+  try {
+    const { data: config } = await supabase
+      .from("app_configs")
+      .select("zalo_oa_access_token")
+      .eq("id", 1)
+      .single();
+    if (config?.zalo_oa_access_token) return config.zalo_oa_access_token;
+  } catch(e) {}
+  // Fallback env
+  return process.env.ZALO_OA_ACCESS_TOKEN || null;
+}
+
 async function decodePhoneToken({ phoneToken }) {
   try {
     if (!phoneToken) return null;
 
     const secretKey = process.env.ZALO_APP_SECRET;
-    const oaAccessToken = process.env.ZALO_OA_ACCESS_TOKEN;
+    const oaAccessToken = await getOAAccessToken();
 
     if (!secretKey || !oaAccessToken) {
-      console.warn("[ZALO_PHONE] Missing ZALO_APP_SECRET or ZALO_OA_ACCESS_TOKEN");
+      console.warn("[ZALO_PHONE] Missing ZALO_APP_SECRET or OA access token");
       return null;
     }
 
-    console.log("[ZALO_PHONE] Decoding phone token with OA access token...");
+    console.log("[ZALO_PHONE] Decoding phone token...");
 
     const response = await fetch("https://graph.zalo.me/v2.0/me/info", {
       method: "POST",
