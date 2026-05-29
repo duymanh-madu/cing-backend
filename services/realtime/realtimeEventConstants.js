@@ -57,6 +57,9 @@ const REALTIME_EVENTS = {
   NOTIFICATION_BROADCAST:
     "notification.broadcast",
 
+    "membership.points",
+    "membership.updated",
+
   CHALLENGE_WON:
     "challenge.won",
 

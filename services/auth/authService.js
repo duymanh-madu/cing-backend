@@ -55,6 +55,21 @@ async function loginWithZalo({
       zaloUser,
     });
 
+  // Lấy birthday từ iPOS nếu chưa có
+  if (!zaloUser.birthday) {
+    try {
+      const phone = (zaloUser.phone || "").replace(/\D/g,"").replace(/^84/,"0");
+      if (phone) {
+        const { getMember } = require("../foodbook");
+        const memberResult = await getMember(phone).catch(() => null);
+        if (memberResult?.success && memberResult?.data?.data?.birthday) {
+          // iPOS format: "1990-07-11 00:00:00" → "1990-07-11"
+          zaloUser.birthday = memberResult.data.data.birthday.split(" ")[0];
+        }
+      }
+    } catch(e) {}
+  }
+
   // Merge avatar/name từ players table (custom profile) nếu có
   try {
     const phone = (zaloUser.phone || "").replace(/\D/g,"").replace(/^84/,"0");
