@@ -266,7 +266,7 @@ router.use(
  */
 
 router.use(
-  "/integrations/webhook",
+  "/integrations/webhook/ipos",
   require("./webhookRoutes")
 );
 

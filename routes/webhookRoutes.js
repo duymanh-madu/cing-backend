@@ -7,6 +7,12 @@ const foodbook = require('../services/foodbook');
  * POST /webhook/foodbook
  * Nhận event từ Foodbook khi có thay đổi
  */
+// Alias cho URL đã đăng ký với Foodbook
+router.post('/callback', async (req, res) => {
+  req.url = '/foodbook';
+  router.handle(req, res, () => {});
+});
+
 router.post('/foodbook', async (req, res) => {
   res.json({ ok: true }); // Trả về ngay để Foodbook không timeout
 
