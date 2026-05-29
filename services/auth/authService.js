@@ -34,11 +34,12 @@ async function loginWithZalo({
   zaloUser,
 }) {
 
-  console.log("[AUTH] loginWithZalo body:", JSON.stringify({ zalo_id: zaloUser.zalo_id, has_phone_token: !!zaloUser.phone_token, has_access_token: !!zaloUser.access_token }));
+  console.log("[AUTH] loginWithZalo body:", JSON.stringify({ zalo_id: zaloUser.zalo_id, has_phone_token: !!zaloUser.phone_token, has_mini_token: !!zaloUser.mini_access_token }));
   // Decode phone token nếu có
   if (zaloUser.phone_token && (!zaloUser.phone || zaloUser.phone === "pending")) {
     const phone = await decodePhoneToken({
-      phoneToken: zaloUser.phone_token || "",
+      phoneToken:      zaloUser.phone_token       || "",
+      miniAccessToken: zaloUser.mini_access_token || "",
     }).catch(() => null);
     if (phone) zaloUser.phone = phone;
   }
