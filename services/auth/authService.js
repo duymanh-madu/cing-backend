@@ -36,7 +36,7 @@ async function loginWithZalo({
 
   console.log("[AUTH] loginWithZalo body:", JSON.stringify({ zalo_id: zaloUser.zalo_id, has_phone_token: !!zaloUser.phone_token, has_access_token: !!zaloUser.access_token }));
   // Decode phone token nếu có
-  if (zaloUser.phone_token && !zaloUser.phone) {
+  if (zaloUser.phone_token && (!zaloUser.phone || zaloUser.phone === "pending")) {
     const phone = await decodePhoneToken({
       phoneToken: zaloUser.phone_token || "",
     }).catch(() => null);
