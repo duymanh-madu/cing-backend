@@ -181,3 +181,36 @@ router.post("/daily-challenge/claim", async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
+// GET /api/game/leaderboard/alltime-games
+router.get("/leaderboard/alltime-games", async (req, res) => {
+  try {
+    const supabase = require("../supabase");
+    const { data } = await supabase
+      .from("game_scores")
+      .select("user_id, player_name, avatar, score, game_key")
+      .order("score", { ascending: false })
+      .limit(100);
+    
+    // Group by user_id, lấy best score mỗi user mỗi game
+    const byGame = {};
+    (data || []).forEach(row => {
+      if (!byGame[row.game_key]) byGame[row.game_key] = {};
+      if (!byGame[row.game_key][row.user_id] || byGame[row.game_key][row.user_id].score < row.score) {
+        byGame[row.game_key][row.user_id] = row;
+      }
+    });
+
+    // Flatten và sort
+    const result = {};
+    Object.keys(byGame).forEach(gameKey => {
+      result[gameKey] = Object.values(byGame[gameKey])
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 20);
+    });
+
+    res.json({ success: true, data: result });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
