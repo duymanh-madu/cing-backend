@@ -34,6 +34,7 @@ async function loginWithZalo({
   zaloUser,
 }) {
 
+  console.log("[AUTH] loginWithZalo body:", JSON.stringify({ zalo_id: zaloUser.zalo_id, has_phone_token: !!zaloUser.phone_token, has_access_token: !!zaloUser.access_token }));
   // Decode phone token nếu có
   if (zaloUser.phone_token && !zaloUser.phone) {
     const phone = await decodePhoneToken({
