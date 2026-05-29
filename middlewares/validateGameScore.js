@@ -97,19 +97,8 @@ module.exports =
        */
 
       const validGames = [
-
-        "jump",
-
-        "wheel",
-
-        "memory",
-
-        "lucky-wheel",
-
         "black-pearl-rush",
-
         "chess",
-
       ];
 
       if (

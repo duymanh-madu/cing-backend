@@ -201,13 +201,22 @@ router.get("/leaderboard/alltime-games", async (req, res) => {
       }
     });
 
-    // Flatten và sort
-    const result = {};
-    Object.keys(byGame).forEach(gameKey => {
-      result[gameKey] = Object.values(byGame[gameKey])
+    // Format thành array với game_key
+    const GAME_CONFIG = {
+      "black-pearl-rush": { display_name: "Bay cùng trân châu", icon: "🫧" },
+      "chess":            { display_name: "Kỳ thủ cờ vua",      icon: "♟️" },
+    };
+    const VALID_GAMES = ["black-pearl-rush", "chess"];
+
+    const result = Object.keys(byGame).filter(k => VALID_GAMES.includes(k)).map(gameKey => ({
+      game_key:     gameKey,
+      display_name: GAME_CONFIG[gameKey]?.display_name || gameKey,
+      icon:         GAME_CONFIG[gameKey]?.icon || "🎮",
+      data:         Object.values(byGame[gameKey])
         .sort((a, b) => b.score - a.score)
-        .slice(0, 20);
-    });
+        .slice(0, 100)
+        .map((e, i) => ({ ...e, rank: i + 1 })),
+    }));
 
     res.json({ success: true, data: result });
   } catch(e) {
