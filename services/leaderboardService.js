@@ -41,14 +41,28 @@ async function getGlobalLeaderboard({ limit = 100 } = {}) {
   return getTopSpenders({ period: "alltime", limit });
 }
 
-async function getGameLeaderboard(gameKey, { limit = 100 } = {}) {
-  // Lấy tất cả scores rồi group by user_id lấy best score
-  const { data, error } = await supabase
+function getLastMonday() {
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay()+6)%7));
+  monday.setHours(0,0,0,0);
+  return monday.toISOString();
+}
+
+async function getGameLeaderboard(gameKey, { limit = 100, weekly = true } = {}) {
+  // Weekly: filter theo played_at >= last Monday (đúng logic BXH tuần)
+  let query = supabase
     .from("game_scores")
     .select("user_id, player_name, avatar, score, kills, max_length, played_at")
     .eq("game_key", gameKey)
     .order("score", { ascending: false })
     .limit(2000);
+
+  if (weekly) {
+    query = query.gte("played_at", getLastMonday());
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
 
   // Group by user_id - lấy best score per user + tên mới nhất từ players

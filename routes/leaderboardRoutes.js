@@ -139,18 +139,18 @@ router.get(
         gameKey,
       } = req.params;
 
-      const data =
-        await getGameLeaderboard(
-          gameKey
-        );
+      const supabase = require("../supabase");
+      const data = await getGameLeaderboard(gameKey, { weekly: true });
 
-      res.json({
+      // Lấy rewards config
+      let rewards = [];
+      try {
+        const { data: cfg } = await supabase.from("app_configs")
+          .select("leaderboard_config").eq("id", 1).single();
+        rewards = cfg?.leaderboard_config?.games?.[gameKey]?.rewards || [];
+      } catch(e) {}
 
-        success: true,
-
-        data,
-
-      });
+      res.json({ success: true, data, rewards });
 
     } catch (error) {
 
@@ -221,18 +221,44 @@ router.get(
 router.get("/user-game-rank/:userId/:gameKey", async (req, res) => {
   try {
     const { userId, gameKey } = req.params;
-    const { data: scores } = await require("../supabase")
+    const supabase = require("../supabase");
+
+    // Normalize UUID → phone
+    let lookupId = userId;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    if (isUUID) {
+      const { data: customer } = await supabase.from("customers").select("phone").eq("id", userId).maybeSingle();
+      if (customer?.phone) lookupId = customer.phone.replace(/\D/g,"").replace(/^84/,"0");
+    }
+
+    // Filter weekly (played_at >= last Monday)
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay()+6)%7));
+    monday.setHours(0,0,0,0);
+
+    const { data: scores } = await supabase
       .from("game_scores")
       .select("user_id, player_name, score")
       .eq("game_key", gameKey)
+      .gte("played_at", monday.toISOString())
       .order("score", { ascending: false })
       .limit(2000);
+
     const all = scores || [];
-    const idx = all.findIndex(s => String(s.user_id) === String(userId));
-    if (idx === -1) {
-      return res.json({ success: true, data: { rank: null, total: all.length, score: 0 } });
+    // Best per user
+    const bestMap = new Map();
+    for (const s of all) {
+      const uid = String(s.user_id);
+      if (!bestMap.has(uid) || s.score > bestMap.get(uid).score) bestMap.set(uid, s);
     }
-    res.json({ success: true, data: { rank: idx + 1, total: all.length, score: all[idx].score } });
+    const ranked = [...bestMap.values()].sort((a,b) => b.score - a.score);
+    const idx = ranked.findIndex(s => String(s.user_id) === String(lookupId));
+
+    if (idx === -1) {
+      return res.json({ success: true, data: { rank: null, total: ranked.length, score: 0 } });
+    }
+    res.json({ success: true, data: { rank: idx + 1, total: ranked.length, score: ranked[idx].score } });
   } catch(err) {
     res.status(500).json({ success: false, error: err.message });
   }
