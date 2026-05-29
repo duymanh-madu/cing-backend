@@ -57,13 +57,28 @@ async function loginWithZalo({
 
   // Merge avatar/name từ players table (custom profile) nếu có
   try {
+    const phone = (zaloUser.phone || "").replace(/\D/g,"").replace(/^84/,"0");
     const { data: playerProfile } = await require("../../supabase")
       .from("players")
       .select("zalo_name, avatar")
-      .eq("user_id", zaloUser.phone || "")
+      .eq("user_id", phone)
       .maybeSingle();
     if (playerProfile?.avatar) customer.avatar = playerProfile.avatar;
-    if (playerProfile?.zalo_name) customer.name = playerProfile.zalo_name;
+    if (playerProfile?.zalo_name && playerProfile.zalo_name !== "Khách hàng") {
+      customer.name = playerProfile.zalo_name;
+    }
+    // Sync ngược lại vào customers table để data sạch
+    if (phone && (playerProfile?.avatar || playerProfile?.zalo_name)) {
+      const updateData = {};
+      if (playerProfile?.avatar) updateData.avatar = playerProfile.avatar;
+      if (playerProfile?.zalo_name && playerProfile.zalo_name !== "Khách hàng") {
+        updateData.name = playerProfile.zalo_name;
+      }
+      if (Object.keys(updateData).length > 0) {
+        await require("../../supabase")
+          .from("customers").update(updateData).eq("phone", phone).catch(() => {});
+      }
+    }
   } catch(e) {}
 
   // Invalidate Redis membership cache để force fresh data
