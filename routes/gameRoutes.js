@@ -158,6 +158,26 @@ router.post(
 
 module.exports =
   router;
+// GET /api/game/plays/:userId
+router.get("/plays/:userId", async (req, res) => {
+  try {
+    const supabase = require("../supabase");
+    let userId = req.params.userId;
+
+    // Nếu là UUID thì lookup phone
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    if (isUUID) {
+      const { data: customer } = await supabase.from("customers").select("phone").eq("id", userId).maybeSingle();
+      if (customer?.phone) userId = customer.phone.replace(/\D/g,"").replace(/^84/,"0");
+    }
+
+    const { data: player } = await supabase.from("players").select("game_plays, total_points").eq("user_id", userId).maybeSingle();
+    res.json({ success: true, data: { game_plays: player?.game_plays ?? 0, total_points: player?.total_points ?? 0 } });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // GET /api/game/daily-challenge
 router.get("/daily-challenge", async (req, res) => {
   try {
