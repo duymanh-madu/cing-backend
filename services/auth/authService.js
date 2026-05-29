@@ -4,6 +4,9 @@ const jwt =
 const { decodePhoneToken } =
   require("./zaloPhoneService");
 
+const redisClient =
+  require("../infrastructure/cache/redisClient");
+
 const customerRepository =
   require(
     "../../repositories/customer/customerRepository"
@@ -35,19 +38,32 @@ async function loginWithZalo({
 }) {
 
   console.log("[AUTH] loginWithZalo body:", JSON.stringify({ zalo_id: zaloUser.zalo_id, has_phone_token: !!zaloUser.phone_token, has_mini_token: !!zaloUser.mini_access_token }));
-  // Decode phone token nếu có
+  // Decode phone token trước khi upsert customer
   if (zaloUser.phone_token && (!zaloUser.phone || zaloUser.phone === "pending")) {
     const phone = await decodePhoneToken({
       phoneToken:      zaloUser.phone_token       || "",
       miniAccessToken: zaloUser.mini_access_token || "",
     }).catch(() => null);
-    if (phone) zaloUser.phone = phone;
+    if (phone) {
+      zaloUser.phone = phone;
+      console.log("[AUTH] Phone decoded before upsert:", phone);
+    }
   }
 
   const customer =
     await customerRepository.upsertCustomer({
       zaloUser,
     });
+
+  // Invalidate Redis membership cache để force fresh data
+  if (customer.phone) {
+    try {
+      await redisClient.del(`membership:${customer.phone}`);
+      console.log("[AUTH] Redis cache invalidated for:", customer.phone);
+    } catch(e) {
+      console.warn("[AUTH] Redis invalidation failed:", e.message);
+    }
+  }
 
   const accessToken =
     tokenService.generateAccessToken({
@@ -108,6 +124,16 @@ async function refreshSession({
     await customerRepository.findById(
       payload.customerId
     );
+
+  // Invalidate Redis membership cache để force fresh data
+  if (customer.phone) {
+    try {
+      await redisClient.del(`membership:${customer.phone}`);
+      console.log("[AUTH] Redis cache invalidated for:", customer.phone);
+    } catch(e) {
+      console.warn("[AUTH] Redis invalidation failed:", e.message);
+    }
+  }
 
   const accessToken =
     tokenService.generateAccessToken({
