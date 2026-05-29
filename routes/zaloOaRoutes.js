@@ -84,7 +84,7 @@ async function refreshZaloToken() {
     await supabase.from("app_configs").update({
       zalo_oa_access_token:  access_token,
       zalo_oa_refresh_token: new_refresh,
-      zalo_oa_token_expiry:  new Date(Date.now() + expires_in * 1000).toISOString(),
+      zalo_oa_token_expiry:  expires_in ? new Date(Date.now() + Number(expires_in) * 1000).toISOString() : null,
     }).eq("id", 1);
 
     console.log("[ZALO OA] Token refreshed successfully");
