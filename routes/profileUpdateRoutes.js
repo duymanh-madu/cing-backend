@@ -183,4 +183,33 @@ router.get("/profile/:userId", async (req, res) => {
   }
 });
 
+// POST /profile-update/birthday
+router.post("/birthday", async (req, res) => {
+  try {
+    const { user_id, birthday } = req.body;
+    if (!user_id || !birthday) return res.status(400).json({ success: false, message: "Thiếu thông tin" });
+
+    const supabase = require("../supabase");
+
+    // Normalize user_id → phone nếu là UUID
+    let phone = user_id;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user_id);
+    if (isUUID) {
+      const { data: c } = await supabase.from("customers").select("phone").eq("id", user_id).maybeSingle();
+      if (c?.phone) phone = c.phone.replace(/\D/g,"").replace(/^84/,"0");
+    }
+
+    // Update customers table
+    await supabase.from("customers").update({ birthday }).eq("phone", phone);
+
+    // Update players table
+    await supabase.from("players").update({ birthday }).eq("user_id", phone);
+
+    console.log(`[BIRTHDAY] Updated for ${phone}: ${birthday}`);
+    res.json({ success: true, message: "Đã lưu ngày sinh" });
+  } catch(e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 module.exports = router;
