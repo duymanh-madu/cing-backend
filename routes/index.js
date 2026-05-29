@@ -325,5 +325,7 @@ router.use("/zalo", require("./zaloOaRoutes"));
 
 router.use("/game/chess", require("./chessRoutes"));
 
+router.use("/admin/monitor", require("./adminMonitorRoutes"));
+
 module.exports =
   router;

@@ -327,6 +327,38 @@ async function startServer() {
     logger.info(
       "Socket initialized"
     );
+    
+    // Track online users
+    global.onlineUsers = new Map(); // userId → { socketId, connectedAt, name, avatar }
+    
+    ioInstance.on('connection', (socket) => {
+      socket.on('user:online', ({ userId, name, avatar }) => {
+        if (!userId) return;
+        global.onlineUsers.set(String(userId), {
+          socketId: socket.id,
+          userId: String(userId),
+          name, avatar,
+          connectedAt: new Date().toISOString(),
+          lastSeen: new Date().toISOString(),
+        });
+        // Update lastSeen trong DB
+        require('./supabase').from('players')
+          .update({ last_seen_at: new Date().toISOString(), is_online: true })
+          .eq('user_id', String(userId)).then(()=>{}).catch(()=>{});
+      });
+      
+      socket.on('disconnect', () => {
+        for (const [uid, u] of global.onlineUsers.entries()) {
+          if (u.socketId === socket.id) {
+            global.onlineUsers.delete(uid);
+            require('./supabase').from('players')
+              .update({ last_seen_at: new Date().toISOString(), is_online: false })
+              .eq('user_id', uid).then(()=>{}).catch(()=>{});
+            break;
+          }
+        }
+      });
+    });
     app.set('io', ioInstance);
     global._ioInstance = ioInstance;
 
