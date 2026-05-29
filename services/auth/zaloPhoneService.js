@@ -28,16 +28,15 @@ async function decodePhoneToken({ phoneToken }) {
 
     console.log("[ZALO_PHONE] Decoding phone token...");
 
-    const response = await fetch("https://graph.zalo.me/v2.0/me/info", {
+    const WORKER_URL = process.env.ZALO_PHONE_PROXY_URL || "https://zalo-phone-proxy.duymanh.workers.dev";
+
+    const response = await fetch(WORKER_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "access_token": oaAccessToken,
-        "secret_key": secretKey,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        code: phoneToken,
-        fields: "phone",
+        phone_token:      phoneToken,
+        oa_access_token:  oaAccessToken,
+        app_secret:       secretKey,
       }),
     });
 
