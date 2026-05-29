@@ -1,6 +1,9 @@
 const jwt =
   require("jsonwebtoken");
 
+const { decodePhoneToken } =
+  require("./zaloPhoneService");
+
 const customerRepository =
   require(
     "../../repositories/customer/customerRepository"
@@ -30,6 +33,12 @@ const logger =
 async function loginWithZalo({
   zaloUser,
 }) {
+
+  // Decode phone token nếu có
+  if (zaloUser.phone_token && !zaloUser.phone) {
+    const phone = await decodePhoneToken(zaloUser.phone_token).catch(() => null);
+    if (phone) zaloUser.phone = phone;
+  }
 
   const customer =
     await customerRepository.upsertCustomer({
