@@ -1,30 +1,22 @@
-/**
- * Decode Zalo Mini App phone token
- * Requires: access_token (from getAccessToken) + code (from getPhoneNumber)
- * Endpoint: https://graph.zalo.me/v2.0/me/info
- * Headers: access_token + secret_key
- * Body: { code, fields: "phone" }
- */
-async function decodePhoneToken({ accessToken, phoneToken }) {
+async function decodePhoneToken({ phoneToken }) {
   try {
-    if (!accessToken || !phoneToken) {
-      console.warn("[ZALO_PHONE] Missing accessToken or phoneToken");
-      return null;
-    }
+    if (!phoneToken) return null;
 
     const secretKey = process.env.ZALO_APP_SECRET;
-    if (!secretKey) {
-      console.warn("[ZALO_PHONE] ZALO_APP_SECRET not set");
+    const oaAccessToken = process.env.ZALO_OA_ACCESS_TOKEN;
+
+    if (!secretKey || !oaAccessToken) {
+      console.warn("[ZALO_PHONE] Missing ZALO_APP_SECRET or ZALO_OA_ACCESS_TOKEN");
       return null;
     }
 
-    console.log("[ZALO_PHONE] Decoding phone token...");
+    console.log("[ZALO_PHONE] Decoding phone token with OA access token...");
 
     const response = await fetch("https://graph.zalo.me/v2.0/me/info", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "access_token": accessToken,
+        "access_token": oaAccessToken,
         "secret_key": secretKey,
       },
       body: JSON.stringify({
