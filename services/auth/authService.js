@@ -36,7 +36,10 @@ async function loginWithZalo({
 
   // Decode phone token nếu có
   if (zaloUser.phone_token && !zaloUser.phone) {
-    const phone = await decodePhoneToken(zaloUser.phone_token).catch(() => null);
+    const phone = await decodePhoneToken({
+      accessToken: zaloUser.access_token || "",
+      phoneToken:  zaloUser.phone_token || "",
+    }).catch(() => null);
     if (phone) zaloUser.phone = phone;
   }
 
