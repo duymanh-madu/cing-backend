@@ -56,8 +56,9 @@ function buildPayload(order) {
         ? "MOMO_ORDER_ONLINE"
         : order.payment_method === "points"
           ? "CASH"
-          : "PAYMENT_ON_DELIVERY",
-      Amount: order.subtotal || order.total_amount || 0,
+          : "MOMO_ORDER_ONLINE",
+      // Điểm nội bộ: Amount = 0, đơn vẫn đổ về POS
+      Amount: order.payment_method === "points" ? 0 : (order.total_amount || 0),
     },
     order_data_item: (order.items || []).map(item => ({
       Item_Type_Id: item.category || "",
