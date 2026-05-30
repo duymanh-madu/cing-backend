@@ -40,7 +40,7 @@ function buildPayload(order) {
     order_type,
     user_id:         iposUserId,
     username:        order.customer_name || "Khách hàng",
-    note:            order.note || "",
+    note:            order.payment_method === "points" ? `[Điểm tích lũy] ${order.note || ""}`.trim() : (order.note || ""),
     to_address:      order.shipping_address || "",
     ship_price_real: order.shipping_fee || 0,
     amount:          order.subtotal || order.total_amount || 0,
