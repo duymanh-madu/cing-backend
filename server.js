@@ -370,12 +370,7 @@ async function startServer() {
     console.log('[CRON] Top1 change detector: event-driven mode');
     } catch(e) { console.error('[CRON] Schedule failed:', e.message); }
 
-    // Snake game init
-    try {
-      const registerSnakeHandlers = require('./services/game/snakeSocketHandler');
-      registerSnakeHandlers(ioInstance);
-      console.log('[GAME] Snake game initialized');
-    } catch(e) { console.error('[GAME] Init failed:', e.message); }
+    // Snake game removed
 
     /**
      * ============================================
