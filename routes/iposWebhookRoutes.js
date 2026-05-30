@@ -189,7 +189,7 @@ router.get("/test-order", async (req, res) => {
         ship_price_real: 0,
         amount: 10000, total_amount: 10000,
         adapt_to_online: 1, return_data: "full",
-        is_pending: 0, is_estimate: 1,
+        is_pending: 0, is_estimate: 0,
         client: "momo",
         PaymentInfo: { Payment_Method: "MOMO_ORDER_ONLINE", Payment_Info: "", Amount: 10000, Trans_Verified: 1 },
         order_data_item: [{ Item_Id: "28", Item_Name: "Test", Price: 10000, Quantity: 1, Note: "", Discount: 0, Foc: 0 }]
