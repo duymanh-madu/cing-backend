@@ -99,6 +99,24 @@ router.post("/momo", async (req, res) => {
       .update({ order_created: true, order_id: order.id })
       .eq("transaction_code", orderId);
 
+    // ─── 0. Emit payment.success realtime → frontend navigate ngay ──
+    try {
+      const { realtimeEventBus } = require("../services/realtime/realtimeEventBus");
+      realtimeEventBus.publish({
+        event:         "payment.success",
+        delivery_type: "DIRECT",
+        user_id:       order.user_id,
+        payload: {
+          order_id:    order.id,
+          order_code:  order.order_code,
+          amount:      order.total_amount,
+          transaction: orderId,
+        },
+        channel: "payment",
+        timestamp: new Date().toISOString(),
+      });
+    } catch(e) { console.warn("[MOMO IPN] Realtime emit failed:", e.message); }
+
     // ─── 1. Push lên iPOS ──────────────────────────────────────────
     try {
       // Bổ sung order_type và note từ snap vì orders table không có columns này
