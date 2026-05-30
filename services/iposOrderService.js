@@ -50,11 +50,17 @@ function buildPayload(order) {
     is_pending:      0,
     is_estimate:     0,
     client: order.payment_method === "momo" ? "momo" : "online",
-    // MoMo: không truyền PaymentInfo, iPOS nhận theo client="momo"
-    // Điểm/khác: BANK_TRANSFER amount=0
-    ...(order.payment_method !== "momo" ? {
-      PaymentInfo: { Payment_Method: "BANK_TRANSFER", Amount: 0 }
-    } : {}),
+    PaymentInfo: order.payment_method === "momo" ? {
+      Payment_Method: "MOMO_ORDER_ONLINE",
+      Payment_Info: "",
+      Amount: order.total_amount || 0,
+      Trans_Verified: 1,
+    } : {
+      Payment_Method: "BANK_TRANSFER",
+      Payment_Info: "",
+      Amount: 0,
+      Trans_Verified: 0,
+    },
     order_data_item: (order.items || []).map(item => ({
       Item_Type_Id: item.category || "",
       Item_Id:      String(item.item_id || item.id || ""),
