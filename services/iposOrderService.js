@@ -49,14 +49,15 @@ function buildPayload(order) {
     return_data:     "full",
     is_pending:      0,
     is_estimate:     0,
-    // client phải là "momo" để iPOS nhận diện nguồn thanh toán
-    client:          order.payment_method === "momo" ? "momo" : "online",
+    // client: momo nếu thanh toán MoMo, points nếu dùng điểm, online cho còn lại
+    client: order.payment_method === "momo" ? "momo" : "online",
     PaymentInfo: {
-      // Đã thanh toán MoMo trước → MOMO_ORDER_ONLINE
       Payment_Method: order.payment_method === "momo"
         ? "MOMO_ORDER_ONLINE"
-        : "PAYMENT_ON_DELIVERY",
-      Amount: order.total_amount || 0,
+        : order.payment_method === "points"
+          ? "POINT"
+          : "PAYMENT_ON_DELIVERY",
+      Amount: order.subtotal || order.total_amount || 0,
     },
     order_data_item: (order.items || []).map(item => ({
       Item_Type_Id: item.category || "",
@@ -214,7 +215,7 @@ async function pushOrderToIPOS({ order, transaction_code }) {
     );
 
     const responseData = response.data;
-    console.log("[IPOS] Response:", JSON.stringify(responseData).slice(0, 300));
+    console.log("[IPOS] Response FULL:", JSON.stringify(responseData).slice(0, 800));
 
     await updateIposLog({
       log_id: log?.id,

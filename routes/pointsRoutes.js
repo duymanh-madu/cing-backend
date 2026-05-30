@@ -106,6 +106,7 @@ router.post("/pay-with-points", async (req, res) => {
           payment_status: "paid",
           status_code: "confirmed",
           order_created: true,
+          payment_method: "points",
         }).eq("id", order_id);
       } catch(e) {}
     }
