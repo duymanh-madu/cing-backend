@@ -55,7 +55,7 @@ function buildPayload(order) {
       Payment_Method: order.payment_method === "momo"
         ? "MOMO_ORDER_ONLINE"
         : order.payment_method === "points"
-          ? "POINT"
+          ? "CASH"
           : "PAYMENT_ON_DELIVERY",
       Amount: order.subtotal || order.total_amount || 0,
     },
