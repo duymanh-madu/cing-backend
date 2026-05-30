@@ -83,7 +83,7 @@ router.post("/momo", async (req, res) => {
         // FIX: toạ độ và chi tiết địa chỉ để iPOS build đúng payload DELI
         latitude:               snap.latitude         || null,
         longitude:              snap.longitude        || null,
-        address_detail:         snap.address_detail   || null,
+        // address_detail: removed - column không tồn tại trong orders table
         order_type:             snap.order_type       || (snap.shipping_address ? "DELI" : "STORE"),
         note:                   snap.note             || "",
       })
