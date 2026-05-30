@@ -181,7 +181,7 @@ async function pushOrderToIPOS({ order, transaction_code }) {
 
   // Debug log để verify payload trước khi gửi
   console.log("[IPOS] Pushing order:", order.order_code, "| payment_method:", order.payment_method);
-  console.log("[IPOS] Payload FULL:", JSON.stringify({
+  console.log("[IPOS] Payload preview:", JSON.stringify({
     foodbook_code: payload.foodbook_code,
     order_type:    payload.order_type,
     user_id:       payload.user_id,

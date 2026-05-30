@@ -172,34 +172,4 @@ router.get("/test-update-point", async (req, res) => {
   }
 });
 
-// GET /webhook/ipos/test-order
-router.get("/test-order", async (req, res) => {
-  try {
-    const axios = require("axios");
-    const result = await axios.post(
-      `${process.env.IPOS_BASE_URL || "https://api.foodbook.vn"}/ipos/ws/xpartner/order_online`,
-      {
-        pos_id: Number(process.env.IPOS_POS_ID),
-        pos_parent: process.env.IPOS_POS_PARENT,
-        foodbook_code: "TESTORDER01",
-        order_type: "STORE",
-        user_id: 84984966336,
-        username: "Test",
-        note: "", to_address: "",
-        ship_price_real: 0,
-        amount: 10000, total_amount: 10000,
-        adapt_to_online: 1, return_data: "full",
-        is_pending: 0, is_estimate: 0,
-        client: "momo",
-        PaymentInfo: { Payment_Method: "MOMO_ORDER_ONLINE", Payment_Info: "", Amount: 10000, Trans_Verified: 1 },
-        order_data_item: [{ Item_Id: "28", Item_Name: "Test", Price: 10000, Quantity: 1, Note: "", Discount: 0, Foc: 0 }]
-      },
-      { params: { access_token: process.env.IPOS_ACCESS_TOKEN } }
-    );
-    res.json({ success: true, data: result.data });
-  } catch(e) {
-    res.status(500).json({ success: false, error: e.response?.data || e.message });
-  }
-});
-
 module.exports = router;

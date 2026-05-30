@@ -132,7 +132,7 @@ router.post("/momo", async (req, res) => {
         transaction_code: orderId,
       });
       if (iposResult.success) {
-        console.log("[MOMO IPN] Pushed to iPOS OK:", order.order_code, JSON.stringify(iposResult?.ipos_response || {}).slice(0,300));
+        console.log("[MOMO IPN] Pushed to iPOS OK:", order.order_code);
       } else {
         console.error("[MOMO IPN] iPOS push failed:", iposResult.error);
       }
