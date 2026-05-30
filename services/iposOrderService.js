@@ -49,17 +49,14 @@ function buildPayload(order) {
     return_data:     "full",
     is_pending:      0,
     is_estimate:     0,
-    // client: momo nếu thanh toán MoMo, points nếu dùng điểm, online cho còn lại
     client: order.payment_method === "momo" ? "momo" : "online",
-    PaymentInfo: {
-      Payment_Method: order.payment_method === "momo"
-        ? "MOMO_ORDER_ONLINE"
-        : order.payment_method === "points"
-          ? "CASH"
-          : "MOMO_ORDER_ONLINE",
-      // Điểm nội bộ: Amount = 0, đơn vẫn đổ về POS
-      Amount: order.payment_method === "points" ? 0 : (order.total_amount || 0),
-    },
+    // Chỉ truyền PaymentInfo khi thanh toán MoMo — điểm nội bộ không truyền để iPOS nhận như COD
+    ...(order.payment_method === "momo" ? {
+      PaymentInfo: {
+        Payment_Method: "MOMO_ORDER_ONLINE",
+        Amount: order.total_amount || 0,
+      }
+    } : {}),
     order_data_item: (order.items || []).map(item => ({
       Item_Type_Id: item.category || "",
       Item_Id:      String(item.item_id || item.id || ""),
