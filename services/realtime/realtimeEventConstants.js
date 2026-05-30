@@ -60,6 +60,9 @@ const REALTIME_EVENTS = {
   MEMBERSHIP_POINTS: "membership.points",
   MEMBERSHIP_UPDATED: "membership.updated",
 
+  PAYMENT_SUCCESS: "payment.success",
+  PAYMENT_FAILED:  "payment.failed",
+
   CHALLENGE_WON:
     "challenge.won",
 
