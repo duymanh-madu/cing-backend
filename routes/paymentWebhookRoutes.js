@@ -83,8 +83,7 @@ router.post("/momo", async (req, res) => {
         // FIX: toạ độ và chi tiết địa chỉ để iPOS build đúng payload DELI
         // latitude/longitude: removed - columns không tồn tại trong orders table
         // address_detail: removed - column không tồn tại trong orders table
-        order_type:             snap.order_type       || (snap.shipping_address ? "DELI" : "STORE"),
-        note:                   snap.note             || "",
+        // order_type và note không có trong schema orders table
       })
       .select()
       .single();
@@ -102,8 +101,15 @@ router.post("/momo", async (req, res) => {
 
     // ─── 1. Push lên iPOS ──────────────────────────────────────────
     try {
+      // Bổ sung order_type và note từ snap vì orders table không có columns này
+      const orderWithMeta = {
+        ...order,
+        order_type: snap.order_type || (snap.shipping_address ? "DELI" : "STORE"),
+        note: snap.note || "",
+        payment_method: "momo",
+      };
       const iposResult = await pushOrderToIPOS({
-        order,
+        order: orderWithMeta,
         transaction_code: orderId,
       });
       if (iposResult.success) {
