@@ -205,6 +205,13 @@ router.post("/birthday", async (req, res) => {
     // Update players table
     await supabase.from("players").update({ birthday }).eq("user_id", phone);
 
+    // Invalidate Redis cache để lần sau fetch data mới
+    try {
+      const redisClient = require("../services/infrastructure/cache/redisClient");
+      await redisClient.del(`membership:${phone}`);
+      await redisClient.del(`membership:84${phone.slice(1)}`);
+    } catch(e) {}
+
     console.log(`[BIRTHDAY] Updated for ${phone}: ${birthday}`);
     res.json({ success: true, message: "Đã lưu ngày sinh" });
   } catch(e) {
