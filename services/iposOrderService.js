@@ -215,7 +215,7 @@ async function pushOrderToIPOS({ order, transaction_code }) {
     );
 
     const responseData = response.data;
-    console.log("[IPOS] Response FULL:", JSON.stringify(responseData).slice(0, 800));
+    console.log("[IPOS] Response:", JSON.stringify(responseData).slice(0, 200));
 
     await updateIposLog({
       log_id: log?.id,
@@ -248,7 +248,6 @@ async function pushOrderToIPOS({ order, transaction_code }) {
     return { success: true, ipos_response: responseData };
 
   } catch (error) {
-    // Log đầy đủ response từ iPOS để debug
     const errDetail = error.response?.data
       ? JSON.stringify(error.response.data)
       : error.message;
