@@ -82,16 +82,17 @@ router.post("/pay-with-points", async (req, res) => {
       points, reason: "Thanh toán đơn hàng bằng điểm",
     });
 
-    // 2. Push order to iPOS nếu có order_data
-    if (order_data) {
+    // 2. Push order to iPOS — fetch order từ DB trước
+    if (order_id) {
       try {
+        const supabase = require("../supabase");
         const { pushOrderToIPOS } = require("../services/iposOrderService");
-        const iposResult = await pushOrderToIPOS({
-          ...order_data,
-          payment_method: "points",
-          payment_status: "paid",
-        });
-        console.log("[POINTS PAY] iPOS push:", iposResult.success ? "OK" : iposResult.error);
+        const { data: order } = await supabase
+          .from("orders").select("*").eq("id", order_id).single();
+        if (order) {
+          const iposResult = await pushOrderToIPOS({ order, transaction_code: order.order_code });
+          console.log("[POINTS PAY] iPOS push:", iposResult.success ? "OK" : iposResult.error);
+        }
       } catch(e) {
         console.warn("[POINTS PAY] iPOS push failed:", e.message);
       }

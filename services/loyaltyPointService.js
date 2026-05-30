@@ -53,7 +53,7 @@ async function deductPoints({ phone, user_id, points, reason = "Sử dụng đi�
         note: reason,
       });
       console.log(`[POINTS] Deducted ${points} pts for ${phone} - ${reason}`);
-    await logAnalytics('points_deducted', phone, { amount: -points, reason, new_total: updated?.total_points });
+      await logAnalytics('points_deducted', phone, { amount: -points, reason, new_total: currentPoints - points });
     } catch(e) {
       console.warn(`[POINTS] iPOS sync failed (points already deducted locally): ${e.message}`);
       // Khong throw - da tru duoc trong Supabase roi
