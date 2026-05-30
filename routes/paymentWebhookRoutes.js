@@ -104,17 +104,18 @@ router.post("/momo", async (req, res) => {
       const { realtimeEventBus } = require("../services/realtime/realtimeEventBus");
       realtimeEventBus.publish({
         event:         "payment.success",
-        delivery_type: "DIRECT",
-        user_id:       order.user_id,
+        delivery_type: "BROADCAST",
         payload: {
+          user_id:     order.user_id,
           order_id:    order.id,
           order_code:  order.order_code,
           amount:      order.total_amount,
           transaction: orderId,
         },
-        channel: "payment",
+        channel:   "payment",
         timestamp: new Date().toISOString(),
       });
+      console.log("[MOMO IPN] Emitted payment.success for", order.user_id);
     } catch(e) { console.warn("[MOMO IPN] Realtime emit failed:", e.message); }
 
     // ─── 1. Push lên iPOS ──────────────────────────────────────────
