@@ -63,6 +63,14 @@ router.get("/:phone", async (req, res) => {
       updatedAt: Date.now(),
     };
 
+    // Override birthday từ Supabase (ưu tiên hơn iPOS)
+    try {
+      const supabase = require("../supabase");
+      const { data: customer } = await supabase
+        .from("customers").select("birthday").eq("phone", phone).maybeSingle();
+      if (customer?.birthday) memberData.birthday = customer.birthday;
+    } catch(e) {}
+
     // 3. Luu vao Redis 5 phut
     await redisClient.setex(cacheKey, CACHE_TTL, JSON.stringify(memberData));
 
