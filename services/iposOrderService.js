@@ -49,14 +49,15 @@ function buildPayload(order) {
     return_data:     "full",
     is_pending:      0,
     is_estimate:     0,
+    // client "momo" chỉ khi thanh toán MoMo — điểm dùng "online" để iPOS không check PaymentInfo
     client: order.payment_method === "momo" ? "momo" : "online",
-    // Chỉ truyền PaymentInfo khi thanh toán MoMo — điểm nội bộ không truyền để iPOS nhận như COD
-    ...(order.payment_method === "momo" ? {
-      PaymentInfo: {
-        Payment_Method: "MOMO_ORDER_ONLINE",
-        Amount: order.total_amount || 0,
-      }
-    } : {}),
+    PaymentInfo: order.payment_method === "momo" ? {
+      Payment_Method: "MOMO_ORDER_ONLINE",
+      Amount: order.total_amount || 0,
+    } : {
+      Payment_Method: "PAYMENT_ON_DELIVERY",
+      Amount: 0,
+    },
     order_data_item: (order.items || []).map(item => ({
       Item_Type_Id: item.category || "",
       Item_Id:      String(item.item_id || item.id || ""),
