@@ -50,9 +50,10 @@ function buildPayload(order) {
     is_pending:      0,
     is_estimate:     0,
     client: order.payment_method === "momo" ? "momo" : "online",
-        PaymentInfo: {
-      Payment_Method: "PAYMENT_ON_DELIVERY",
-      Payment_Info: order.payment_method === "momo" ? "MOMO_PAID" : "",
+        // MoMo và điểm đều dùng BANK_TRANSFER — tạm thời đến khi iPOS kích hoạt MOMO_ORDER_ONLINE
+    PaymentInfo: {
+      Payment_Method: "BANK_TRANSFER",
+      Payment_Info: order.payment_method === "momo" ? "MOMO" : "",
       Amount: 0,
       Trans_Verified: 0,
     },
