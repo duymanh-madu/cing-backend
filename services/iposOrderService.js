@@ -50,17 +50,13 @@ function buildPayload(order) {
     is_pending:      0,
     is_estimate:     0,
     client: order.payment_method === "momo" ? "momo" : "online",
-    PaymentInfo: order.payment_method === "momo" ? {
-      Payment_Method: "MOMO_ORDER_ONLINE",
-      Payment_Info: "",
-      Amount: order.total_amount || 0,
-      Trans_Verified: 1,
-    } : {
-      Payment_Method: "BANK_TRANSFER",
-      Payment_Info: "",
+        PaymentInfo: {
+      Payment_Method: "PAYMENT_ON_DELIVERY",
+      Payment_Info: order.payment_method === "momo" ? "MOMO_PAID" : "",
       Amount: 0,
       Trans_Verified: 0,
     },
+
     order_data_item: (order.items || []).map(item => ({
       Item_Type_Id: item.category || "",
       Item_Id:      String(item.item_id || item.id || ""),
