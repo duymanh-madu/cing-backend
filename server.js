@@ -347,6 +347,18 @@ async function startServer() {
           .eq('user_id', String(userId)).then(()=>{}).catch(()=>{});
       });
       
+      // Track page hiện tại của user
+      socket.on('user:page', ({ userId, page, action }) => {
+        if (!userId) return;
+        const u = global.onlineUsers.get(String(userId));
+        if (u) {
+          u.currentPage = page || '';
+          u.currentAction = action || '';
+          u.lastActivity = new Date().toISOString();
+          global.onlineUsers.set(String(userId), u);
+        }
+      });
+
       socket.on('disconnect', () => {
         for (const [uid, u] of global.onlineUsers.entries()) {
           if (u.socketId === socket.id) {
