@@ -89,23 +89,20 @@ router.get('/stats', requireAdmin, async (req, res) => {
     const { count: onlineDb } = await supabase.from('players')
       .select('user_id', { count:'exact', head:true }).eq('is_online', true);
     
-    // Online trong 24h
     const yesterday = new Date(Date.now() - 24*60*60*1000).toISOString();
     const { count: active24h } = await supabase.from('players')
       .select('user_id', { count:'exact', head:true })
-      .gte('last_seen_at', yesterday);
+      .or(`last_seen_at.gte.${yesterday},updated_at.gte.${yesterday}`);
     
-    // Online trong 7 ngày
     const week = new Date(Date.now() - 7*24*60*60*1000).toISOString();
     const { count: active7d } = await supabase.from('players')
       .select('user_id', { count:'exact', head:true })
-      .gte('last_seen_at', week);
+      .or(`last_seen_at.gte.${week},updated_at.gte.${week}`);
 
-    // Online trong 30 ngày  
     const month = new Date(Date.now() - 30*24*60*60*1000).toISOString();
     const { count: active30d } = await supabase.from('players')
       .select('user_id', { count:'exact', head:true })
-      .gte('last_seen_at', month);
+      .or(`last_seen_at.gte.${month},updated_at.gte.${month}`);
 
     res.json({ success:true, data: {
       online_now:   onlineCount,
