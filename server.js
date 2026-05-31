@@ -347,6 +347,16 @@ async function startServer() {
           .eq('user_id', String(userId)).then(()=>{}).catch(()=>{});
       });
       
+      // Tự động track user:online từ heartbeat
+      socket.on('runtime:heartbeat', ({ userId, timestamp }) => {
+        if (!userId) return;
+        const existing = global.onlineUsers.get(String(userId));
+        if (existing) {
+          existing.lastSeen = new Date().toISOString();
+          global.onlineUsers.set(String(userId), existing);
+        }
+      });
+
       // Track page hiện tại của user
       socket.on('user:page', ({ userId, page, action }) => {
         if (!userId) return;
