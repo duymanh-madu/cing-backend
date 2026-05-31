@@ -62,19 +62,24 @@ async function doWeeklyReset(io) {
       }
       const top3 = [...bestMap.values()].sort((a,b)=>b.score-a.score).slice(0,3);
 
-      // Phát thưởng
+      // Lưu pending_rewards thay vì cộng thẳng
       for (let i = 0; i < Math.min(top3.length, (gameCfg.rewards||[]).length); i++) {
         const reward = gameCfg.rewards[i];
         const player = top3[i];
         if (!reward?.points || !player?.user_id) continue;
         try {
-          await addPoints({
-            phone: player.user_id, user_id: player.user_id,
+          await supabase.from('pending_rewards').insert({
+            user_id: player.user_id,
+            player_name: player.player_name,
             points: reward.points,
             reason: `🏆 ${reward.label || `Top ${i+1}`} BXH ${gameCfg.display_name || gameKey} tuần`,
+            rank: i + 1,
+            board: gameCfg.display_name || gameKey,
+            claimed: false,
+            created_at: new Date().toISOString(),
           });
-          console.log(`[RESET] Rewarded ${player.player_name}: +${reward.points}đ`);
-        } catch(e) { console.warn('[RESET] Reward failed:', e.message); }
+          console.log(`[RESET] Pending reward saved: ${player.player_name} +${reward.points}đ`);
+        } catch(e) { console.warn('[RESET] Pending reward failed:', e.message); }
       }
 
       if (top3.length > 0) {
@@ -98,12 +103,17 @@ async function doWeeklyReset(io) {
         const player = top3[i];
         if (!reward?.points || !player?.user_id) continue;
         try {
-          await addPoints({
-            phone: player.user_id, user_id: player.user_id,
+          await supabase.from('pending_rewards').insert({
+            user_id: player.user_id,
+            player_name: player.zalo_name,
             points: reward.points,
             reason: `💰 ${reward.label||`Top ${i+1}`} BXH chi tiêu tuần`,
+            rank: i + 1,
+            board: 'Chi tiêu tuần',
+            claimed: false,
+            created_at: new Date().toISOString(),
           });
-        } catch(e) { console.warn('[RESET] Spend reward failed:', e.message); }
+        } catch(e) { console.warn('[RESET] Spend pending reward failed:', e.message); }
       }
       if (top3.length > 0) {
         messages.push(`💰 Chi tiêu tuần: 🥇${top3[0]?.zalo_name||'?'} 🥈${top3[1]?.zalo_name||'?'} 🥉${top3[2]?.zalo_name||'?'}`);
@@ -122,7 +132,7 @@ async function doWeeklyReset(io) {
 
     // 4. Broadcast thông báo toàn server
     if (io && messages.length > 0) {
-      const msg = `🔄 BXH tuần đã được làm mới!\n${messages.join('\n')}\n\nMời top 3 vào nhận thưởng! 🎁`;
+      const msg = `🎁 Bảng xếp hạng tuần đã được reset và phát quà cho top 3!\n${messages.join('\n')}\n\nMời các bạn lọt top 3 vào nhận thưởng! 🏆`;
       io.emit('leaderboard.weekly_reset', { message: msg, timestamp: new Date().toISOString() });
       io.emit('notification', { type:'leaderboard_reset', message: msg });
       console.log('[RESET] Broadcasted:', msg);
