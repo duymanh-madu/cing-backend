@@ -403,18 +403,33 @@ async function startServer() {
     let voiceSpeaker = null;
 
     communityNs.on('connection', (socket) => {
-      socket.on('community:join', ({ userId, name, avatar }) => {
+      socket.on('community:join', async ({ userId, name, avatar }) => {
         if (!userId) return;
         socket.data = { userId, name, avatar };
         socket.broadcast.emit('community:user_joined', { userId, name, avatar });
         const users = [...communityNs.sockets.values()].map(s => s.data).filter(d => d?.userId);
         socket.emit('community:users', users);
         if (voiceSpeaker) socket.emit('community:voice_start', { userId: voiceSpeaker });
+        // Load lịch sử chat từ Redis
+        try {
+          const redisClient = require('./services/redisClient');
+          const history = await redisClient.lrange('community:chat:history', 0, 49);
+          const messages = history.map(m => JSON.parse(m)).reverse();
+          socket.emit('community:history', messages);
+        } catch(e) {}
       });
 
-      socket.on('community:chat', ({ userId, name, avatar, message }) => {
+      socket.on('community:chat', async ({ userId, name, avatar, message }) => {
         if (!message?.trim()) return;
-        communityNs.emit('community:chat', { userId, name, avatar, message: message.trim().slice(0,200), timestamp: Date.now() });
+        const msg = { userId, name, avatar, message: message.trim().slice(0,200), timestamp: Date.now() };
+        communityNs.emit('community:chat', msg);
+        // Lưu vào Redis — giữ 100 tin nhắn gần nhất, TTL 24h
+        try {
+          const redisClient = require('./services/redisClient');
+          await redisClient.lpush('community:chat:history', JSON.stringify(msg));
+          await redisClient.ltrim('community:chat:history', 0, 99);
+          await redisClient.expire('community:chat:history', 86400); // 24h
+        } catch(e) {}
       });
 
       socket.on('community:voice_start', ({ userId }) => {
