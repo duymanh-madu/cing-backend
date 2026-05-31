@@ -412,7 +412,7 @@ async function startServer() {
         if (voiceSpeaker) socket.emit('community:voice_start', { userId: voiceSpeaker });
         // Load lịch sử chat từ Redis
         try {
-          const redisClient = require('./services/redisClient');
+          const redisClient = require('./services/infrastructure/cache/redisClient');
           const history = await redisClient.lrange('community:chat:history', 0, 49);
           const messages = history.map(m => JSON.parse(m)).reverse();
           socket.emit('community:history', messages);
@@ -425,7 +425,7 @@ async function startServer() {
         communityNs.emit('community:chat', msg);
         // Lưu vào Redis — giữ 100 tin nhắn gần nhất, TTL 24h
         try {
-          const redisClient = require('./services/redisClient');
+          const redisClient = require('./services/infrastructure/cache/redisClient');
           await redisClient.lpush('community:chat:history', JSON.stringify(msg));
           await redisClient.ltrim('community:chat:history', 0, 99);
           await redisClient.expire('community:chat:history', 86400); // 24h
