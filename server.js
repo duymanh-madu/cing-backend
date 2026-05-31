@@ -416,7 +416,7 @@ async function startServer() {
           const history = await redisClient.lrange('community:chat:history', 0, 49);
           const messages = history.map(m => JSON.parse(m)).reverse();
           socket.emit('community:history', messages);
-        } catch(e) {}
+        } catch(e) { console.warn('[COMMUNITY] Redis history error:', e.message); }
       });
 
       socket.on('community:chat', async ({ userId, name, avatar, message }) => {
@@ -429,7 +429,7 @@ async function startServer() {
           await redisClient.lpush('community:chat:history', JSON.stringify(msg));
           await redisClient.ltrim('community:chat:history', 0, 99);
           await redisClient.expire('community:chat:history', 86400); // 24h
-        } catch(e) {}
+        } catch(e) { console.warn('[COMMUNITY] Redis save error:', e.message); }
       });
 
       socket.on('community:voice_start', ({ userId }) => {
