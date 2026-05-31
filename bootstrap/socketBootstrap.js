@@ -56,6 +56,9 @@ function initializeSocket({
 
   ].filter(Boolean);
 
+  // Zalo Mini App iframe origins
+  const ZALO_ORIGINS = ["zmp.zaloapp.com", "zalo.me", "mini.zalo.me", "h5.zaloapp.com"];
+
   /**
    * =====================================================
    * SOCKET SERVER
@@ -86,7 +89,8 @@ function initializeSocket({
             origin.trim();
 
           const isVercelPreview = normalizedOrigin.includes('.vercel.app');
-          if (allowedOrigins.includes(normalizedOrigin) || isVercelPreview) {
+          const isZaloOrigin = ZALO_ORIGINS.some(z => normalizedOrigin.includes(z));
+          if (allowedOrigins.includes(normalizedOrigin) || isVercelPreview || isZaloOrigin) {
 
             return callback(
               null,
