@@ -396,6 +396,57 @@ async function startServer() {
 
     /**
      * ============================================
+     * COMMUNITY CHAT NAMESPACE
+     * ============================================
+     */
+    const communityNs = ioInstance.of('/community');
+    let voiceSpeaker = null;
+
+    communityNs.on('connection', (socket) => {
+      socket.on('community:join', ({ userId, name, avatar }) => {
+        if (!userId) return;
+        socket.data = { userId, name, avatar };
+        socket.broadcast.emit('community:user_joined', { userId, name, avatar });
+        const users = [...communityNs.sockets.values()].map(s => s.data).filter(d => d?.userId);
+        socket.emit('community:users', users);
+        if (voiceSpeaker) socket.emit('community:voice_start', { userId: voiceSpeaker });
+      });
+
+      socket.on('community:chat', ({ userId, name, avatar, message }) => {
+        if (!message?.trim()) return;
+        communityNs.emit('community:chat', { userId, name, avatar, message: message.trim().slice(0,200), timestamp: Date.now() });
+      });
+
+      socket.on('community:voice_start', ({ userId }) => {
+        if (voiceSpeaker && voiceSpeaker !== userId) return;
+        voiceSpeaker = userId;
+        communityNs.emit('community:voice_start', { userId });
+      });
+
+      socket.on('community:signal', ({ userId, signal }) => {
+        socket.broadcast.emit('community:signal', { userId, signal });
+      });
+
+      socket.on('community:voice_end', ({ userId }) => {
+        if (voiceSpeaker === userId) {
+          voiceSpeaker = null;
+          communityNs.emit('community:voice_end', { userId });
+        }
+      });
+
+      socket.on('disconnect', () => {
+        const { userId } = socket.data || {};
+        if (!userId) return;
+        communityNs.emit('community:user_left', { userId });
+        if (voiceSpeaker === userId) {
+          voiceSpeaker = null;
+          communityNs.emit('community:voice_end', { userId });
+        }
+      });
+    });
+
+    /**
+     * ============================================
      * EVENT BUS
      * ============================================
      */
