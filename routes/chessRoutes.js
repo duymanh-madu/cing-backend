@@ -82,6 +82,19 @@ router.post('/tip', async (req, res) => {
     const validAmounts = [5, 10, 20, 50, 100];
     if (!validAmounts.includes(Number(amount))) return;
     
+    // Kiểm tra điểm trước khi trừ
+    const { data: player } = await supabase
+      .from('players')
+      .select('total_points')
+      .eq('user_id', fromUserId)
+      .single();
+    
+    const currentPoints = Number(player?.total_points || 0);
+    if (currentPoints < Number(amount)) {
+      console.warn(`[CHESS TIP] ${fromUserId} không đủ điểm: có ${currentPoints}, cần ${amount}`);
+      return;
+    }
+    
     const { deductPoints, addPoints } = require('../services/loyaltyPointService');
     
     // Trừ điểm người tặng
