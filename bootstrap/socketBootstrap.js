@@ -76,42 +76,8 @@ function initializeSocket({
           callback
         ) => {
 
-          if (!origin) {
-
-            return callback(
-              null,
-              true
-            );
-
-          }
-
-          const normalizedOrigin =
-            origin.trim();
-
-          const isVercelPreview = normalizedOrigin.includes('.vercel.app');
-          const isZaloOrigin = ZALO_ORIGINS.some(z => normalizedOrigin.includes(z));
-          if (allowedOrigins.includes(normalizedOrigin) || isVercelPreview || isZaloOrigin) {
-
-            return callback(
-              null,
-              true
-            );
-
-          }
-
-          logger.error(
-            "Socket CORS blocked",
-            {
-              origin:
-                normalizedOrigin,
-            }
-          );
-
-          return callback(
-            new Error(
-              "CORS blocked"
-            )
-          );
+          // Allow all origins — Zalo Mini App iframe gửi null hoặc Zalo CDN origin
+          return callback(null, true);
 
         },
 
