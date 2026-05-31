@@ -72,4 +72,36 @@ router.post('/game-ended', async (req, res) => {
   } catch(e) { console.warn('[TOP1] Chess game-ended check:', e.message); }
 });
 
+// POST /api/chess/tip — tặng điểm trong ván cờ
+router.post('/tip', async (req, res) => {
+  res.json({ success: true }); // Trả lời ngay
+  try {
+    const { fromUserId, toUserId, amount } = req.body;
+    if (!fromUserId || !toUserId || !amount) return;
+    
+    const validAmounts = [5, 10, 20, 50, 100];
+    if (!validAmounts.includes(Number(amount))) return;
+    
+    const { deductPoints, addPoints } = require('../services/loyaltyPointService');
+    
+    // Trừ điểm người tặng
+    await deductPoints({
+      phone: fromUserId, user_id: fromUserId,
+      points: Number(amount),
+      reason: `Tặng điểm trong ván cờ cho ${toUserId}`,
+    });
+    
+    // Cộng điểm người nhận
+    await addPoints({
+      phone: toUserId, user_id: toUserId,
+      points: Number(amount),
+      reason: `Nhận điểm tặng trong ván cờ từ ${fromUserId}`,
+    });
+    
+    console.log(`[CHESS TIP] ${fromUserId} → ${toUserId}: ${amount} điểm`);
+  } catch(e) {
+    console.warn('[CHESS TIP] Error:', e.message);
+  }
+});
+
 module.exports = router;
