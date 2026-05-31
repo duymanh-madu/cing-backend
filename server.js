@@ -357,6 +357,49 @@ async function startServer() {
         }
       });
 
+      // Community chat qua main namespace
+      socket.on('community:join', async ({ userId, name, avatar }) => {
+        if (!userId) return;
+        socket.data = { ...socket.data, communityUserId: userId, communityName: name, communityAvatar: avatar };
+        socket.broadcast.emit('community:user_joined', { userId, name, avatar });
+        // Lấy danh sách user đang online trong community
+        const users = [];
+        for (const [, s] of ioInstance.sockets.sockets) {
+          if (s.data?.communityUserId) users.push({ userId: s.data.communityUserId, name: s.data.communityName, avatar: s.data.communityAvatar });
+        }
+        socket.emit('community:users', users);
+        // Load history từ Redis
+        try {
+          const rc = require('./services/infrastructure/cache/redisClient');
+          const history = await rc.lrange('community:chat:history', 0, 49);
+          socket.emit('community:history', history.map(m => JSON.parse(m)).reverse());
+        } catch(e) {}
+      });
+
+      socket.on('community:chat', async ({ userId, name, avatar, message }) => {
+        if (!message?.trim()) return;
+        const msg = { userId, name, avatar, message: message.trim().slice(0,200), timestamp: Date.now() };
+        ioInstance.emit('community:chat', msg);
+        try {
+          const rc = require('./services/infrastructure/cache/redisClient');
+          await rc.lpush('community:chat:history', JSON.stringify(msg));
+          await rc.ltrim('community:chat:history', 0, 99);
+          await rc.expire('community:chat:history', 86400);
+        } catch(e) {}
+      });
+
+      socket.on('community:voice_start', ({ userId }) => {
+        socket.broadcast.emit('community:voice_start', { userId });
+      });
+
+      socket.on('community:voice_end', ({ userId }) => {
+        socket.broadcast.emit('community:voice_end', { userId });
+      });
+
+      socket.on('community:signal', ({ userId, signal }) => {
+        socket.broadcast.emit('community:signal', { userId, signal });
+      });
+
       // Track page hiện tại của user
       socket.on('user:page', ({ userId, page, action }) => {
         if (!userId) return;
