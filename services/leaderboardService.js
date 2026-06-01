@@ -42,11 +42,13 @@ async function getGlobalLeaderboard({ limit = 100 } = {}) {
 }
 
 function getLastMonday() {
-  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((now.getDay()+6)%7));
-  monday.setHours(0,0,0,0);
-  return monday.toISOString();
+  // Monday 00:00 VN time (UTC+7) → UTC
+  const vnNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+  const daysBack = (vnNow.getDay() + 6) % 7;
+  const mondayVN = new Date(vnNow);
+  mondayVN.setDate(vnNow.getDate() - daysBack);
+  mondayVN.setHours(0, 0, 0, 0);
+  return new Date(mondayVN.getTime() - 7 * 60 * 60 * 1000).toISOString();
 }
 
 async function getGameLeaderboard(gameKey, { limit = 100, weekly = true } = {}) {

@@ -141,12 +141,12 @@ router.post("/reset-game-scores", requireAdmin, async (req, res) => {
 });
 
 function getMonday() {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+  const vnNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+  const daysBack = (vnNow.getDay() + 6) % 7;
+  const mondayVN = new Date(vnNow);
+  mondayVN.setDate(vnNow.getDate() - daysBack);
+  mondayVN.setHours(0, 0, 0, 0);
+  return new Date(mondayVN.getTime() - 7 * 60 * 60 * 1000).toISOString();
 }
 
 

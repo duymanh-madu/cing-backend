@@ -232,10 +232,12 @@ router.get("/user-game-rank/:userId/:gameKey", async (req, res) => {
     }
 
     // Filter weekly (played_at >= last Monday)
-    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - ((now.getDay()+6)%7));
-    monday.setHours(0,0,0,0);
+    const vnNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+    const daysBack = (vnNow.getDay() + 6) % 7;
+    const mondayVN = new Date(vnNow);
+    mondayVN.setDate(vnNow.getDate() - daysBack);
+    mondayVN.setHours(0, 0, 0, 0);
+    const monday = new Date(mondayVN.getTime() - 7 * 60 * 60 * 1000);
 
     const { data: scores } = await supabase
       .from("game_scores")

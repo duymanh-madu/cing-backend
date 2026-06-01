@@ -23,7 +23,9 @@ async function checkAndReset(io) {
     .select('last_weekly_reset').eq('id', 1).single();
   
   const lastReset = cfg?.last_weekly_reset ? new Date(cfg.last_weekly_reset) : null;
-  const mondayStart = new Date(now); mondayStart.setHours(0,0,0,0);
+  // Monday 00:00 VN time
+  const vnNow2 = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+  const mondayStart = new Date(new Date(vnNow2.setDate(vnNow2.getDate() - (vnNow2.getDay()+6)%7)).setHours(0,0,0,0) - 7*3600000);
   
   if (lastReset && lastReset >= mondayStart) return; // Đã reset rồi
 
@@ -147,11 +149,13 @@ async function doWeeklyReset(io) {
 }
 
 function getLastMonday() {
-  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((now.getDay()+6)%7));
-  monday.setHours(0,0,0,0);
-  return monday.toISOString();
+  // Monday 00:00 VN time (UTC+7) → UTC
+  const vnNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+  const daysBack = (vnNow.getDay() + 6) % 7;
+  const mondayVN = new Date(vnNow);
+  mondayVN.setDate(vnNow.getDate() - daysBack);
+  mondayVN.setHours(0, 0, 0, 0);
+  return new Date(mondayVN.getTime() - 7 * 60 * 60 * 1000).toISOString();
 }
 
 // Manual trigger cho admin
