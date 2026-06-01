@@ -432,6 +432,24 @@ async function startServer() {
       const { scheduleWeeklyReset, checkAndNotifyTop1Changes } = require('./services/leaderboardResetService');
       scheduleWeeklyReset(ioInstance);
       console.log('[CRON] Weekly leaderboard reset scheduled');
+
+      // ── CRM Sync nội bộ — chạy mỗi 30 phút, không phụ thuộc external cron ──
+      const { syncAllPlayersCrmSpending } = require('./services/crm/crmSpendingSyncService');
+      let _crmSyncRunning = false;
+      setInterval(async () => {
+        if (_crmSyncRunning) { console.log('[CRM SYNC] Skipping — previous sync still running'); return; }
+        _crmSyncRunning = true;
+        console.log('[CRM SYNC] Auto sync started...');
+        try {
+          const result = await syncAllPlayersCrmSpending({ batchSize: 5, delayMs: 1000 });
+          console.log('[CRM SYNC] Done:', result?.stats);
+        } catch(e) {
+          console.error('[CRM SYNC] Error:', e.message);
+        } finally {
+          _crmSyncRunning = false;
+        }
+      }, 30 * 60 * 1000); // 30 phút
+      console.log('[CRON] CRM auto sync every 30min started');
     console.log('[CRON] Top1 change detector: event-driven mode');
     } catch(e) { console.error('[CRON] Schedule failed:', e.message); }
 
