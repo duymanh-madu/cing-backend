@@ -78,9 +78,9 @@ async function checkAndResetYearly(io) {
     const { data: cfg2 } = await supabase.from('app_configs').select('leaderboard_config').eq('id', 1).single();
     const yearlyRewards = cfg2?.leaderboard_config?.spending?.yearly?.rewards || [];
     const { data: spenders } = await supabase.from('players')
-      .select('user_id, zalo_name, crm_spend_monthly')
-      .gt('crm_spend_monthly', 0)
-      .order('crm_spend_monthly', { ascending: false }).limit(3);
+      .select('user_id, zalo_name, crm_spend_yearly')
+      .gt('crm_spend_yearly', 0)
+      .order('crm_spend_yearly', { ascending: false }).limit(3);
 
     const top3 = spenders || [];
     for (let i = 0; i < Math.min(top3.length, yearlyRewards.length); i++) {
@@ -94,6 +94,8 @@ async function checkAndResetYearly(io) {
       }).catch(()=>{});
     }
 
+    // Reset crm_spend_yearly về 0
+    await supabase.from('players').update({ crm_spend_yearly: 0 }).gt('crm_spend_yearly', 0);
     await supabase.from('app_configs').update({ last_yearly_reset: new Date().toISOString() }).eq('id', 1);
     const names = top3.slice(0,3).map((p,i)=>['🥇','🥈','🥉'][i]+' '+p.zalo_name).join(' ');
     const msg = `🎁 BXH chi tiêu năm đã reset! ${names}
