@@ -363,7 +363,7 @@ async function manualMonthlyReset(io) {
         user_id: player.user_id, player_name: player.zalo_name,
         points: reward.points, reason: `🏆 ${reward.label||`Top ${i+1}`} BXH chi tiêu tháng`,
         rank: i+1, board: 'Chi tiêu tháng', claimed: false, created_at: new Date().toISOString(),
-      }).catch(()=>{});
+      });
       messages.push(`${['🥇','🥈','🥉'][i]} ${player.zalo_name}: +${reward.points}đ`);
     }
 
