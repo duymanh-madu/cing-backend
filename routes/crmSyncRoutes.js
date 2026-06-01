@@ -79,6 +79,20 @@ router.get("/spending-preview/:userId", async (req, res) => {
   }
 });
  
+// POST /crm/sync-one — sync 1 user theo phone
+router.post("/sync-one", async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ success: false, message: "Thiếu phone" });
+    const n = phone.replace(/\D/g,"").replace(/^84/,"0");
+    const { syncPlayerCrmSpending } = require('../services/crm/crmSpendingSyncService');
+    const result = await syncPlayerCrmSpending({ user_id: n });
+    res.json({ success: true, result });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 module.exports = router;
 router.get("/log-preview/:userId", async (req, res) => {
   try {
