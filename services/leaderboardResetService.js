@@ -370,9 +370,7 @@ async function manualMonthlyReset(io) {
     await supabase.from('players').update({ crm_spend_monthly: 0 }).gt('crm_spend_monthly', 0);
     await supabase.from('app_configs').update({ last_monthly_reset: new Date().toISOString() }).eq('id', 1);
 
-
-
-
+    const msg = "🎁 BXH chi tiêu tháng đã reset!\n" + messages.join("\n") + "\nMời top 3 vào nhận thưởng! 🏆";
 
     if (io) { io.emit('leaderboard.monthly_reset', { message: msg }); }
     console.log('[RESET] Manual monthly done');
