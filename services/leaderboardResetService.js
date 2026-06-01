@@ -53,8 +53,7 @@ async function checkAndResetMonthly(io) {
     await supabase.from('app_configs').update({ last_monthly_reset: new Date().toISOString() }).eq('id', 1);
 
     const names = top3.slice(0,3).map((p,i)=>['🥇','🥈','🥉'][i]+' '+p.zalo_name).join(' ');
-    const msg = `🎁 BXH chi tiêu tháng đã reset! ${names}
-Mời top 3 vào nhận thưởng! 🏆`;
+    const msg = "🎁 BXH chi tiêu tháng đã reset! " + names + "\nMời top 3 vào nhận thưởng! 🏆";
     if (io) { io.emit('leaderboard.monthly_reset', { message: msg }); io.emit('notification', { type:'monthly_reset', message: msg }); }
     console.log('[RESET] Monthly reset done:', msg);
   } catch(e) { console.error('[RESET] Monthly error:', e.message); }
@@ -371,10 +370,10 @@ async function manualMonthlyReset(io) {
     await supabase.from('players').update({ crm_spend_monthly: 0 }).gt('crm_spend_monthly', 0);
     await supabase.from('app_configs').update({ last_monthly_reset: new Date().toISOString() }).eq('id', 1);
 
-    const msg = `🎁 BXH chi tiêu tháng đã reset!
-${messages.join('
-')}
-Mời top 3 vào nhận thưởng! 🏆`;
+
+
+
+
     if (io) { io.emit('leaderboard.monthly_reset', { message: msg }); }
     console.log('[RESET] Manual monthly done');
     return { success: true, top3: messages };
