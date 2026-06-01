@@ -85,8 +85,8 @@ router.post("/sync-one", async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ success: false, message: "Thiếu phone" });
     const n = phone.replace(/\D/g,"").replace(/^84/,"0");
-    const { syncPlayerCrmSpending } = require('../services/crm/crmSpendingSyncService');
-    const result = await syncPlayerCrmSpending({ user_id: n });
+    const { syncOnePlayer } = require('../services/crm/crmSpendingSyncService');
+    const result = await syncOnePlayer({ user_id: n });
     res.json({ success: true, result });
   } catch(e) {
     res.status(500).json({ success: false, error: e.message });
