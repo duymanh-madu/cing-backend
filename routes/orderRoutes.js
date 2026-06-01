@@ -472,27 +472,69 @@ router.get("/history/:phone", async (req, res) => {
     const { phone } = req.params;
     const { page = 1 } = req.query;
     const foodbook = require("../services/foodbook");
+    const supabase = require("../supabase");
 
-    // Lấy từ iPos CRM - lịch sử tiêu dùng thật
-    const result = await foodbook.getMemberTransactions(phone, Number(page));
-    const logs   = result.data?.raw_response?.data?.sale_logs || [];
+    // Chuẩn hóa phone
+    const phoneNorm = phone.replace(/\D/g,"").replace(/^84/,"0");
 
-    const orders = logs.map(t => ({
-      id:           t.tran_id,
-      tran_no:      t.tran_no,
-      date:         t.tran_date,
-      amount:       t.bill_amount || t.total_amount || 0,
-      items:        t.sale_details?.map(d => ({
-        name:     d.Description,
-        quantity: d.Quantity,
-        price:    d.Price_Sale,
-      })) || [],
-      payment:      t.payment_info?.[0]?.name || "Tiền mặt",
-      type:         t.sale_type,
-      pos_name:     t.pos_name,
-    }));
+    // 1. Lấy từ iPOS CRM
+    let iposOrders = [];
+    try {
+      const result = await foodbook.getMemberTransactions(phoneNorm, Number(page));
+      const logs = result.data?.raw_response?.data?.sale_logs || [];
+      iposOrders = logs.map(t => ({
+        id:       "ipos_" + t.tran_id,
+        tran_no:  t.tran_no,
+        date:     t.tran_date,
+        amount:   t.bill_amount || t.total_amount || 0,
+        items:    t.sale_details?.map(d => ({
+          name:     d.Description,
+          quantity: d.Quantity,
+          price:    d.Price_Sale,
+        })) || [],
+        payment:  t.payment_info?.[0]?.name || "Tiền mặt",
+        type:     t.sale_type,
+        pos_name: t.pos_name,
+        source:   "ipos",
+      }));
+    } catch(e) { console.warn("[HISTORY] iPOS error:", e.message); }
 
-    res.json({ success: true, data: orders, total: logs.length });
+    // 2. Lấy từ Supabase orders (đặt qua app)
+    let appOrders = [];
+    try {
+      const { data: dbOrders } = await supabase
+        .from("orders")
+        .select("id, order_code, created_at, total_amount, status, payment_method, items, type")
+        .or(`customer_phone.eq.${phoneNorm},customer_phone.eq.84${phoneNorm.slice(1)}`)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      appOrders = (dbOrders || []).map(o => ({
+        id:       "app_" + o.id,
+        tran_no:  o.order_code || o.id,
+        date:     o.created_at,
+        amount:   o.total_amount || 0,
+        items:    Array.isArray(o.items) ? o.items.map(i => ({
+          name:     i.name || i.product_name,
+          quantity: i.quantity,
+          price:    i.price,
+        })) : [],
+        payment:  o.payment_method || "App",
+        type:     o.type || "APP",
+        pos_name: null,
+        status:   o.status,
+        source:   "app",
+      }));
+    } catch(e) { console.warn("[HISTORY] App orders error:", e.message); }
+
+    // 3. Merge + sort theo ngày
+    const all = [...appOrders, ...iposOrders].sort((a, b) => {
+      const da = new Date(a.date || 0);
+      const db = new Date(b.date || 0);
+      return db - da;
+    });
+
+    res.json({ success: true, data: all, total: all.length, ipos_count: iposOrders.length, app_count: appOrders.length });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
