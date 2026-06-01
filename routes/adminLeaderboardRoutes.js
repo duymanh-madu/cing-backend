@@ -259,4 +259,15 @@ router.post("/manual-weekly-reset", requireAdmin, async (req, res) => {
   }
 });
 
+// POST /admin/leaderboard/manual-monthly-reset
+router.post("/manual-monthly-reset", requireAdmin, async (req, res) => {
+  try {
+    const { manualMonthlyReset } = require('../services/leaderboardResetService');
+    const result = await manualMonthlyReset(global._ioInstance);
+    res.json({ success: true, message: "Reset tháng hoàn tất", result });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 module.exports = router;

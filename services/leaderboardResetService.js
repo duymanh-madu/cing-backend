@@ -343,4 +343,45 @@ async function checkAndNotifyTop1Changes(io) {
   } catch(e) { console.warn('[TOP1] Error:', e.message); }
 }
 
-module.exports = { scheduleWeeklyReset, manualWeeklyReset, doWeeklyReset, checkAndNotifyTop1Changes };
+async function manualMonthlyReset(io) {
+  console.log('[RESET] Manual monthly trigger...');
+  // Force reset bằng cách bypass date check
+  try {
+    const { data: cfg2 } = await supabase.from('app_configs').select('leaderboard_config').eq('id', 1).single();
+    const monthlyRewards = cfg2?.leaderboard_config?.spending?.monthly?.rewards || [];
+    const { data: spenders } = await supabase.from('players')
+      .select('user_id, zalo_name, crm_spend_monthly')
+      .gt('crm_spend_monthly', 0)
+      .order('crm_spend_monthly', { ascending: false }).limit(3);
+
+    const top3 = spenders || [];
+    const messages = [];
+    for (let i = 0; i < Math.min(top3.length, monthlyRewards.length); i++) {
+      const reward = monthlyRewards[i];
+      const player = top3[i];
+      if (!reward?.points || !player?.user_id) continue;
+      await supabase.from('pending_rewards').insert({
+        user_id: player.user_id, player_name: player.zalo_name,
+        points: reward.points, reason: `🏆 ${reward.label||`Top ${i+1}`} BXH chi tiêu tháng`,
+        rank: i+1, board: 'Chi tiêu tháng', claimed: false, created_at: new Date().toISOString(),
+      }).catch(()=>{});
+      messages.push(`${['🥇','🥈','🥉'][i]} ${player.zalo_name}: +${reward.points}đ`);
+    }
+
+    await supabase.from('players').update({ crm_spend_monthly: 0 }).gt('crm_spend_monthly', 0);
+    await supabase.from('app_configs').update({ last_monthly_reset: new Date().toISOString() }).eq('id', 1);
+
+    const msg = `🎁 BXH chi tiêu tháng đã reset!
+${messages.join('
+')}
+Mời top 3 vào nhận thưởng! 🏆`;
+    if (io) { io.emit('leaderboard.monthly_reset', { message: msg }); }
+    console.log('[RESET] Manual monthly done');
+    return { success: true, top3: messages };
+  } catch(e) {
+    console.error('[RESET] Manual monthly error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+module.exports = { scheduleWeeklyReset, manualWeeklyReset, manualMonthlyReset, doWeeklyReset, checkAndNotifyTop1Changes };
