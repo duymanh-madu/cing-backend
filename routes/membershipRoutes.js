@@ -87,14 +87,24 @@ router.get("/:phone", async (req, res) => {
     // 3. Luu vao Redis 5 phut
     await redisClient.setex(cacheKey, CACHE_TTL, JSON.stringify(memberData));
 
-    // Sync iPOS points vao players table
+    // Sync iPOS points vao players table — không ghi đè zalo_name nếu user đã custom
     try {
       const supabase = require("../supabase");
-      await supabase.from("players").upsert({
-        user_id: phone, phone, zalo_name: memberData.name,
+      // Kiểm tra user đã custom chưa
+      const { data: existing } = await supabase.from("players")
+        .select("profile_changed_at")
+        .eq("user_id", phone)
+        .maybeSingle();
+      const syncData = {
+        user_id: phone, phone,
         total_points: Math.floor(memberData.points || 0),
         crm_tier: memberData.tierKey,
-      }, { onConflict: "user_id" });
+      };
+      // Chỉ sync tên từ iPOS nếu user chưa tự đổi tên
+      if (!existing?.profile_changed_at) {
+        syncData.zalo_name = memberData.name;
+      }
+      await supabase.from("players").upsert(syncData, { onConflict: "user_id" });
     } catch(e) { console.warn("[MEMBERSHIP] Sync failed:", e.message); }
     return res.json({ success: true, data: memberData, source: "ipos" });
   } catch (err) {
