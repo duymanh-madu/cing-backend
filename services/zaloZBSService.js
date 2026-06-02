@@ -49,12 +49,11 @@ async function sendZBSMessage({ zalo_user_id, template_id, template_data }) {
  */
 async function sendZBSBroadcast({ user_ids, template_id, extra_vars = {}, store_name = 'Cing Hu Tang Kinh Bắc' }) {
   // Lấy thông tin users
-  const { data: players } = await supabase.from('players')
-    .select(`user_id, zalo_name, zalo_user_id, crm_tier,
-             total_points, crm_spend_alltime, crm_orders_alltime,
-             birthday, first_activated_at, crm_synced_at`)
+  const { data: players, error: qErr } = await supabase.from('players')
+    .select('user_id, zalo_name, zalo_user_id, crm_tier, total_points, crm_spend_alltime, crm_orders_alltime, birthday, first_activated_at, crm_synced_at')
     .in('user_id', user_ids)
     .not('zalo_user_id', 'is', null);
+  if (qErr) console.error('[ZBS] Query error:', qErr.message);
 
   console.log('[ZBS] Query user_ids:', user_ids, 'Found:', players?.length, 'players:', players?.map(p=>({uid:p.user_id,zid:p.zalo_user_id})));
   if (!players?.length) return { success: true, sent: 0, failed: 0, message: 'Không có user có zalo_user_id' };
