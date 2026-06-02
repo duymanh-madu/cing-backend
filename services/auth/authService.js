@@ -72,7 +72,20 @@ async function loginWithZalo({
 
   // Merge avatar/name từ players table (custom profile) nếu có
   try {
-    const phone = (zaloUser.phone || "").replace(/\D/g,"").replace(/^84/,"0");
+    // Decode phone từ token nếu phone=pending
+    let rawPhone = (zaloUser.phone || "").replace(/\D/g,"");
+    if (!rawPhone || rawPhone === "pending") {
+      if (zaloUser.phone_token || zaloUser.phoneToken) {
+        try {
+          const decoded = await decodePhoneToken({
+            phoneToken:      zaloUser.phone_token || zaloUser.phoneToken || "",
+            miniAccessToken: zaloUser.mini_access_token || zaloUser.miniAccessToken || "",
+          }).catch(() => null);
+          if (decoded) rawPhone = decoded.replace(/\D/g,"");
+        } catch(e) {}
+      }
+    }
+    const phone = rawPhone ? (rawPhone.startsWith("84") ? "0"+rawPhone.slice(2) : rawPhone) : "";
     const { data: playerProfile } = await require("../../supabase")
       .from("players")
       .select("zalo_name, avatar")
