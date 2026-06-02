@@ -69,10 +69,11 @@ async function sendNotification({ user_id, template_key, custom = {}, data = {} 
     // Luu vao DB
     const notif = await createNotification({ user_id, type, title, message, data });
 
-    // Push realtime den user
+    // Push realtime chỉ đến user cụ thể (không broadcast)
     realtimeEventBus.publish({
       event: "notification.new",
-      delivery_type: "BROADCAST",
+      delivery_type: "USER",
+      target_user_id: user_id,
       payload: { user_id, notification: { title, message, type, data, created_at: new Date().toISOString() } },
       channel: "notification",
       timestamp: new Date().toISOString(),
