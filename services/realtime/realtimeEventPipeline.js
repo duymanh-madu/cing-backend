@@ -1,5 +1,5 @@
 const { realtimeEventBus } = require('./realtimeEventBus');
-function sendToMember(p) { realtimeEventBus.publish({event: p.event||'user.updated', delivery_type:'BROADCAST', payload:p.payload, channel:'user', timestamp:new Date().toISOString()}); }
+function sendToMember(p) { const room = p.memberId ? `member:${p.memberId}` : null; realtimeEventBus.publish({event: p.event||'user.updated', delivery_type: room ? 'ROOM' : 'BROADCAST', room, payload:p.payload, channel:'user', timestamp:new Date().toISOString()}); }
 function sendToAdmins(p) { realtimeEventBus.publish({event: p.event||'admin.updated', delivery_type:'BROADCAST', payload:p.payload, channel:'admin', timestamp:new Date().toISOString()}); }
 function sendToCampaign(p) { realtimeEventBus.publish({event: p.event||'campaign.updated', delivery_type:'BROADCAST', payload:p.payload, channel:'campaign', timestamp:new Date().toISOString()}); }
 function sendToStore(p) { realtimeEventBus.publish({event: p.event||'store.updated', delivery_type:'BROADCAST', payload:p.payload, channel:'store', timestamp:new Date().toISOString()}); }

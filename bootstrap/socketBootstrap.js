@@ -164,16 +164,6 @@ function initializeSocket({
     console.error("[SUBSCRIBER] Init failed:", err.message)
   );
 
-  /**
-   * =====================================================
-   * ATTACH IO TO EVENT BUS - enables realtime dispatch
-   * =====================================================
-   */
-  realtimeEventBus.setIO(io);
-
-  // Khoi tao Redis subscriber - lang nghe events tu webhook
-  initializeRealtimeSubscriber().catch(err =>
-    console.error("[SUBSCRIBER] Init failed:", err.message)
   );
 
   /**
