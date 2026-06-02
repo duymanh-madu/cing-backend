@@ -71,26 +71,32 @@ async function loginWithZalo({
   }
 
   // Merge avatar/name từ players table (custom profile) nếu có
+  // Ưu tiên query bằng zalo_user_id (luôn có), fallback bằng phone
   try {
-    // Decode phone từ token nếu phone=pending
+    const zaloId = zaloUser.zalo_id || zaloUser.id || "";
     let rawPhone = (zaloUser.phone || "").replace(/\D/g,"");
-    if (!rawPhone || rawPhone === "pending") {
-      if (zaloUser.phone_token || zaloUser.phoneToken) {
-        try {
-          const decoded = await decodePhoneToken({
-            phoneToken:      zaloUser.phone_token || zaloUser.phoneToken || "",
-            miniAccessToken: zaloUser.mini_access_token || zaloUser.miniAccessToken || "",
-          }).catch(() => null);
-          if (decoded) rawPhone = decoded.replace(/\D/g,"");
-        } catch(e) {}
-      }
-    }
+    if (rawPhone === "pending") rawPhone = "";
     const phone = rawPhone ? (rawPhone.startsWith("84") ? "0"+rawPhone.slice(2) : rawPhone) : "";
-    const { data: playerProfile } = await require("../../supabase")
-      .from("players")
-      .select("zalo_name, avatar")
-      .eq("user_id", phone)
-      .maybeSingle();
+
+    let playerProfile = null;
+    const supabase = require("../../supabase");
+
+    // Query bằng zalo_user_id trước — không cần decode phone token
+    if (zaloId) {
+      const { data } = await supabase.from("players")
+        .select("zalo_name, avatar, profile_changed_at")
+        .eq("zalo_user_id", zaloId)
+        .maybeSingle();
+      playerProfile = data;
+    }
+    // Fallback: query bằng phone nếu có
+    if (!playerProfile && phone) {
+      const { data } = await supabase.from("players")
+        .select("zalo_name, avatar, profile_changed_at")
+        .eq("user_id", phone)
+        .maybeSingle();
+      playerProfile = data;
+    }
     if (playerProfile?.avatar) customer.avatar = playerProfile.avatar;
     if (playerProfile?.zalo_name && playerProfile.zalo_name !== "Khách hàng") {
       customer.name = playerProfile.zalo_name;
