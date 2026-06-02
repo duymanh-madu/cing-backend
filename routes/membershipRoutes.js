@@ -121,3 +121,62 @@ router.get("/:user_id/partner-progress", async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
+// GET /api/membership/:phone/transactions — lịch sử giao dịch cả 2 luồng app + iPOS
+router.get("/:phone/transactions", async (req, res) => {
+  try {
+    const phone = (req.params.phone || "").replace(/\D/g, "");
+    if (!phone) return res.status(400).json({ success:false, message:"Thiếu số điện thoại" });
+
+    const supabase = require("../supabase");
+    const { getMemberTransactions, getMembershipLog } = require("../services/foodbook");
+    const userId84 = phone.startsWith("84") ? phone : "84" + phone.slice(1);
+
+    // Fetch song song cả 2 nguồn
+    const [appOrders, appPayments, iposTxn, iposLog] = await Promise.all([
+      // Đơn hàng từ app
+      supabase.from("orders")
+        .select("id,order_code,total_amount,status,payment_method,payment_status,created_at,items")
+        .eq("customer_phone", phone)
+        .order("created_at", { ascending:false })
+        .limit(50),
+      // Giao dịch thanh toán từ app
+      supabase.from("payment_transactions")
+        .select("id,transaction_code,amount,payment_status,payment_method,created_at")
+        .eq("user_id", phone)
+        .order("created_at", { ascending:false })
+        .limit(50),
+      // Lịch sử giao dịch từ iPOS
+      getMemberTransactions(userId84, 1),
+      // Lịch sử điểm từ iPOS
+      getMembershipLog(userId84, { page:1, log_type:"PAY", page_size:100 }),
+    ]);
+
+    // Tổng hợp thống kê
+    const appRevenue = (appPayments.data||[])
+      .filter(p => p.payment_status === "paid")
+      .reduce((s,p) => s + Number(p.amount||0), 0);
+    const iposRevenue = iposTxn.data?.total_spent || 0;
+
+    res.json({ success:true, data: {
+      app: {
+        orders:   appOrders.data || [],
+        payments: appPayments.data || [],
+        revenue:  appRevenue,
+        total_orders: appOrders.data?.length || 0,
+      },
+      ipos: {
+        transactions: iposTxn.data?.transactions || [],
+        logs:         iposLog.data?.logs || [],
+        revenue:      iposRevenue,
+        total_orders: iposTxn.data?.total_orders || 0,
+      },
+      summary: {
+        total_revenue:   appRevenue + iposRevenue,
+        total_orders:    (appOrders.data?.length||0) + (iposTxn.data?.total_orders||0),
+      },
+    }});
+  } catch(err) {
+    res.status(500).json({ success:false, error:err.message });
+  }
+});
