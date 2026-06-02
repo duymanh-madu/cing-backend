@@ -327,6 +327,7 @@ router.use("/game/chess", require("./chessRoutes"));
 
 router.use("/admin/monitor", require("./adminMonitorRoutes"));
 router.use("/admin/payment-dashboard", require("./adminPaymentDashboardRoutes"));
+router.use("/admin/orders", require("./adminOrderRoutes"));
 
 module.exports =
   router;
