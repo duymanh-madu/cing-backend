@@ -41,7 +41,25 @@ router.post("/bootstrap", async (req, res) => {
       }
     }
 
-    // 2. Get iPOS membership data neu co phone
+    // 2. Đọc custom profile từ players table (nếu user đã đổi tên/avatar)
+    let customName = null;
+    let customAvatar = null;
+    if (cleanPhone || zaloUserId) {
+      try {
+        let q = supabase.from("players")
+          .select("zalo_name,avatar,profile_changed_at")
+          .not("profile_changed_at", "is", null);
+        if (cleanPhone) q = q.eq("user_id", cleanPhone.replace(/^84/,"0"));
+        else q = q.eq("zalo_user_id", zaloUserId);
+        const { data: customPlayer } = await q.maybeSingle();
+        if (customPlayer?.profile_changed_at) {
+          customName   = customPlayer.zalo_name || null;
+          customAvatar = customPlayer.avatar    || null;
+        }
+      } catch(e) {}
+    }
+
+    // 3. Get iPOS membership data neu co phone
     let memberData = null;
     if (cleanPhone) {
       const iposResult = await getMember(cleanPhone);
@@ -55,15 +73,17 @@ router.post("/bootstrap", async (req, res) => {
           name: d.name || zaloName || "Hội viên",
         };
 
-        // Update player voi iPOS data
+        // Update player voi iPOS data — không ghi đè zalo_name nếu user đã custom
         if (zaloUserId) {
-          await supabase.from("players").update({
+          const updateData = {
             crm_tier: d.membership_type_name,
             total_spent_all_time: d.payment_amount || 0,
             total_orders: d.eat_times || 0,
-            name: d.name || zaloName,
             member_activated: true,
-          }).eq("zalo_user_id", zaloUserId);
+          };
+          // Chỉ update name nếu user chưa custom
+          if (!customName) updateData.name = d.name || zaloName;
+          await supabase.from("players").update(updateData).eq("zalo_user_id", zaloUserId);
         }
       }
     }
@@ -72,7 +92,10 @@ router.post("/bootstrap", async (req, res) => {
       success: true,
       customer: {
         customerId: zaloUserId || cleanPhone || "guest",
-        fullName: memberData?.name || zaloName || "Hội viên",
+        // Ưu tiên: custom name > iPOS name > Zalo name
+        fullName: customName || memberData?.name || zaloName || "Hội viên",
+        // Trả về custom avatar để frontend dùng
+        avatar: customAvatar || null,
         phone: cleanPhone,
         memberTier: memberData?.tierName || "Hội viên",
         loyaltyPoints: memberData?.points || 0,

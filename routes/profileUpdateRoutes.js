@@ -57,6 +57,24 @@ router.post("/save/:userId", async (req, res) => {
       return res.status(400).json({ success:false, error:"userId không hợp lệ" });
     }
 
+    // Check unique nickname nếu user muốn đổi tên
+    if (display_name?.trim()) {
+      const newName = display_name.trim();
+      const { data: existing } = await supabase
+        .from("players")
+        .select("user_id")
+        .eq("zalo_name", newName)
+        .not("user_id", "eq", userId)
+        .not("profile_changed_at", "is", null) // Chỉ check các user đã tự đổi tên
+        .maybeSingle();
+      if (existing) {
+        return res.status(400).json({
+          success: false,
+          error: `Tên "${newName}" đã được sử dụng. Vui lòng chọn tên khác.`
+        });
+      }
+    }
+
     if (!display_name?.trim() && !avatar_base64) {
       return res.status(400).json({ success: false, error: "Không có thông tin nào để cập nhật" });
     }
