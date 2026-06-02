@@ -10,13 +10,22 @@ const IPOS_WEBHOOK_SECRET = process.env.IPOS_WEBHOOK_SECRET || "";
 
 function mapTierKey(name) {
   if (!name) return "member";
-  const n = name.toLowerCase();
+  const n = name.toLowerCase().trim();
+  if (n === "dttt")                   return "loyal_partner";
+  if (n === "dt")                     return "partner";
+  if (n === "hvkc")                   return "diamond";
+  if (n === "hvv")                    return "gold";
+  if (n === "hvb")                    return "silver";
+  if (n === "hvtt")                   return "loyal";
+  if (n === "foodbook" || n === "hv") return "member";
   if (n.includes("kim") && (n.includes("cuong") || n.includes("cương"))) return "diamond";
   if (n.includes("vàng") || n.includes("vang")) return "gold";
-  if (n.includes("bạc") || n.includes("bac")) return "silver";
-  if (n.includes("thân thiết") || n.includes("than thiet")) return "loyal";
-  if (n.includes("đối tác thân thiết")) return "loyal_partner";
-  if (n.includes("đối tác") || n.includes("doi tac")) return "partner";
+  if (n.includes("bạc")  || n.includes("bac"))  return "silver";
+  const hasDoiTac    = n.includes("đối tác")   || n.includes("doi tac");
+  const hasThanThiet = n.includes("thân thiết") || n.includes("than thiet");
+  if (hasDoiTac && hasThanThiet)  return "loyal_partner";
+  if (hasThanThiet && !hasDoiTac) return "loyal";
+  if (hasDoiTac && !hasThanThiet) return "partner";
   return "member";
 }
 

@@ -6,15 +6,28 @@ const { getMember, getMemberVouchers } = require("../services/foodbook");
 const CACHE_TTL = 300; // 5 phut fallback TTL
 
 function mapTierKey(name) {
-  // QUAN TRONG: check "đối tác thân thiết" TRƯỚC "thân thiết"
   if (!name) return "member";
-  const n = name.toLowerCase();
+  const n = name.toLowerCase().trim();
+
+  // 1. Check code CRM ngắn — ưu tiên tuyệt đối
+  if (n === "dttt")                   return "loyal_partner";
+  if (n === "dt")                     return "partner";
+  if (n === "hvkc")                   return "diamond";
+  if (n === "hvv")                    return "gold";
+  if (n === "hvb")                    return "silver";
+  if (n === "hvtt")                   return "loyal";
+  if (n === "foodbook" || n === "hv") return "member";
+
+  // 2. Tên đầy đủ — đối tác thân thiết TRƯỚC thân thiết và đối tác
   if (n.includes("kim") && (n.includes("cuong") || n.includes("cương"))) return "diamond";
   if (n.includes("vàng") || n.includes("vang")) return "gold";
-  if (n.includes("bạc") || n.includes("bac")) return "silver";
-  if (n.includes("đối tác thân thiết") || n.includes("doi tac than thiet") || n === "dttt") return "loyal_partner";
-  if (n.includes("thân thiết") || n.includes("than thiet")) return "loyal";
-  if (n.includes("đối tác") || n.includes("doi tac")) return "partner";
+  if (n.includes("bạc")  || n.includes("bac"))  return "silver";
+  // Đối tác thân thiết = có cả "đối tác" VÀ "thân thiết"
+  const hasDoiTac    = n.includes("đối tác")   || n.includes("doi tac");
+  const hasThanThiet = n.includes("thân thiết") || n.includes("than thiet");
+  if (hasDoiTac && hasThanThiet)  return "loyal_partner";
+  if (hasThanThiet && !hasDoiTac) return "loyal";
+  if (hasDoiTac && !hasThanThiet) return "partner";
   return "member";
 }
 
