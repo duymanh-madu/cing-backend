@@ -35,8 +35,10 @@ async function sendZBSMessage({ zalo_user_id, template_id, template_data }) {
       }
     }, { headers: { access_token: token } });
 
+    console.log('[ZBS] API response:', JSON.stringify(res.data));
     return { success: res.data?.error === 0, data: res.data };
   } catch(e) {
+    console.error('[ZBS] API error:', e.response?.data || e.message);
     return { success: false, error: e.response?.data || e.message };
   }
 }
