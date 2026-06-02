@@ -164,7 +164,6 @@ function initializeSocket({
     console.error("[SUBSCRIBER] Init failed:", err.message)
   );
 
-  );
 
   /**
    * =====================================================
