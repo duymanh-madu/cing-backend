@@ -193,18 +193,23 @@ router.post("/send-notification", requireAdmin, async (req, res) => {
     const { data: users } = await query;
     if (!users || users.length === 0) return res.json({ success: true, message: "Không có user trong segment", sent: 0 });
 
-    // Gửi lần lượt
-    let sent = 0;
-    for (const user of users) {
-      await sendNotification({
-        user_id: user.user_id,
-        template_key: "CAMPAIGN_BROADCAST",
-        custom: { title, message },
-      });
-      sent++;
-    }
+    // Trả response ngay, gửi async ở background
+    const total = users.length;
+    res.json({ success: true, message: `Đang gửi đến ${total} khách hàng...`, sent: total });
 
-    res.json({ success: true, message: `Đã gửi đến ${sent} khách hàng`, sent });
+    setImmediate(async () => {
+      for (const user of users) {
+        try {
+          await sendNotification({
+            user_id: user.user_id,
+            template_key: "CAMPAIGN_BROADCAST",
+            custom: { title, message },
+          });
+          await new Promise(r => setTimeout(r, 150));
+        } catch(e) { console.warn("[NOTIF] Skip:", user.user_id, e.message); }
+      }
+      console.log("[NOTIF] Done:", total);
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
