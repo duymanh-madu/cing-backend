@@ -26,7 +26,7 @@ router.get("/", requireAdmin, async (req, res) => {
       return q.ilike(cols[0], `%${search}%`);
     };
 
-    const [orders, games, payments, points, playsBought, playsEarned, playsGiven, profileChanges] = await Promise.all([
+    const [orders, games, payments, points, playsBought, playsEarned, playsGiven, profileChanges, rewards] = await Promise.all([
       // Orders
       (needAll || filter==="orders")
         ? supabase.from("orders")
@@ -80,6 +80,13 @@ router.get("/", requireAdmin, async (req, res) => {
             .order("created_at",{ascending:false}).limit(lim)
         : {data:[]},
 
+      // Rewards claimed
+      (needAll || filter==="rewards")
+        ? supabase.from("pending_rewards")
+            .select("id,user_id,player_name,points,reason,rank,board,claimed,claimed_at,created_at")
+            .order("created_at",{ascending:false}).limit(lim)
+        : {data:[]},
+
       // Profile changes
       (needAll || filter==="profile_changes")
         ? supabase.from("analytics_events")
@@ -109,6 +116,7 @@ router.get("/", requireAdmin, async (req, res) => {
       ...mapAnalytics(playsEarned.data, "plays_earned"),
       ...mapAnalytics(playsGiven.data,  "plays_given"),
       ...mapAnalytics(profileChanges.data, "profile_change"),
+      ...(rewards.data||[]).map(r=>({...r, _type:"reward", created_at:r.claimed_at||r.created_at})),
     ]
     .filter(log => {
       if (!search) return true;
