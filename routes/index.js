@@ -326,6 +326,9 @@ router.use("/zalo", require("./zaloOaRoutes"));
 router.use("/game/chess", require("./chessRoutes"));
 
 router.use("/admin/monitor", require("./adminMonitorRoutes"));
+router.use("/admin/logs", require("./adminLogRoutes"));
+router.use("/admin/missions", require("./adminMissionRoutes"));
+router.use("/admin/leaderboard", require("./adminLeaderboardRoutes"));
 
 module.exports =
   router;
