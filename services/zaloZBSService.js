@@ -56,6 +56,7 @@ async function sendZBSBroadcast({ user_ids, template_id, extra_vars = {}, store_
     .in('user_id', user_ids)
     .not('zalo_user_id', 'is', null);
 
+  console.log('[ZBS] Query user_ids:', user_ids, 'Found:', players?.length, 'players:', players?.map(p=>({uid:p.user_id,zid:p.zalo_user_id})));
   if (!players?.length) return { success: true, sent: 0, failed: 0, message: 'Không có user có zalo_user_id' };
 
   const TIER_NAMES = {
