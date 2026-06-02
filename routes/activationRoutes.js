@@ -31,6 +31,14 @@ router.post("/bootstrap", async (req, res) => {
         .upsert(playerData, { onConflict: "zalo_user_id" });
 
       if (upsertError) console.error("Player upsert error:", upsertError.message);
+
+      // Cập nhật zalo_user_id vào row theo phone (user_id)
+      if (cleanPhone && zaloUserId) {
+        await supabase.from("players")
+          .update({ zalo_user_id: zaloUserId, zalo_name: zaloName||"Cing Customer", zalo_avatar: zaloAvatar||null })
+          .eq("user_id", cleanPhone.replace(/^84/, "0"))
+          .is("zalo_user_id", null);
+      }
     }
 
     // 2. Get iPOS membership data neu co phone
