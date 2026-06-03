@@ -86,7 +86,11 @@ async function getGameLeaderboard(gameKey, { limit = 100, weekly = true } = {}) 
   const playerMap = new Map((players||[]).map(p => [String(p.user_id), p]));
 
   return [...bestMap.values()]
-    .sort((a,b) => b.score - a.score)
+    .sort((a,b) => {
+      // Tiebreak: score cao hơn thắng, nếu bằng nhau thì người đạt sớm hơn thắng
+      if (b.score !== a.score) return b.score - a.score;
+      return new Date(a.played_at) - new Date(b.played_at);
+    })
     .slice(0, limit)
     .map((s, i) => {
       const p = playerMap.get(String(s.user_id));
