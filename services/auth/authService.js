@@ -37,7 +37,7 @@ async function loginWithZalo({
   zaloUser,
 }) {
 
-  console.log("[AUTH] loginWithZalo body:", JSON.stringify({ zalo_id: zaloUser.zalo_id, has_phone_token: !!zaloUser.phone_token, has_mini_token: !!zaloUser.mini_access_token }));
+  console.log("[AUTH] loginWithZalo body:", JSON.stringify({ zalo_id: zaloUser.zalo_id, has_phone_token: !!zaloUser.phone_token, has_mini_token: !!zaloUser.mini_access_token, has_avatar: !!zaloUser.avatar, avatar_len: (zaloUser.avatar||"").length }));
   // Decode phone token trước khi upsert customer
   if (zaloUser.phone_token && (!zaloUser.phone || zaloUser.phone === "pending")) {
     const phone = await decodePhoneToken({
@@ -72,19 +72,31 @@ async function loginWithZalo({
 
   // Sync avatar + tên Zalo vào players table để BXH hiển thị đúng
   try {
-    const zaloId = zaloUser.zalo_id || zaloUser.id || "";
-    const zaloAvatar = zaloUser.avatar || null;
-    const zaloName = zaloUser.name || null;
-    if (zaloId && (zaloAvatar || zaloName)) {
-      await require("../../supabase")
-        .from("players")
-        .update({
-          ...(zaloName   ? { zalo_name: zaloName }     : {}),
-          ...(zaloAvatar ? { avatar: zaloAvatar, zalo_avatar: zaloAvatar } : {}),
-        })
-        .eq("zalo_user_id", zaloId);
+    const zaloId     = zaloUser.zalo_id || zaloUser.id || "";
+    const zaloAvatar = zaloUser.avatar  || null;
+    const zaloName   = zaloUser.name    || null;
+    if (zaloId) {
+      const updateData = {};
+      if (zaloName)   { updateData.zalo_name = zaloName; }
+      if (zaloAvatar) { updateData.avatar = zaloAvatar; updateData.zalo_avatar = zaloAvatar; }
+      if (Object.keys(updateData).length > 0) {
+        await require("../../supabase")
+          .from("players")
+          .update(updateData)
+          .eq("zalo_user_id", zaloId);
+        // Sync game_scores nếu có avatar
+        if (zaloAvatar) {
+          const { data: player } = await require("../../supabase")
+            .from("players").select("user_id").eq("zalo_user_id", zaloId).maybeSingle();
+          if (player?.user_id) {
+            await require("../../supabase")
+              .from("game_scores").update({ avatar: zaloAvatar })
+              .eq("user_id", player.user_id);
+          }
+        }
+      }
     }
-  } catch(e) {}
+  } catch(e) { console.warn("[AUTH] sync avatar failed:", e.message); }
 
   // Invalidate Redis membership cache để force fresh data
   if (customer.phone) {
