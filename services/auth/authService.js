@@ -70,7 +70,21 @@ async function loginWithZalo({
     } catch(e) {}
   }
 
-  // Dùng 100% thông tin Zalo — không merge từ players/customers table
+  // Sync avatar + tên Zalo vào players table để BXH hiển thị đúng
+  try {
+    const zaloId = zaloUser.zalo_id || zaloUser.id || "";
+    const zaloAvatar = zaloUser.avatar || null;
+    const zaloName = zaloUser.name || null;
+    if (zaloId && (zaloAvatar || zaloName)) {
+      await require("../../supabase")
+        .from("players")
+        .update({
+          ...(zaloName   ? { zalo_name: zaloName }     : {}),
+          ...(zaloAvatar ? { avatar: zaloAvatar, zalo_avatar: zaloAvatar } : {}),
+        })
+        .eq("zalo_user_id", zaloId);
+    }
+  } catch(e) {}
 
   // Invalidate Redis membership cache để force fresh data
   if (customer.phone) {
