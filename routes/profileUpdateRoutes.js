@@ -262,3 +262,21 @@ router.post("/birthday", async (req, res) => {
 });
 
 module.exports = router;
+
+// GET /profile-update/points-history/:userId
+router.get("/points-history/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { data, error } = await supabase
+      .from("analytics_events")
+      .select("event_name, event_data, created_at")
+      .eq("user_id", userId)
+      .in("event_name", ["points_added", "points_deducted"])
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch(err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});

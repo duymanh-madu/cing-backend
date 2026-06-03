@@ -128,6 +128,9 @@ async function addPoints({ phone, user_id, points, reason = "Nhận điểm thư
   }
 
 
+  // Log analytics
+  await logAnalytics('points_added', user_id, { amount: points, reason, new_total: currentPoints + points });
+
   try {
     realtimeEventBus.publish({
       event: "user.updated",
@@ -136,7 +139,6 @@ async function addPoints({ phone, user_id, points, reason = "Nhận điểm thư
       channel: "user",
       timestamp: new Date().toISOString(),
     });
-  // Emit membership.points để frontend update ngay
   try {
     const { data: updated2 } = await supabase.from('players')
       .select('total_points').eq('user_id', user_id).single();
