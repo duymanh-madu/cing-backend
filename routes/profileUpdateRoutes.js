@@ -203,11 +203,23 @@ router.get("/profile/:userId", async (req, res) => {
     const { userId } = req.params;
     const { data, error } = await supabase
       .from("players")
-      .select("user_id, zalo_name, avatar, crm_tier, crm_spend_alltime, crm_orders_alltime, total_points, profile_changed_at, birthday")
+      .select("user_id, zalo_name, avatar, crm_tier, crm_spend_alltime, crm_orders_alltime, total_points, profile_changed_at")
       .eq("user_id", userId)
       .single();
     if (error) throw error;
-    res.json({ success: true, data });
+
+    // Lấy birthday từ customers table
+    let birthday = null;
+    try {
+      const { data: c } = await supabase
+        .from("customers")
+        .select("birthday")
+        .eq("phone", userId)
+        .maybeSingle();
+      birthday = c?.birthday || null;
+    } catch(e) {}
+
+    res.json({ success: true, data: { ...data, birthday } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
