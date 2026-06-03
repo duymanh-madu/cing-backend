@@ -152,8 +152,27 @@ async function syncOnePlayer(player) {
     }
 
     // Logic 2: Moi 20.000d spending tich luy -> +1 luot choi
-    const SPEND_PER_PLAY = 20000;
-    const playsEarned    = Math.floor(allTimeSpent / SPEND_PER_PLAY);
+    // Chỉ tính chi tiêu từ ngày phát hành app 01/06/2026
+    const SPEND_PER_PLAY  = 20000;
+    const APP_LAUNCH_DATE = '2026-06-01T00:00:00.000Z';
+
+    // Lấy chi tiêu từ 01/06/2026 trở đi
+    const { getMembershipLog } = require('../foodbook');
+    let spendSincelaunch = 0;
+    try {
+      const logResult = await getMembershipLog(userId, {
+        log_type:    'PAY',
+        create_from: '2026-06-01 00:00:00',
+        create_to:   new Date().toISOString().replace('T',' ').slice(0,19),
+        page_size:   500,
+      });
+      spendSincelaunch = logResult.data?.total_spent || 0;
+    } catch(e) {
+      // Fallback: dùng crm_spend_custom nếu có
+      spendSincelaunch = allTimeSpent;
+    }
+
+    const playsEarned = Math.floor(spendSincelaunch / SPEND_PER_PLAY);
     const playsFromSpend = Number(currentPlayer?.plays_from_spend || 0);
     const newPlays       = playsEarned - playsFromSpend;
 
