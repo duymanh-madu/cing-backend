@@ -25,6 +25,23 @@ router.post(
   authController.loginWithZalo
 );
 
+router.get(
+  "/player-avatar/:zaloId",
+  async (req, res) => {
+    try {
+      const { zaloId } = req.params;
+      const supabase = require("../supabase");
+      const { data } = await supabase.from("players")
+        .select("avatar")
+        .eq("zalo_user_id", zaloId)
+        .maybeSingle();
+      res.json({ avatar: data?.avatar || null });
+    } catch(e) {
+      res.json({ avatar: null });
+    }
+  }
+);
+
 router.post(
   "/sync-avatar",
   async (req, res) => {
