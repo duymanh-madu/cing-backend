@@ -163,15 +163,27 @@ router.post("/save/:userId", async (req, res) => {
       });
     } catch(e) {}
 
-    // Sync tên + avatar mới vào game_scores
+    // Sync avatar mới vào game_scores
     try {
       const updateData = {};
-      if (display_name?.trim()) updateData.player_name = newName;
       if (avatar_base64) updateData.avatar = avatarUrl;
       if (Object.keys(updateData).length > 0) {
         await supabase.from('game_scores').update(updateData).eq('user_id', userId);
       }
     } catch(e) { console.warn('game_scores sync warning:', e.message); }
+
+    // Sync avatar mới vào customers table
+    try {
+      if (avatar_base64 && avatarUrl) {
+        const { data: player } = await supabase.from('players')
+          .select('zalo_user_id').eq('user_id', userId).maybeSingle();
+        if (player?.zalo_user_id) {
+          await supabase.from('customers')
+            .update({ avatar: avatarUrl })
+            .eq('zalo_id', player.zalo_user_id);
+        }
+      }
+    } catch(e) { console.warn('customers sync warning:', e.message); }
 
     res.json({
       success:        true,
