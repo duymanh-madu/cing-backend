@@ -31,14 +31,19 @@ router.get('/online', requireAdmin, async (req, res) => {
     const enriched = onlineList.map(u => {
       const p = pMap.get(u.userId) || {};
       const connectedMs = Date.now() - new Date(u.connectedAt).getTime();
+      const gameMs = u.gameStartedAt ? Date.now() - new Date(u.gameStartedAt).getTime() : 0;
       return {
         ...u,
-        name:      p.zalo_name || u.name || u.userId,
-        avatar:    p.avatar    || u.avatar || '',
-        tier:      p.crm_tier  || 'member',
-        points:    p.total_points || 0,
-        spend:     p.crm_spend_alltime || 0,
-        connectedDuration: Math.floor(connectedMs / 1000), // seconds
+        name:              p.zalo_name || u.name || u.userId,
+        avatar:            p.avatar    || u.avatar || '',
+        tier:              p.crm_tier  || 'member',
+        points:            p.total_points || 0,
+        spend:             p.crm_spend_alltime || 0,
+        connectedDuration: Math.floor(connectedMs / 1000),
+        currentPage:       u.currentPage || '',
+        currentGame:       u.currentGame || '',
+        gameDuration:      gameMs > 0 ? Math.floor(gameMs / 1000) : 0,
+        lastActivity:      u.lastActivity || u.connectedAt,
       };
     }).sort((a,b) => new Date(b.connectedAt) - new Date(a.connectedAt));
     
