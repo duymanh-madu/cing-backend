@@ -68,17 +68,13 @@ function createExpressApp() {
   app.use(
 
     cors({
-
-      origin:
-
-        process.env
-          .CORS_ORIGIN ||
-
-        "*",
-
-      credentials:
-        true,
-
+      origin: (() => {
+        const o = process.env.CORS_ORIGIN || "*";
+        if (o === "*") return "*";
+        const list = o.split(",").map(s => s.trim());
+        return list.length === 1 ? list[0] : list;
+      })(),
+      credentials: true,
     })
 
   );

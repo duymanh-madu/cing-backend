@@ -10,8 +10,12 @@ function createSocket(server) {
 
     cors: {
 
-      origin:
-        process.env.SOCKET_CORS_ORIGIN || "*",
+      origin: (() => {
+        const o = process.env.SOCKET_CORS_ORIGIN || "*";
+        if (o === "*") return "*";
+        const list = o.split(",").map(s => s.trim());
+        return list.length === 1 ? list[0] : list;
+      })(),
 
       credentials: true,
 
