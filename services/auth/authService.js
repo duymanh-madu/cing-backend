@@ -70,50 +70,7 @@ async function loginWithZalo({
     } catch(e) {}
   }
 
-  // Merge avatar/name từ players table (custom profile) nếu có
-  // Ưu tiên query bằng zalo_user_id (luôn có), fallback bằng phone
-  try {
-    const zaloId = zaloUser.zalo_id || zaloUser.id || "";
-    let rawPhone = (zaloUser.phone || "").replace(/\D/g,"");
-    if (rawPhone === "pending") rawPhone = "";
-    const phone = rawPhone ? (rawPhone.startsWith("84") ? "0"+rawPhone.slice(2) : rawPhone) : "";
-
-    let playerProfile = null;
-    const supabase = require("../../supabase");
-
-    // Query bằng zalo_user_id trước — không cần decode phone token
-    if (zaloId) {
-      const { data } = await supabase.from("players")
-        .select("zalo_name, avatar, profile_changed_at")
-        .eq("zalo_user_id", zaloId)
-        .maybeSingle();
-      playerProfile = data;
-    }
-    // Fallback: query bằng phone nếu có
-    if (!playerProfile && phone) {
-      const { data } = await supabase.from("players")
-        .select("zalo_name, avatar, profile_changed_at")
-        .eq("user_id", phone)
-        .maybeSingle();
-      playerProfile = data;
-    }
-    if (playerProfile?.avatar) customer.avatar = playerProfile.avatar;
-    if (playerProfile?.zalo_name && playerProfile.zalo_name !== "Khách hàng") {
-      customer.name = playerProfile.zalo_name;
-    }
-    // Sync ngược lại vào customers table để data sạch
-    if (phone && (playerProfile?.avatar || playerProfile?.zalo_name)) {
-      const updateData = {};
-      if (playerProfile?.avatar) updateData.avatar = playerProfile.avatar;
-      if (playerProfile?.zalo_name && playerProfile.zalo_name !== "Khách hàng") {
-        updateData.name = playerProfile.zalo_name;
-      }
-      if (Object.keys(updateData).length > 0) {
-        await require("../../supabase")
-          .from("customers").update(updateData).eq("phone", phone).catch(() => {});
-      }
-    }
-  } catch(e) {}
+  // Dùng 100% thông tin Zalo — không merge từ players/customers table
 
   // Invalidate Redis membership cache để force fresh data
   if (customer.phone) {
