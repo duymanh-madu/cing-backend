@@ -13,7 +13,7 @@ async function decodePhoneToken({ phoneToken, miniAccessToken }) {
 
     const WORKER_URL = process.env.ZALO_PHONE_PROXY_URL || "";
     if (!WORKER_URL) {
-      console.warn("[ZALO_PHONE] No proxy URL configured");
+      
       return null;
     }
 
