@@ -172,6 +172,7 @@ async function syncOnePlayer(player) {
       spendSincelaunch = allTimeSpent;
     }
 
+    console.log('[GAME] spendSinceLaunch=' + spendSincelaunch + ' playsEarned=' + Math.floor(spendSincelaunch/SPEND_PER_PLAY) + ' playsFromSpend=' + Number(currentPlayer?.plays_from_spend||0));
     const playsEarned = Math.floor(spendSincelaunch / SPEND_PER_PLAY);
     const playsFromSpend = Number(currentPlayer?.plays_from_spend || 0);
     const newPlays       = playsEarned - playsFromSpend;
