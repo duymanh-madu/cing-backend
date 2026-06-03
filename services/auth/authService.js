@@ -70,33 +70,21 @@ async function loginWithZalo({
     } catch(e) {}
   }
 
-  // Sync avatar + tên Zalo vào players table để BXH hiển thị đúng
+  // Đọc avatar từ players table (custom avatar user đã upload)
   try {
-    const zaloId     = zaloUser.zalo_id || zaloUser.id || "";
-    const zaloAvatar = zaloUser.avatar  || null;
-    const zaloName   = zaloUser.name    || null;
+    const zaloId = zaloUser.zalo_id || zaloUser.id || "";
     if (zaloId) {
-      const updateData = {};
-      if (zaloName)   { updateData.zalo_name = zaloName; }
-      if (zaloAvatar) { updateData.avatar = zaloAvatar; updateData.zalo_avatar = zaloAvatar; }
-      if (Object.keys(updateData).length > 0) {
-        await require("../../supabase")
-          .from("players")
-          .update(updateData)
-          .eq("zalo_user_id", zaloId);
-        // Sync game_scores nếu có avatar
-        if (zaloAvatar) {
-          const { data: player } = await require("../../supabase")
-            .from("players").select("user_id").eq("zalo_user_id", zaloId).maybeSingle();
-          if (player?.user_id) {
-            await require("../../supabase")
-              .from("game_scores").update({ avatar: zaloAvatar })
-              .eq("user_id", player.user_id);
-          }
-        }
+      const { data: playerData } = await require("../../supabase")
+        .from("players")
+        .select("avatar, zalo_name")
+        .eq("zalo_user_id", zaloId)
+        .maybeSingle();
+      if (playerData?.avatar) customer.avatar = playerData.avatar;
+      if (playerData?.zalo_name && playerData.zalo_name !== "Khách hàng") {
+        customer.name = playerData.zalo_name;
       }
     }
-  } catch(e) { console.warn("[AUTH] sync avatar failed:", e.message); }
+  } catch(e) { console.warn("[AUTH] read player avatar failed:", e.message); }
 
   // Invalidate Redis membership cache để force fresh data
   if (customer.phone) {
