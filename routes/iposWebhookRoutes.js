@@ -107,6 +107,15 @@ router.post("/callback", async (req, res) => {
         console.warn(`[FOODBOOK] Spending sync failed for ${p0}:`, syncErr.message);
       }
 
+      // 6. Check top1 thay đổi → notify realtime
+      try {
+        const { checkAndNotifyTop1Changes } = require('../services/leaderboardResetService');
+        const io = require('../server').io || global._ioInstance;
+        if (io) await checkAndNotifyTop1Changes(io);
+      } catch(e) {
+        console.warn('[FOODBOOK] checkAndNotifyTop1 failed:', e.message);
+      }
+
       realtimeEventBus.publish({ event: "leaderboard.updated", delivery_type: "BROADCAST", payload: { updated_user: p0 }, channel: "leaderboard", timestamp: new Date().toISOString() });
       console.log(`[FOODBOOK] Full sync done for ${p0} - event: ${event}`);
     }
