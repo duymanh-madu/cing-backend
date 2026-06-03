@@ -197,6 +197,15 @@ router.post("/momo", async (req, res) => {
       console.warn("[MOMO IPN] Point addition failed:", e.message);
     }
 
+    // ─── 5b. Sync spending → cộng lượt chơi game ──────────────────
+    try {
+      const { syncSingleUserSpending } = require("../services/crm/crmSpendingSyncService");
+      await syncSingleUserSpending(order.user_id);
+      console.log("[MOMO IPN] Spending synced for", order.user_id);
+    } catch(e) {
+      console.warn("[MOMO IPN] Spending sync failed:", e.message);
+    }
+
     // ─── 6. Thông báo ──────────────────────────────────────────────
     try {
       const { sendNotification } = require("../services/notificationService");
