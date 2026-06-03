@@ -412,6 +412,23 @@ async function startServer() {
         }
       });
 
+      // Track game hiện tại của user
+      socket.on('user:game', ({ userId, game, action }) => {
+        if (!userId) return;
+        const u = global.onlineUsers.get(String(userId));
+        if (u) {
+          if (action === 'start') {
+            u.currentGame = game || '';
+            u.gameStartedAt = new Date().toISOString();
+          } else if (action === 'stop') {
+            u.currentGame = '';
+            u.gameStartedAt = null;
+          }
+          u.lastActivity = new Date().toISOString();
+          global.onlineUsers.set(String(userId), u);
+        }
+      });
+
       socket.on('disconnect', () => {
         for (const [uid, u] of global.onlineUsers.entries()) {
           if (u.socketId === socket.id) {
