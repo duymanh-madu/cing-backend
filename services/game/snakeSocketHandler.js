@@ -103,7 +103,7 @@ module.exports = function registerSnakeHandlers(io) {
         }
         await supabase.from('players').update({ game_plays:player.game_plays-1 }).eq('user_id',userId);
         const { deductPlays } = require('../loyaltyPointService');
-        await deductPlays({ user_id: userId, amount: 1, reason: 'Chơi game', new_total: player.game_plays-1 }).catch(()=>{});
+        await deductPlays({ user_id: userId, amount: 1, reason: 'Chơi Bay cùng trân châu', new_total: player.game_plays-1 }).catch(()=>{});
 
         currentUserId = userId;
         socketToUser.set(socket.id, userId);

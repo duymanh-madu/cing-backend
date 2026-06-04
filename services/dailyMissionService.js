@@ -87,7 +87,7 @@ async function checkOrderMissions(user_id, order_amount) {
       completed_at: new Date().toISOString(),
     }, { onConflict: "user_id,mission_date,mission_type" });
 
-    await awardPlays(user_id, cfg.plays);
+    await awardPlays(user_id, cfg.plays, cfg.label || cfg.type);
     pushMissionEvent(user_id, cfg.type, cfg.plays);
     results.push({ type: cfg.type, plays: cfg.plays });
   }
@@ -95,13 +95,13 @@ async function checkOrderMissions(user_id, order_amount) {
 }
 
 // Cộng lượt chơi
-async function awardPlays(user_id, amount) {
+async function awardPlays(user_id, amount, missionLabel = "") {
   const { data: player } = await supabase.from("players")
     .select("game_plays").eq("user_id", user_id).maybeSingle();
   const current = Number(player?.game_plays || 0);
   await supabase.from("players").update({ game_plays: current + amount }).eq("user_id", user_id);
   const { addPlays } = require("./loyaltyPointService");
-  await addPlays({ user_id, amount, reason: "Nhiệm vụ hoàn thành", new_total: current + amount }).catch(()=>{});
+  await addPlays({ user_id, amount, reason: missionLabel || "Nhiệm vụ hoàn thành", new_total: current + amount }).catch(()=>{});
 }
 
 // Push realtime
