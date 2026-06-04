@@ -217,6 +217,12 @@ async function pushOrderToIPOS({ order, transaction_code }) {
     const responseData = response.data;
     console.log("[IPOS] Response:", JSON.stringify(responseData).slice(0, 200));
 
+    // code:2003 = đơn đã vào pos rồi (duplicate) — vẫn tính là success
+    const iposSuccess = !responseData?.error || responseData?.error?.code === 2003;
+    if (!iposSuccess) {
+      throw new Error(responseData?.error?.message || "iPOS error");
+    }
+
     await updateIposLog({
       log_id: log?.id,
       updates: {
