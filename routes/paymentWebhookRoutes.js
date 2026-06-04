@@ -200,8 +200,12 @@ router.post("/momo", async (req, res) => {
     // ─── 5b. Sync spending → cộng lượt chơi game ──────────────────
     try {
       const { syncSingleUserSpending } = require("../services/crm/crmSpendingSyncService");
-      await syncSingleUserSpending(order.user_id);
-      console.log("[MOMO IPN] Spending synced for", order.user_id);
+      // Dùng customer_phone thật để getMembershipLog hoạt động đúng
+      const spendPhone = (order.customer_phone || "").replace(/\D/g,"").replace(/^84/,"0");
+      if (spendPhone && spendPhone.length >= 9) {
+        await syncSingleUserSpending(spendPhone);
+        console.log("[MOMO IPN] Spending synced for", spendPhone);
+      }
     } catch(e) {
       console.warn("[MOMO IPN] Spending sync failed:", e.message);
     }
