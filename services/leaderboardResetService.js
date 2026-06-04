@@ -325,9 +325,24 @@ async function checkAndNotifyTop1Changes(io) {
     }
 
     // Broadcast notifications
+    const { realtimeEventBus } = require('./realtime/realtimeEventBus');
     for (const notif of notifications) {
       const msg = `🏆 Chúc mừng ${notif.name} đã xuất sắc leo lên Top 1 ${notif.board}!`;
       console.log('[TOP1]', msg);
+      realtimeEventBus.publish({
+        event: 'notification.broadcast',
+        delivery_type: 'BROADCAST',
+        payload: {
+          notification: {
+            title: '🏆 Top 1 mới!',
+            message: msg,
+            type: 'leaderboard',
+            created_at: new Date().toISOString(),
+          }
+        },
+        channel: 'notification',
+        timestamp: new Date().toISOString(),
+      });
       if (io) {
         io.emit('notification.broadcast', {
           notification: {
