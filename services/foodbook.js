@@ -388,6 +388,12 @@ async function getMenu() {
     console.log(
       "📦 RAW MENU RECEIVED"
     );
+    // Debug — xem fields của item đầu tiên
+    const firstItems = Array.isArray(rawData) ? rawData : 
+      (rawData?.data || rawData?.items || rawData?.result || []);
+    const firstArr = Array.isArray(firstItems) ? firstItems : 
+      Object.values(firstItems || {}).flat();
+    if (firstArr[0]) console.log('[MENU DEBUG] First item keys:', Object.keys(firstArr[0]));
 
     /**
      * DETECT ITEMS
