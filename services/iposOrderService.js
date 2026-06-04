@@ -60,7 +60,7 @@ function buildPayload(order) {
 
     order_data_item: (order.items || []).map(item => ({
       Item_Type_Id: item.category || "",
-      Item_Id:      String(item.item_id || item.id || ""),
+      Item_Id:      String(item.item_id || item.id || item.ipos_id || ""),
       Item_Name:    item.name || item.displayName || item.product_name || "",
       Price:        item.price || 0,
       Quantity:     item.quantity || item.qty || 1,
