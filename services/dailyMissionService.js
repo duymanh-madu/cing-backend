@@ -101,7 +101,7 @@ async function awardPlays(user_id, amount) {
   const current = Number(player?.game_plays || 0);
   await supabase.from("players").update({ game_plays: current + amount }).eq("user_id", user_id);
   const { addPlays } = require("./loyaltyPointService");
-  await addPlays({ user_id, amount, reason: reason || "Nhiệm vụ hoàn thành", new_total: current + amount }).catch(()=>{});
+  await addPlays({ user_id, amount, reason: "Nhiệm vụ hoàn thành", new_total: current + amount }).catch(()=>{});
 }
 
 // Push realtime
