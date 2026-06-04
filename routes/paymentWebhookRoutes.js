@@ -28,7 +28,11 @@ router.post("/momo", async (req, res) => {
       .single();
 
     if (!payment) {
-      console.error("[MOMO IPN] Payment not found:", orderId);
+      console.error("[MOMO IPN] Payment not found:", orderId, "- searching all transactions...");
+      const { data: allPay } = await supabase.from("payment_transactions")
+        .select("transaction_code, payment_status, order_created")
+        .order("created_at", { ascending: false }).limit(3);
+      console.error("[MOMO IPN] Recent transactions:", JSON.stringify(allPay));
       return;
     }
     if (payment.order_created === true) {
