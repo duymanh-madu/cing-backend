@@ -35,6 +35,14 @@ router.post("/momo", async (req, res) => {
       return;
     }
 
+    // Redis lock — tránh race condition khi Momo gọi 2 lần cùng lúc
+    const lockKey = 'momo:lock:' + orderId;
+    const locked = await redisClient.set(lockKey, '1', 'NX', 'EX', 60).catch(() => null);
+    if (!locked) {
+      console.log('[MOMO IPN] Lock exists, skip duplicate:', orderId);
+      return;
+    }
+
     // Update payment status
     await supabase
       .from("payment_transactions")
