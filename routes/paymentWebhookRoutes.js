@@ -112,6 +112,9 @@ router.post("/momo", async (req, res) => {
       .update({ order_created: true, order_id: order.id })
       .eq("transaction_code", orderId);
 
+    // Resolve phone từ customer_phone — dùng xuyên suốt thay vì UUID
+    const resolvedPhone = (order.customer_phone || "").replace(/\D/g,"").replace(/^84/,"0");
+
     // ─── 0. Emit payment.success realtime → frontend navigate ngay ──
     try {
       const { realtimeEventBus } = require("../services/realtime/realtimeEventBus");
@@ -157,7 +160,7 @@ router.post("/momo", async (req, res) => {
     // ─── 2. Daily missions ─────────────────────────────────────────
     try {
       const { checkOrderMissions } = require("../services/dailyMissionService");
-      await checkOrderMissions(order.user_id, order.total_amount);
+      await checkOrderMissions(resolvedPhone || order.customer_phone, order.total_amount);
     } catch (e) {
       console.warn("[MOMO IPN] Mission check failed:", e.message);
     }
@@ -165,7 +168,7 @@ router.post("/momo", async (req, res) => {
     // ─── 3. Partner monthly spending ───────────────────────────────
     try {
       const { updatePartnerMonthlySpending } = require("../services/partnerProgressService");
-      await updatePartnerMonthlySpending({ user_id: order.user_id, amount: order.total_amount || 0 });
+      await updatePartnerMonthlySpending({ user_id: resolvedPhone || order.customer_phone, amount: order.total_amount || 0 });
     } catch (e) {
       console.warn("[MOMO IPN] Partner spending failed:", e.message);
     }
@@ -230,7 +233,7 @@ router.post("/momo", async (req, res) => {
     try {
       const { sendNotification } = require("../services/notificationService");
       await sendNotification({
-        user_id:      order.user_id,
+        user_id:      resolvedPhone || order.user_id,
         template_key: "MISSION_COMPLETED",
         custom: {
           title:   "Đặt hàng thành công!",
