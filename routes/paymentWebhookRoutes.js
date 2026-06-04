@@ -3,6 +3,7 @@ const router = express.Router();
 const supabase = require("../supabase");
 const { pushOrderToIPOS } = require("../services/iposOrderService");
 const { calculateOrderPoints } = require("../services/membershipBenefitsService");
+const redisClient = require("../services/infrastructure/cache/redisClient");
 
 router.post("/momo", async (req, res) => {
   const { resultCode, orderId, transId, amount, message } = req.body;
