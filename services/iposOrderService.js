@@ -51,10 +51,10 @@ function buildPayload(order) {
     client: order.payment_method === "momo" ? "momo" : "online",
         // MoMo và điểm đều dùng BANK_TRANSFER — tạm thời đến khi iPOS kích hoạt MOMO_ORDER_ONLINE
     PaymentInfo: {
-      Payment_Method: "BANK_TRANSFER",
-      Payment_Info: order.payment_method === "momo" ? "MOMO" : "",
-      Amount: 0,
-      Trans_Verified: 0,
+      Payment_Method: order.payment_method === "momo" ? "MOMO_ORDER_ONLINE" : "BANK_TRANSFER",
+      Payment_Info: momo_trans_id || (order.payment_method === "momo" ? "MOMO" : ""),
+      Amount: order.total_amount || 0,
+      Trans_Verified: momo_trans_id ? 1 : 0,
     },
 
     order_data_item: (order.items || []).map(item => ({
@@ -166,7 +166,7 @@ function emitRealtime({ event, payload }) {
  * FIX: access_token là query param — KHÔNG dùng Authorization Bearer
  * ============================================
  */
-async function pushOrderToIPOS({ order, transaction_code }) {
+async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) {
   if (!order) throw new Error("Missing order");
 
   // Idempotency — tránh push 2 lần cùng 1 đơn

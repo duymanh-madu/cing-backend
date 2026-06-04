@@ -143,6 +143,7 @@ router.post("/momo", async (req, res) => {
       const iposResult = await pushOrderToIPOS({
         order: orderWithMeta,
         transaction_code: orderId,
+        momo_trans_id: String(transId || ""),
       });
       if (iposResult.success) {
         console.log("[MOMO IPN] Pushed to iPOS OK:", order.order_code);
