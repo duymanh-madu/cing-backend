@@ -117,7 +117,12 @@ async function syncOnePlayer(player) {
     const { error } = await supabase
       .from('players')
       .update({
-        crm_tier:            mapTierKey(memberData.membership_type_name || ""),
+        crm_tier:            (() => {
+          const rawTier = mapTierKey(memberData.membership_type_name || "");
+          if (rawTier === 'loyal_partner' && monthly < 2000000) return 'member';
+          if (rawTier === 'partner' && monthly < 1000000) return 'member';
+          return rawTier;
+        })(),
         crm_spend_alltime:   allTimeSpent,
         crm_spend_weekly:    weekly,
         crm_spend_monthly:   monthly,
