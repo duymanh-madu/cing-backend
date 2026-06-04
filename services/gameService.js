@@ -86,6 +86,12 @@ async function useGamePlay(
     throw updateError;
   }
 
+  // Log lượt chơi bị trừ
+  try {
+    const { deductPlays } = require('./loyaltyPointService');
+    await deductPlays({ user_id, amount: 1, reason: 'Chơi Bay cùng trân châu', new_total: newGamePlays });
+  } catch(e) {}
+
   return {
 
     game_plays:
