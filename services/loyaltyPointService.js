@@ -168,4 +168,12 @@ function moneyToPoints(amount) {
   return Math.floor(amount / POINT_VALUE);
 }
 
-module.exports = { deductPoints, addPoints, pointsToMoney, moneyToPoints, POINT_VALUE };
+async function addPlays({ user_id, amount, reason = "Cộng lượt chơi", new_total = 0 }) {
+  await logAnalytics('plays_added', user_id, { amount, reason, new_total });
+}
+
+async function deductPlays({ user_id, amount, reason = "Sử dụng lượt chơi", new_total = 0 }) {
+  await logAnalytics('plays_deducted', user_id, { amount: -amount, reason, new_total });
+}
+
+module.exports = { deductPoints, addPoints, pointsToMoney, moneyToPoints, POINT_VALUE, logAnalytics, addPlays, deductPlays };

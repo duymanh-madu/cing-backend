@@ -39,6 +39,8 @@ router.post("/buy-plays", async (req, res) => {
     const { data: player } = await supabase.from("players").select("game_plays").eq("user_id", user_id).maybeSingle();
     const newPlays = Number(player?.game_plays || 0) + quantity;
     await supabase.from("players").update({ game_plays: newPlays }).eq("user_id", user_id);
+    const { addPlays } = require("../services/loyaltyPointService");
+    await addPlays({ user_id, amount: quantity, reason: "Đổi điểm lấy lượt chơi", new_total: newPlays }).catch(()=>{});
 
     res.json({
       success: true,

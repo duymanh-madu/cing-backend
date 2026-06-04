@@ -153,6 +153,7 @@ async function syncOnePlayer(player) {
       playsUpdate.first_activated_at = new Date().toISOString();
       playsUpdate.game_plays = Number(currentPlayer?.game_plays || 0) + 3;
       console.log('[GAME] First activation bonus: +3 plays for ' + userId);
+      await addPlays({ user_id: userId, amount: 3, reason: 'Bonus kích hoạt lần đầu', new_total: playsUpdate.game_plays }).catch(()=>{});
     }
 
     // Logic 2: Moi 20.000d spending tich luy -> +1 luot choi
@@ -168,6 +169,7 @@ async function syncOnePlayer(player) {
       playsUpdate.game_plays       = currentPlays + newPlays;
       playsUpdate.plays_from_spend = playsEarned;
       console.log('[GAME] Spend bonus: +' + newPlays + ' plays for ' + userId + ' (total earned: ' + playsEarned + ')');
+      await addPlays({ user_id: userId, amount: newPlays, reason: 'Thưởng lượt chơi từ chi tiêu', new_total: playsUpdate.game_plays }).catch(()=>{});
     }
 
     if (Object.keys(playsUpdate).length > 0) {
