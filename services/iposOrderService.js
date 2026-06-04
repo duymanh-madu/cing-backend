@@ -25,10 +25,9 @@ function buildPayload(order) {
     ? Number(rawPhone)
     : Number("84" + rawPhone.slice(1));
 
-  // foodbook_code tối đa 15 ký tự chỉ A-Z0-9
-  // Lấy 15 ký tự CUỐI để tránh bị cắt mất digit quan trọng
+  // foodbook_code tối đa 10 ký tự — tran_id ZBS = prefix(12) + pos_id(6) + code <= 32
   const rawCode = (order.order_code || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
-  const foodbook_code = rawCode.length > 15 ? rawCode.slice(-15) : rawCode;
+  const foodbook_code = rawCode.length > 10 ? rawCode.slice(-10) : rawCode;
 
   // Tự detect order_type: DELI nếu có địa chỉ giao, STORE nếu tại quán
   const order_type = order.order_type || (order.shipping_address ? "DELI" : "STORE");
