@@ -99,6 +99,7 @@ async function getMenu() {
             index + 1,
 
           item_id:
+            item.store_item_id ||
             item.item_id ||
             null,
 
