@@ -52,7 +52,6 @@ function getPeriodDates() {
 
 async function fetchPeriodSpend(userId, from, to) {
   const result = await foodbook.getMembershipLog(userId, {
-    log_type:    'PAY',
     create_from: from,
     create_to:   to,
     page_size:   500,
