@@ -314,7 +314,9 @@ async function checkAndNotifyTop1Changes(io) {
         const cacheKey = `game_${gameKey}_top1`;
         if (cache[cacheKey] !== scores.user_id) {
           newCache[cacheKey] = scores.user_id;
-          notifications.push({ name: scores.player_name||scores.user_id, board: gameCfg.display_name||gameKey });
+          const { data: gp } = await supabase.from('players')
+            .select('zalo_name').eq('user_id', scores.user_id).maybeSingle();
+          notifications.push({ name: gp?.zalo_name || scores.player_name || scores.user_id, board: gameCfg.display_name||gameKey });
         }
       }
     }
