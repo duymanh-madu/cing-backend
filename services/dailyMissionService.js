@@ -62,7 +62,7 @@ async function doCheckin(user_id) {
     completed_at: new Date().toISOString(),
   }, { onConflict: "user_id,mission_date,mission_type" });
 
-  await awardPlays(user_id, cfg.plays);
+  await awardPlays(user_id, cfg.plays, cfg.label || 'Điểm danh hàng ngày');
   pushMissionEvent(user_id, "checkin", cfg.plays);
   return { success: true, plays_awarded: cfg.plays, message: `Điểm danh thành công! +${cfg.plays} lượt chơi` };
 }
