@@ -124,28 +124,4 @@ router.get('/stats', requireAdmin, async (req, res) => {
 
 module.exports = router;
 
-// Temp debug endpoint
-router.get('/ipos-log/:phone', requireAdmin, async (req, res) => {
-  try {
-    const { getMembershipLog } = require('../services/foodbook');
-    const result = await getMembershipLog(req.params.phone, {
-      create_from: '2026-06-01 00:00:00',
-      create_to: '2026-06-05 00:00:00',
-      page_size: 50,
-    });
-    res.json({ total_spent: result.data?.total_spent, logs: result.data?.logs });
-  } catch(e) { res.json({ error: e.message }); }
-});
 
-// Temp debug no auth
-router.get('/ipos-log-debug/:phone', async (req, res) => {
-  try {
-    const { getMembershipLog } = require('../services/foodbook');
-    const result = await getMembershipLog(req.params.phone, {
-      create_from: '2026-06-01 00:00:00',
-      create_to: '2026-06-05 00:00:00',
-      page_size: 50,
-    });
-    res.json({ total_spent: result.data?.total_spent, count: result.data?.logs?.length });
-  } catch(e) { res.json({ error: e.message }); }
-});
