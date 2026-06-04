@@ -64,6 +64,40 @@ router.get('/leaderboard', async (req, res) => {
 // POST /game/chess/game-ended - được gọi từ game server sau khi ván kết thúc
 router.post('/game-ended', async (req, res) => {
   res.json({ ok: true });
+
+  const { winner_id, winner } = req.body || {};
+  const winnerId = winner_id || winner;
+
+  if (winnerId) {
+    try {
+      const { data: stats } = await supabase
+        .from('chess_stats').select('wins').eq('user_id', winnerId).maybeSingle();
+      const wins = stats?.wins || 0;
+      console.log(`[CHESS] game-ended winner=${winnerId} wins=${wins}`);
+
+      const { awardPlays, getMissionConfigs } = require('../services/dailyMissionService');
+      const configs = await getMissionConfigs();
+      const winCfg = configs.find(c => c.condition_type === 'manual' && c.type === 'win');
+
+      if (winCfg && wins >= 5) {
+        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
+        const { data: existing } = await supabase.from('daily_missions')
+          .select('id').eq('user_id', winnerId).eq('mission_date', today)
+          .eq('mission_type', 'win').eq('completed', true).maybeSingle();
+
+        if (!existing) {
+          await supabase.from('daily_missions').upsert({
+            user_id: winnerId, mission_date: today, mission_type: 'win',
+            completed: true, plays_awarded: winCfg.plays,
+            completed_at: new Date().toISOString(),
+          }, { onConflict: 'user_id,mission_date,mission_type' });
+          await awardPlays(winnerId, winCfg.plays);
+          console.log(`[CHESS] Win mission awarded: ${winnerId} +${winCfg.plays} plays`);
+        }
+      }
+    } catch(e) { console.warn('[CHESS] Win mission check failed:', e.message); }
+  }
+
   // Check top1 async
   try {
     const { checkAndNotifyTop1Changes } = require('../services/leaderboardResetService');
