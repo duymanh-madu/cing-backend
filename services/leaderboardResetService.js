@@ -325,26 +325,12 @@ async function checkAndNotifyTop1Changes(io) {
     }
 
     // Broadcast notifications
-    const { realtimeEventBus } = require('./realtime/realtimeEventBus');
+    const ioInstance = io || global._ioInstance || global.io;
     for (const notif of notifications) {
       const msg = `🏆 Chúc mừng ${notif.name} đã xuất sắc leo lên Top 1 ${notif.board}!`;
       console.log('[TOP1]', msg);
-      realtimeEventBus.publish({
-        event: 'notification.broadcast',
-        delivery_type: 'BROADCAST',
-        payload: {
-          notification: {
-            title: '🏆 Top 1 mới!',
-            message: msg,
-            type: 'leaderboard',
-            created_at: new Date().toISOString(),
-          }
-        },
-        channel: 'notification',
-        timestamp: new Date().toISOString(),
-      });
-      if (io) {
-        io.emit('notification.broadcast', {
+      if (ioInstance) {
+        ioInstance.emit('notification.broadcast', {
           notification: {
             title: '🏆 Top 1 mới!',
             message: msg,
@@ -352,6 +338,9 @@ async function checkAndNotifyTop1Changes(io) {
             created_at: new Date().toISOString(),
           }
         });
+        console.log('[TOP1] Broadcasted via socket.io');
+      } else {
+        console.warn('[TOP1] No io instance available');
       }
     }
   } catch(e) { console.warn('[TOP1] Error:', e.message); }
