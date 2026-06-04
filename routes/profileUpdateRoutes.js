@@ -263,6 +263,36 @@ router.post("/birthday", async (req, res) => {
 
 module.exports = router;
 
+// GET /profile-update/plays-history/:userId
+router.get("/plays-history/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const phone = userId.replace(/\D/g,"").replace(/^84/,"0");
+    const { data: playerData } = await supabase
+      .from("players").select("user_id, zalo_user_id")
+      .eq("user_id", phone).maybeSingle();
+    const ids = [...new Set([userId, phone, playerData?.zalo_user_id].filter(Boolean))];
+    const { data, error } = await supabase
+      .from("analytics_events")
+      .select("event_name, event_data, created_at")
+      .in("user_id", ids)
+      .in("event_name", ["plays_added", "plays_deducted"])
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    const seen = new Set();
+    const deduped = (data || []).filter(item => {
+      const key = item.created_at + '_' + item.event_name + '_' + (item.event_data?.amount || 0);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    res.json({ success: true, data: deduped });
+  } catch(err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /profile-update/points-history/:userId
 router.get("/points-history/:userId", async (req, res) => {
   try {
