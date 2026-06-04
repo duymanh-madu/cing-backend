@@ -126,16 +126,3 @@ module.exports = router;
 
 
 
-// Temp test broadcast
-router.post('/test-broadcast', async (req, res) => {
-  const { message = "Test broadcast" } = req.body;
-  const io = global._ioInstance || global.io;
-  if (io) {
-    io.emit('notification.broadcast', {
-      notification: { title: '🔔 Test', message, type: 'test', created_at: new Date().toISOString() }
-    });
-    res.json({ success: true, message: 'Broadcasted to ' + io.engine?.clientsCount + ' clients' });
-  } else {
-    res.json({ success: false, error: 'No io instance' });
-  }
-});
