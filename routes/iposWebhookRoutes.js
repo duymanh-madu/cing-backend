@@ -47,6 +47,17 @@ router.post("/callback", async (req, res) => {
     // Trả về 200 ngay — không để iPos timeout
     res.json({ success: true });
 
+    // Idempotency check — tránh xử lý double event từ iPOS
+    const eventId = body.event_id || body.id;
+    if (eventId) {
+      const lockKey = `ipos:event:${eventId}`;
+      const locked = await redisClient.set(lockKey, '1', 'NX', 'EX', 300).catch(() => null);
+      if (!locked) {
+        console.log(`[FOODBOOK] Duplicate event skipped: ${event} #${eventId}`);
+        return;
+      }
+    }
+
     // Xử lý async sau khi đã trả response
     let phone = "";
     if (body.membership_log?.membership_id) {
