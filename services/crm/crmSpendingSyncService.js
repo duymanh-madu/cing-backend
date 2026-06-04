@@ -151,10 +151,9 @@ async function syncOnePlayer(player) {
     }
 
     // Logic 2: Moi 20.000d spending tich luy -> +1 luot choi
-    // Chỉ tính chi tiêu từ ngày phát hành app 01/06/2026
+    // Tính lượt chơi từ crm_spend_custom (chi tiêu từ 01/06/2026)
     const SPEND_PER_PLAY = 20000;
-    const spendSinceLaunch = await fetchPeriodSpend(userId, '2026-06-01 00:00:00', new Date().toISOString().replace('T',' ').slice(0,19));
-    console.log('[GAME DEBUG] userId=' + userId + ' spendSinceLaunch=' + spendSinceLaunch + ' playsFromSpend=' + Number(currentPlayer?.plays_from_spend||0));
+    const spendSinceLaunch = custom || 0;
     const playsEarned = Math.floor(spendSinceLaunch / SPEND_PER_PLAY);
     const playsFromSpend = Number(currentPlayer?.plays_from_spend || 0);
     const newPlays       = playsEarned - playsFromSpend;
