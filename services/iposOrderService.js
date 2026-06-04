@@ -17,7 +17,7 @@ const IPOS_POS_ID       = process.env.IPOS_POS_ID;
  * Chuẩn theo iPOS FoodHub docs
  * ============================================
  */
-function buildPayload(order) {
+function buildPayload(order, momo_trans_id = "") {
   const rawPhone = (order.customer_phone || order.user_id || "").replace(/\D/g, "");
 
   // iPOS yêu cầu user_id dạng số 84xxxxxxxxx
@@ -49,7 +49,6 @@ function buildPayload(order) {
     is_pending:      0,
     is_estimate:     0,
     client: order.payment_method === "momo" ? "momo" : "online",
-        // MoMo và điểm đều dùng BANK_TRANSFER — tạm thời đến khi iPOS kích hoạt MOMO_ORDER_ONLINE
     PaymentInfo: {
       Payment_Method: order.payment_method === "momo" ? "MOMO_ORDER_ONLINE" : "BANK_TRANSFER",
       Payment_Info: momo_trans_id || (order.payment_method === "momo" ? "MOMO" : ""),
@@ -176,7 +175,7 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
     return { success: true, duplicated: true };
   }
 
-  const payload = buildPayload(order);
+  const payload = buildPayload(order, momo_trans_id);
 
   // Debug log để verify payload trước khi gửi
   console.log("[IPOS] Pushing order:", order.order_code, "| payment_method:", order.payment_method);
