@@ -190,18 +190,20 @@ router.post("/momo", async (req, res) => {
     // ─── 5. Cộng điểm theo tier ────────────────────────────────────
     try {
       const { addPoints } = require("../services/loyaltyPointService");
+      const playerPhone = (order.customer_phone || "").replace(/\D/g,"").replace(/^84/,"0");
       const { data: player } = await supabase
         .from("players")
         .select("crm_tier")
-        .eq("user_id", order.user_id)
+        .eq("user_id", playerPhone || order.customer_phone)
         .single();
       const tierKey     = player?.crm_tier || "member";
       const finalAmount = order.total_amount || 0;
       const pointsToAdd = calculateOrderPoints(finalAmount, tierKey);
       if (pointsToAdd > 0) {
+        const pointPhone = (order.customer_phone || "").replace(/\D/g,"").replace(/^84/,"0");
         await addPoints({
-          phone:   order.user_id,
-          user_id: order.user_id,
+          phone:   pointPhone || order.customer_phone,
+          user_id: pointPhone || order.customer_phone,
           points:  pointsToAdd,
           reason:  `Tích điểm đơn hàng ${order.order_code} (${tierKey})`,
         });
