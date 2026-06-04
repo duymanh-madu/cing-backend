@@ -40,6 +40,7 @@ router.post(
 
       const {
         user_id,
+        game_name,
       } = req.body;
 
       if (!user_id) {
@@ -57,7 +58,8 @@ router.post(
 
       const data =
         await useGamePlay(
-          user_id
+          user_id,
+          game_name
         );
 
       res.json({

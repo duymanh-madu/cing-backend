@@ -9,7 +9,8 @@ const { emitLeaderboardUpdate } = require("./gamification/realtime/realtimeLeade
  */
 
 async function useGamePlay(
-  user_id
+  user_id,
+  gameName = 'Bay cùng trân châu'
 ) {
 
   const {
@@ -89,7 +90,7 @@ async function useGamePlay(
   // Log lượt chơi bị trừ
   try {
     const { deductPlays } = require('./loyaltyPointService');
-    await deductPlays({ user_id, amount: 1, reason: 'Chơi Bay cùng trân châu', new_total: newGamePlays });
+    await deductPlays({ user_id, amount: 1, reason: 'Chơi ' + (gameName || 'game'), new_total: newGamePlays });
   } catch(e) {}
 
   return {
