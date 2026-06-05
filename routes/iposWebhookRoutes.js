@@ -63,6 +63,12 @@ router.post("/callback", async (req, res) => {
     if (body.membership_log?.membership_id) {
       const mid = String(body.membership_log.membership_id);
       phone = mid.startsWith("84") ? "0" + mid.slice(2) : mid.replace(/\D/g, "");
+    } else if (body.sale_manager?.member_id) {
+      // Hoá đơn mang về/giao hàng — lấy phone từ sale_manager
+      const mid = String(body.sale_manager.member_id);
+      phone = mid.startsWith("84") ? "0" + mid.slice(2) : mid.replace(/\D/g, "");
+    } else if (body.sale_manager?.phone_number) {
+      phone = String(body.sale_manager.phone_number).replace(/\D/g, "");
     } else if (body.order?.phone_number) {
       phone = String(body.order.phone_number).replace(/\D/g, "");
     } else if (body.phone_number) {
