@@ -1,5 +1,6 @@
 const supabase = require('../../supabase');
 const foodbook = require('../foodbook');
+const { addPlays } = require('../loyaltyPointService');
 
 /**
  * Lấy thời điểm hiện tại theo giờ VN (UTC+7)
