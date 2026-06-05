@@ -126,3 +126,20 @@ module.exports = router;
 
 
 
+
+// Test Railway public IP
+router.get('/railway-ip', async (req, res) => {
+  try {
+    const https = require('https');
+    const ip = await new Promise((resolve, reject) => {
+      https.get('https://api.ipify.org?format=json', r => {
+        let d = '';
+        r.on('data', c => d += c);
+        r.on('end', () => resolve(JSON.parse(d).ip));
+      }).on('error', reject);
+    });
+    res.json({ success: true, railway_ip: ip });
+  } catch(e) {
+    res.json({ success: false, error: e.message });
+  }
+});
