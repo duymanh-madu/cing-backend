@@ -179,8 +179,8 @@ router.post("/momo", async (req, res) => {
       try {
         const { deductPoints } = require("../services/loyaltyPointService");
         await deductPoints({
-          phone:   payment.user_id,
-          user_id: payment.user_id,
+          phone:   resolvedPhone,
+          user_id: resolvedPhone,
           points:  pointsUsed,
           reason:  "Thanh toan don hang " + order.order_code,
         });
