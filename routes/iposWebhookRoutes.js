@@ -8,6 +8,24 @@ const { syncSingleUserSpending } = require("../services/crm/crmSpendingSyncServi
 
 const IPOS_WEBHOOK_SECRET = process.env.IPOS_WEBHOOK_SECRET || "";
 
+// Chuyển đổi đầu số cũ sang đầu số mới (theo quy định Bộ TT&TT)
+function normalizePhone(phone) {
+  if (!phone) return "";
+  let p = String(phone).replace(/\D/g, "");
+  // Bỏ prefix 84
+  if (p.startsWith("84")) p = "0" + p.slice(2);
+  // Map đầu số cũ → mới
+  const map = {
+    "0162":"032","0163":"033","0164":"034","0165":"035","0166":"036","0167":"037","0168":"038","0169":"039",
+    "0120":"070","0121":"079","0122":"077","0126":"076","0128":"078",
+    "0123":"083","0124":"084","0125":"085","0127":"081","0129":"082",
+    "0186":"056","0188":"058","0199":"059",
+  };
+  const prefix4 = p.slice(0, 4);
+  if (map[prefix4]) p = map[prefix4] + p.slice(4);
+  return p;
+}
+
 function mapTierKey(name) {
   if (!name) return "member";
   const n = name.toLowerCase().trim();
@@ -61,25 +79,22 @@ router.post("/callback", async (req, res) => {
     // Xử lý async sau khi đã trả response
     let phone = "";
     if (body.membership_log?.membership_id) {
-      const mid = String(body.membership_log.membership_id);
-      phone = mid.startsWith("84") ? "0" + mid.slice(2) : mid.replace(/\D/g, "");
+      phone = normalizePhone(String(body.membership_log.membership_id));
     } else if (body.sale_manager?.member_id) {
-      // Hoá đơn mang về/giao hàng — lấy phone từ sale_manager
-      const mid = String(body.sale_manager.member_id);
-      phone = mid.startsWith("84") ? "0" + mid.slice(2) : mid.replace(/\D/g, "");
+      phone = normalizePhone(String(body.sale_manager.member_id));
     } else if (body.sale_manager?.phone_number) {
-      phone = String(body.sale_manager.phone_number).replace(/\D/g, "");
+      phone = normalizePhone(String(body.sale_manager.phone_number));
     } else if (body.order?.phone_number) {
-      phone = String(body.order.phone_number).replace(/\D/g, "");
+      phone = normalizePhone(String(body.order.phone_number));
     } else if (body.phone_number) {
-      phone = String(body.phone_number).replace(/\D/g, "");
+      phone = normalizePhone(String(body.phone_number));
     }
 
     if (!phone) return;
 
     // 1. Xóa Redis cache
-    const p84 = phone.startsWith("84") ? phone : "84" + phone.slice(1);
-    const p0  = phone.startsWith("84") ? "0" + phone.slice(2) : phone;
+    const p0  = normalizePhone(phone);
+    const p84 = "84" + p0.slice(1);
     await Promise.all([
       redisClient.del(`membership:${p84}`),
       redisClient.del(`membership:${p0}`),
