@@ -266,5 +266,19 @@ router.get("/user-game-rank/:userId/:gameKey", async (req, res) => {
   }
 });
 
-module.exports =
-  router;
+// GET /api/leaderboard/alltime-top3
+router.get("/alltime-top3", async (req, res) => {
+  try {
+    const { data } = await supabase
+      .from("players")
+      .select("user_id, zalo_name, crm_spend_alltime")
+      .gt("crm_spend_alltime", 0)
+      .order("crm_spend_alltime", { ascending: false })
+      .limit(3);
+    res.json({ success: true, data: data || [] });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+module.exports = router;
