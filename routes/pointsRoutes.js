@@ -145,9 +145,9 @@ router.post("/exchange-voucher", async (req, res) => {
     const posParent = process.env.IPOS_POS_PARENT || "BRAND-DQIR";
     const url = `https://api.foodbook.vn/ipos/ws/xpartner/exchange_point?access_token=${accessToken}&pos_parent=${posParent}&point=${points}&user_id=${phoneIpos}`;
     
-    const fetch = require("node-fetch");
-    const iposRes = await fetch(url, { method: "GET", headers: { "Content-Type": "application/x-www-form-urlencoded" } });
-    const iposData = await iposRes.json();
+    const axios = require("axios");
+    const iposRes = await axios.get(url, { headers: { "Content-Type": "application/x-www-form-urlencoded" } });
+    const iposData = iposRes.data;
 
     if (!iposData?.data?.voucher_code)
       return res.status(400).json({ success: false, message: "Không thể tạo voucher. " + (iposData?.message || JSON.stringify(iposData)) });
