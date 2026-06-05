@@ -143,3 +143,60 @@ router.get('/railway-ip', async (req, res) => {
     res.json({ success: false, error: e.message });
   }
 });
+
+// GET /api/admin/monitor/players-badges
+router.get('/players-badges', requireAdmin, async (req, res) => {
+  try {
+    const { data } = await supabase.from('players')
+      .select('user_id, zalo_name, zalo_avatar, crm_tier, custom_badges, is_blocked, chat_locked_until')
+      .order('zalo_name', { ascending: true })
+      .limit(500);
+    res.json({ success: true, data: data || [] });
+  } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// POST /api/admin/monitor/update-player-badges
+router.post('/update-player-badges', requireAdmin, async (req, res) => {
+  try {
+    const { user_id, custom_badges } = req.body;
+    await supabase.from('players').update({ custom_badges }).eq('user_id', user_id);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// GET /api/admin/monitor/members-list
+router.get('/members-list', requireAdmin, async (req, res) => {
+  try {
+    const { data } = await supabase.from('players')
+      .select('user_id, zalo_name, zalo_avatar, crm_tier, is_blocked, chat_locked_until, member_activated, created_at')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    res.json({ success: true, data: data || [] });
+  } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// POST /api/admin/monitor/member-action
+router.post('/member-action', requireAdmin, async (req, res) => {
+  try {
+    const { user_id, action, duration } = req.body;
+    const parseDuration = (d) => ({ '1d':86400000,'3d':259200000,'7d':604800000,'30d':2592000000,'forever':99*365*86400000 }[d]||604800000);
+    let update = {};
+    if (action === 'block') update = { is_blocked: true };
+    else if (action === 'unblock') update = { is_blocked: false, chat_locked_until: null };
+    else if (action === 'chat_lock') update = { chat_locked_until: new Date(Date.now() + parseDuration(duration)).toISOString() };
+    await supabase.from('players').update(update).eq('user_id', user_id);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// POST /api/admin/monitor/add-member
+router.post('/add-member', requireAdmin, async (req, res) => {
+  try {
+    const { phone, name } = req.body;
+    const p = phone.replace(/\D/g,'').replace(/^84/,'0');
+    const { data: existing } = await supabase.from('players').select('user_id').eq('user_id', p).maybeSingle();
+    if (existing) return res.status(400).json({ success: false, message: 'Thành viên đã tồn tại' });
+    await supabase.from('players').insert({ user_id: p, zalo_name: name || p, game_plays: 0, total_points: 0 });
+    res.json({ success: true, message: 'Đã thêm thành viên ' + p });
+  } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
