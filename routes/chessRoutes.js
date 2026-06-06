@@ -134,31 +134,46 @@ router.post('/tip', async (req, res) => {
       reason: `Tặng ${giftName || "vật phẩm"} cho ${toUserId} trong ván cờ`,
     });
 
-    // Cộng charm points người nhận
+    // Cộng charm points người nhận — simple increment
     const charmAmount = Number(charm || amount);
-    await supabase.from('players')
-      .update({ charm_points: supabase.rpc ? undefined : undefined })
-      .eq('user_id', toUserId);
-    // Dùng raw increment
-    await supabase.rpc('increment_charm', { uid: toUserId, amount: charmAmount })
-      .catch(async () => {
-        // Fallback nếu chưa có RPC
-        const { data: rec } = await supabase.from('players')
-          .select('charm_points').eq('user_id', toUserId).single();
-        const newCharm = Number(rec?.charm_points || 0) + charmAmount;
-        await supabase.from('players').update({ charm_points: newCharm }).eq('user_id', toUserId);
-      });
+    const { data: rec } = await supabase.from('players')
+      .select('charm_points').eq('user_id', toUserId).maybeSingle();
+    const newCharm = Number(rec?.charm_points || 0) + charmAmount;
+    await supabase.from('players').update({ charm_points: newCharm }).eq('user_id', toUserId);
 
-    // Socket broadcast
+    // Lấy tên người tặng
+    const { data: fromPlayer } = await supabase.from('players')
+      .select('zalo_name').eq('user_id', fromUserId).maybeSingle();
+    const fromName = fromPlayer?.zalo_name || fromUserId;
+
+    // Lưu notification vào DB để người nhận offline vẫn thấy
+    await supabase.from('notifications').insert({
+      user_id: toUserId,
+      type: 'gift_received',
+      title: `${fromName} đã tặng bạn ${giftIcon || ""} ${giftName || "vật phẩm"}`,
+      body: `Bạn nhận được +${charmAmount} điểm quyến rũ`,
+      data: { fromUserId, fromName, giftId, giftName, giftIcon, charm: charmAmount },
+      is_read: false,
+      created_at: new Date().toISOString(),
+    }).catch(e => console.warn('[GIFT NOTIF]', e.message));
+
+    // Socket realtime nếu người nhận đang online
     const io = global._ioInstance;
     if (io) {
       io.emit("chess:tip_received", {
         fromUserId, toUserId, amount: Number(amount),
-        charm: charmAmount, giftId, giftName, giftIcon,
+        charm: charmAmount, giftId, giftName, giftIcon, fromName,
+      });
+      // Push notification realtime
+      io.emit("notification:new", {
+        userId: toUserId,
+        title: `${fromName} đã tặng bạn ${giftIcon || ""} ${giftName}`,
+        body: `+${charmAmount} điểm quyến rũ`,
+        type: 'gift_received',
       });
     }
 
-    console.log(`[CHESS GIFT] ${fromUserId} → ${toUserId}: ${giftName} (${amount} điểm, +${charmAmount} charm)`);
+    console.log(`[CHESS GIFT] ${fromUserId} → ${toUserId}: ${giftName} (+${charmAmount} charm) newCharm=${newCharm}`);
   } catch(e) {
     console.warn('[CHESS GIFT] Error:', e.message);
   }
