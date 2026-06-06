@@ -147,11 +147,18 @@ router.get('/railway-ip', async (req, res) => {
 // GET /api/admin/monitor/players-badges
 router.get('/players-badges', requireAdmin, async (req, res) => {
   try {
-    const { data } = await supabase.from('players')
-      .select('user_id, zalo_name, zalo_avatar, crm_tier, custom_badges, is_blocked, chat_locked_until')
-      .order('zalo_name', { ascending: true })
-      .limit(500);
-    res.json({ success: true, data: data || [] });
+    let all = [], from = 0, size = 1000;
+    while (true) {
+      const { data, error } = await supabase.from('players')
+        .select('user_id, zalo_name, zalo_avatar, crm_tier, custom_badges, is_blocked, chat_locked_until')
+        .order('zalo_name', { ascending: true })
+        .range(from, from + size - 1);
+      if (error) throw error;
+      all = all.concat(data || []);
+      if (!data || data.length < size) break;
+      from += size;
+    }
+    res.json({ success: true, data: all });
   } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
@@ -167,11 +174,18 @@ router.post('/update-player-badges', requireAdmin, async (req, res) => {
 // GET /api/admin/monitor/members-list
 router.get('/members-list', requireAdmin, async (req, res) => {
   try {
-    const { data } = await supabase.from('players')
-      .select('user_id, zalo_name, zalo_avatar, crm_tier, is_blocked, chat_locked_until, member_activated, created_at')
-      .order('created_at', { ascending: false })
-      .limit(3000);
-    res.json({ success: true, data: data || [] });
+    let all = [], from = 0, size = 1000;
+    while (true) {
+      const { data, error } = await supabase.from('players')
+        .select('user_id, zalo_name, zalo_avatar, crm_tier, is_blocked, chat_locked_until, member_activated, created_at')
+        .order('created_at', { ascending: false })
+        .range(from, from + size - 1);
+      if (error) throw error;
+      all = all.concat(data || []);
+      if (!data || data.length < size) break;
+      from += size;
+    }
+    res.json({ success: true, data: all });
   } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
