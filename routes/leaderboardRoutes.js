@@ -269,6 +269,7 @@ router.get("/user-game-rank/:userId/:gameKey", async (req, res) => {
 // GET /api/leaderboard/alltime-top3
 router.get("/alltime-top3", async (req, res) => {
   try {
+    const supabase = require("../supabase");
     const { data } = await supabase
       .from("players")
       .select("user_id, zalo_name, crm_spend_alltime")
