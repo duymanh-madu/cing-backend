@@ -261,6 +261,35 @@ router.post("/birthday", async (req, res) => {
   }
 });
 
+// GET /api/profile-update/notifications/:userId — lấy notifications chưa đọc
+router.get("/notifications/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const phone = userId.replace(/\D/g,"").replace(/^84/,"0");
+    const { data } = await supabase.from("notifications")
+      .select("id, type, title, body, data, is_read, created_at")
+      .eq("user_id", phone)
+      .eq("is_read", false)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    res.json({ success: true, data: data || [] });
+  } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// POST /api/profile-update/notifications/mark-read
+router.post("/notifications/mark-read", async (req, res) => {
+  try {
+    const { userId, ids } = req.body;
+    const phone = userId.replace(/\D/g,"").replace(/^84/,"0");
+    if (ids?.length) {
+      await supabase.from("notifications").update({ is_read: true }).in("id", ids).eq("user_id", phone);
+    } else {
+      await supabase.from("notifications").update({ is_read: true }).eq("user_id", phone);
+    }
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 module.exports = router;
 
 // GET /profile-update/plays-history/:userId
