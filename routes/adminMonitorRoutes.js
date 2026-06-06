@@ -170,7 +170,7 @@ router.get('/members-list', requireAdmin, async (req, res) => {
     const { data } = await supabase.from('players')
       .select('user_id, zalo_name, zalo_avatar, crm_tier, is_blocked, chat_locked_until, member_activated, created_at')
       .order('created_at', { ascending: false })
-      .limit(500);
+      .limit(3000);
     res.json({ success: true, data: data || [] });
   } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
