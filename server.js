@@ -358,17 +358,26 @@ async function startServer() {
       });
 
       // Community chat qua main namespace
-      socket.on('community:join', async ({ userId, name, avatar }) => {
+      socket.on('community:join', async ({ userId, name, avatar, tierKey }) => {
         if (!userId) return;
-        socket.data = { ...socket.data, communityUserId: userId, communityName: name, communityAvatar: avatar };
-        socket.broadcast.emit('community:user_joined', { userId, name, avatar });
-        // Lấy danh sách user đang online trong community
+        // Lấy charm_points từ DB
+        let charmPoints = 0;
+        try {
+          const { data } = await supabase.from('players').select('charm_points').eq('user_id', userId).single();
+          charmPoints = Number(data?.charm_points || 0);
+        } catch(e) {}
+        socket.data = { ...socket.data, communityUserId: userId, communityName: name, communityAvatar: avatar, communityTierKey: tierKey, charmPoints };
+        socket.broadcast.emit('community:user_joined', { userId, name, avatar, tierKey, charmPoints });
+        // Danh sách user online
         const users = [];
         for (const [, s] of ioInstance.sockets.sockets) {
-          if (s.data?.communityUserId) users.push({ userId: s.data.communityUserId, name: s.data.communityName, avatar: s.data.communityAvatar });
+          if (s.data?.communityUserId) users.push({
+            userId: s.data.communityUserId, name: s.data.communityName,
+            avatar: s.data.communityAvatar, tierKey: s.data.communityTierKey,
+            charmPoints: s.data.charmPoints || 0,
+          });
         }
         socket.emit('community:users', users);
-        // Load history từ Redis
         try {
           const rc = require('./services/infrastructure/cache/redisClient');
           const history = await rc.lrange('community:chat:history', 0, 49);
@@ -376,9 +385,16 @@ async function startServer() {
         } catch(e) {}
       });
 
-      socket.on('community:chat', async ({ userId, name, avatar, message }) => {
+      socket.on('community:chat', async ({ userId, name, avatar, message, tierKey }) => {
         if (!message?.trim()) return;
-        const msg = { userId, name, avatar, message: message.trim().slice(0,200), timestamp: Date.now() };
+        // Lấy charm_points realtime
+        let charmPoints = socket.data?.charmPoints || 0;
+        try {
+          const { data } = await supabase.from('players').select('charm_points').eq('user_id', userId).maybeSingle();
+          charmPoints = Number(data?.charm_points || 0);
+          socket.data.charmPoints = charmPoints;
+        } catch(e) {}
+        const msg = { userId, name, avatar, message: message.trim().slice(0,200), timestamp: Date.now(), tierKey, charmPoints };
         ioInstance.emit('community:chat', msg);
         try {
           const rc = require('./services/infrastructure/cache/redisClient');
