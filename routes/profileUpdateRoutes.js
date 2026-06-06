@@ -267,7 +267,7 @@ router.get("/notifications/:userId", async (req, res) => {
     const { userId } = req.params;
     const phone = userId.replace(/\D/g,"").replace(/^84/,"0");
     const { data } = await supabase.from("notifications")
-      .select("id, type, title, body, data, is_read, created_at")
+      .select("id, type, title, message, metadata, is_read, created_at")
       .eq("user_id", phone)
       .eq("is_read", false)
       .order("created_at", { ascending: false })

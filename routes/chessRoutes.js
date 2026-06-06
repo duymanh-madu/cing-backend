@@ -147,16 +147,16 @@ router.post('/tip', async (req, res) => {
     const fromName = fromPlayer?.zalo_name || fromUserId;
 
     // Lưu notification vào DB để người nhận offline vẫn thấy
-    await supabase.from('notifications').insert({
+    const { error: notifErr } = await supabase.from('notifications').insert({
       user_id: toUserId,
       type: 'gift_received',
       title: `${fromName} đã tặng bạn ${giftIcon || ""} ${giftName || "vật phẩm"}`,
-      message: `Bạn nhận được +${charmAmount} điểm quyến rũ`,
-      body: `Bạn nhận được +${charmAmount} điểm quyến rũ`,
-      data: { fromUserId, fromName, giftId, giftName, giftIcon, charm: charmAmount },
+      message: `+${charmAmount} điểm quyến rũ`,
+      metadata: { fromUserId, fromName, giftId, giftName, giftIcon, charm: charmAmount },
       is_read: false,
-      created_at: new Date().toISOString(),
-    }).catch(e => console.warn('[GIFT NOTIF]', e.message));
+    });
+    if (notifErr) console.warn('[GIFT NOTIF ERROR]', notifErr.message);
+    else console.log('[GIFT NOTIF] Saved for', toUserId);
 
     // Socket realtime nếu người nhận đang online
     const io = global._ioInstance;
