@@ -178,6 +178,13 @@ async function syncOnePlayer(player) {
     }
 
     console.log(`Synced ${memberData.name||userId}: all=${allTimeSpent} week=${weekly} month=${monthly}`);
+
+    // Publish Redis event để trigger top1 check ngay lập tức
+    try {
+      const redisPublisher = require('../infrastructure/cache/redisPublisher');
+      await redisPublisher.publish('leaderboard:spending_updated', JSON.stringify({ userId, allTimeSpent, weekly, monthly }));
+    } catch(e) {}
+
     return { user_id: userId, success: true, allTimeSpent, weekly, monthly, quarterly, yearly };
 
   } catch (err) {

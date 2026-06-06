@@ -460,6 +460,22 @@ async function startServer() {
     app.set('io', ioInstance);
     global._ioInstance = ioInstance;
 
+  // Redis subscriber — lắng nghe spending update → check top1 ngay
+  try {
+    const redisClient = require('./services/infrastructure/cache/redisClient');
+    const sub = redisClient.duplicate();
+    await sub.connect().catch(()=>{});
+    await sub.subscribe('leaderboard:spending_updated', async (msg) => {
+      try {
+        const { checkAndNotifyTop1Changes } = require('./services/leaderboardResetService');
+        await checkAndNotifyTop1Changes(ioInstance);
+      } catch(e) { console.warn('[TOP1 SUB]', e.message); }
+    }).catch(()=>{});
+    console.log('[REDIS] Subscribed to leaderboard:spending_updated');
+  } catch(e) {
+    console.warn('[REDIS SUB] Failed:', e.message);
+  }
+
     // Weekly leaderboard reset cron - mỗi thứ 2 00:00 VN
     try {
       const { scheduleWeeklyReset, checkAndNotifyTop1Changes } = require('./services/leaderboardResetService');
