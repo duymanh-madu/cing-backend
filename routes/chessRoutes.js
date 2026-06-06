@@ -106,48 +106,61 @@ router.post('/game-ended', async (req, res) => {
   } catch(e) { console.warn('[TOP1] Chess game-ended check:', e.message); }
 });
 
-// POST /api/chess/tip — tặng điểm trong ván cờ
+// POST /api/chess/tip — tặng vật phẩm trong ván cờ
 router.post('/tip', async (req, res) => {
-  res.json({ success: true }); // Trả lời ngay
+  res.json({ success: true });
   try {
-    const { fromUserId, toUserId, amount } = req.body;
+    const { fromUserId, toUserId, amount, charm, giftId, giftName, giftIcon } = req.body;
     if (!fromUserId || !toUserId || !amount) return;
-    
+
     const validAmounts = [5, 10, 20, 50, 100];
     if (!validAmounts.includes(Number(amount))) return;
-    
-    // Kiểm tra điểm trước khi trừ
-    const { data: player } = await supabase
-      .from('players')
-      .select('total_points')
-      .eq('user_id', fromUserId)
-      .single();
-    
+
+    // Kiểm tra đủ điểm
+    const { data: player } = await supabase.from('players')
+      .select('total_points').eq('user_id', fromUserId).single();
     const currentPoints = Number(player?.total_points || 0);
     if (currentPoints < Number(amount)) {
-      console.warn(`[CHESS TIP] ${fromUserId} không đủ điểm: có ${currentPoints}, cần ${amount}`);
+      console.warn(`[CHESS GIFT] ${fromUserId} không đủ điểm: có ${currentPoints}, cần ${amount}`);
       return;
     }
-    
-    const { deductPoints, addPoints } = require('../services/loyaltyPointService');
-    
-    // Trừ điểm người tặng
+
+    const { deductPoints } = require('../services/loyaltyPointService');
+
+    // Trừ điểm tích lũy người tặng
     await deductPoints({
       phone: fromUserId, user_id: fromUserId,
       points: Number(amount),
-      reason: `Tặng điểm trong ván cờ cho ${toUserId}`,
+      reason: `Tặng ${giftName || "vật phẩm"} cho ${toUserId} trong ván cờ`,
     });
-    
-    // Cộng điểm người nhận
-    await addPoints({
-      phone: toUserId, user_id: toUserId,
-      points: Number(amount),
-      reason: `Nhận điểm tặng trong ván cờ từ ${fromUserId}`,
-    });
-    
-    console.log(`[CHESS TIP] ${fromUserId} → ${toUserId}: ${amount} điểm`);
+
+    // Cộng charm points người nhận
+    const charmAmount = Number(charm || amount);
+    await supabase.from('players')
+      .update({ charm_points: supabase.rpc ? undefined : undefined })
+      .eq('user_id', toUserId);
+    // Dùng raw increment
+    await supabase.rpc('increment_charm', { uid: toUserId, amount: charmAmount })
+      .catch(async () => {
+        // Fallback nếu chưa có RPC
+        const { data: rec } = await supabase.from('players')
+          .select('charm_points').eq('user_id', toUserId).single();
+        const newCharm = Number(rec?.charm_points || 0) + charmAmount;
+        await supabase.from('players').update({ charm_points: newCharm }).eq('user_id', toUserId);
+      });
+
+    // Socket broadcast
+    const io = global._ioInstance;
+    if (io) {
+      io.emit("chess:tip_received", {
+        fromUserId, toUserId, amount: Number(amount),
+        charm: charmAmount, giftId, giftName, giftIcon,
+      });
+    }
+
+    console.log(`[CHESS GIFT] ${fromUserId} → ${toUserId}: ${giftName} (${amount} điểm, +${charmAmount} charm)`);
   } catch(e) {
-    console.warn('[CHESS TIP] Error:', e.message);
+    console.warn('[CHESS GIFT] Error:', e.message);
   }
 });
 
