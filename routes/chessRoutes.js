@@ -151,6 +151,7 @@ router.post('/tip', async (req, res) => {
       user_id: toUserId,
       type: 'gift_received',
       title: `${fromName} đã tặng bạn ${giftIcon || ""} ${giftName || "vật phẩm"}`,
+      message: `Bạn nhận được +${charmAmount} điểm quyến rũ`,
       body: `Bạn nhận được +${charmAmount} điểm quyến rũ`,
       data: { fromUserId, fromName, giftId, giftName, giftIcon, charm: charmAmount },
       is_read: false,
