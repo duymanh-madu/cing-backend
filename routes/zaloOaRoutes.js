@@ -17,7 +17,7 @@ router.get("/oa-callback", async (req, res) => {
     const { code } = req.query;
     if (!code) return res.status(400).send("Missing code");
 
-    console.log("[ZALO OA] Calling refresh with app_id:", process.env.ZALO_APP_ID, "refresh_token length:", refresh_token?.length);
+    console.log("[ZALO OA] Calling authorization_code exchange with app_id:", process.env.ZALO_APP_ID);
     const result = await axios.post("https://oauth.zaloapp.com/v4/oa/access_token", null, {
       params: { app_id: APP_ID, app_secret: APP_SECRET, code, grant_type: "authorization_code" }
     });
@@ -58,14 +58,12 @@ router.post("/send-message", async (req, res) => {
   }
 });
 
-module.exports = router;
-
-// Auto-refresh token
+// Auto-refresh token — dùng bởi cron job và /refresh-token route
 async function refreshZaloToken() {
   try {
     const { data: config } = await supabase.from("app_configs")
       .select("zalo_oa_refresh_token").eq("id", 1).single();
-    
+
     const refresh_token = config?.zalo_oa_refresh_token || process.env.ZALO_OA_REFRESH_TOKEN;
     if (!refresh_token) throw new Error("No refresh token");
 
@@ -102,8 +100,6 @@ router.get("/refresh-token", async (req, res) => {
   else res.status(500).json({ success: false, error: "Refresh failed" });
 });
 
-module.exports.refreshZaloToken = refreshZaloToken;
-
 // POST /api/zalo/oa-webhook
 router.post("/oa-webhook", async (req, res) => {
   try {
@@ -128,3 +124,6 @@ router.get("/last-webhook", async (req, res) => {
     res.json({ data: null });
   }
 });
+
+module.exports = router;
+module.exports.refreshZaloToken = refreshZaloToken;
