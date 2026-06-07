@@ -208,13 +208,34 @@ router.post("/daily-challenge/claim", async (req, res) => {
 router.get("/leaderboard/alltime-games", async (req, res) => {
   try {
     const supabase = require("../supabase");
+
+    // Đọc config từ DB — admin có thể thêm game mới qua dashboard
+    const { data: cfgRow } = await supabase
+      .from("app_configs")
+      .select("alltime_games_config")
+      .eq("id", 1)
+      .single();
+
+    const cfg = cfgRow?.alltime_games_config || {};
+    const gamesConfig = cfg.games || {
+      "black-pearl-rush": { enabled:true, display_name:"Bay cùng trân châu", icon:"🫧" },
+    };
+
+    // Chỉ lấy game đang enabled
+    const validGames = Object.entries(gamesConfig)
+      .filter(([, g]) => g.enabled !== false)
+      .map(([key]) => key);
+
+    if (validGames.length === 0) return res.json({ success:true, data:[] });
+
     const { data } = await supabase
       .from("game_scores")
       .select("user_id, player_name, avatar, score, game_key")
+      .in("game_key", validGames)
       .order("score", { ascending: false })
-      .limit(100);
-    
-    // Group by user_id, lấy best score mỗi user mỗi game
+      .limit(500);
+
+    // Group by game_key + user_id, lấy best score mỗi user mỗi game
     const byGame = {};
     (data || []).forEach(row => {
       if (!byGame[row.game_key]) byGame[row.game_key] = {};
@@ -223,25 +244,20 @@ router.get("/leaderboard/alltime-games", async (req, res) => {
       }
     });
 
-    // Format thành array với game_key
-    const GAME_CONFIG = {
-      "black-pearl-rush": { display_name: "Bay cùng trân châu", icon: "🫧" },
-      "chess":            { display_name: "Kỳ thủ cờ vua",      icon: "♟️" },
-    };
-    const VALID_GAMES = ["black-pearl-rush", "chess"];
+    const result = validGames
+      .filter(key => byGame[key])
+      .map(gameKey => ({
+        game_key:     gameKey,
+        display_name: gamesConfig[gameKey]?.display_name || gameKey,
+        icon:         gamesConfig[gameKey]?.icon || "🎮",
+        data:         Object.values(byGame[gameKey])
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 100)
+          .map((e, i) => ({ ...e, rank: i + 1 })),
+      }));
 
-    const result = Object.keys(byGame).filter(k => VALID_GAMES.includes(k)).map(gameKey => ({
-      game_key:     gameKey,
-      display_name: GAME_CONFIG[gameKey]?.display_name || gameKey,
-      icon:         GAME_CONFIG[gameKey]?.icon || "🎮",
-      data:         Object.values(byGame[gameKey])
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 100)
-        .map((e, i) => ({ ...e, rank: i + 1 })),
-    }));
-
-    res.json({ success: true, data: result });
+    res.json({ success:true, data:result });
   } catch(e) {
-    res.status(500).json({ success: false, error: e.message });
+    res.status(500).json({ success:false, error:e.message });
   }
 });
