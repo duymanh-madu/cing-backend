@@ -77,11 +77,22 @@ async function refreshZaloToken() {
     });
 
     console.log("[ZALO OA] Response:", JSON.stringify(result.data));
+
+    // Zalo trả HTTP 200 nhưng body có error — phải check
+    if (result.data.error && result.data.error !== 0) {
+      console.error("[ZALO OA] Refresh error from Zalo:", result.data.error_name, result.data.error_description);
+      return null;
+    }
+
     const { access_token, refresh_token: new_refresh, expires_in } = result.data;
+    if (!access_token) {
+      console.error("[ZALO OA] No access_token in response");
+      return null;
+    }
 
     await supabase.from("app_configs").update({
       zalo_oa_access_token:  access_token,
-      zalo_oa_refresh_token: new_refresh,
+      zalo_oa_refresh_token: new_refresh || refresh_token,
       zalo_oa_token_expiry:  expires_in ? new Date(Date.now() + Number(expires_in) * 1000).toISOString() : null,
     }).eq("id", 1);
 
