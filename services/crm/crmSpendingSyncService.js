@@ -159,7 +159,10 @@ async function syncOnePlayer(player) {
 
     // Logic 2: Moi 20.000d spending tich luy -> +1 luot choi
     // Tính lượt chơi từ crm_spend_custom (chi tiêu từ 01/06/2026)
-    const SPEND_PER_PLAY = 20000;
+    // Đọc tỉ lệ từ DB — admin có thể thay đổi qua dashboard
+    const { data: appCfg } = await supabase.from('app_configs')
+      .select('spend_per_play').eq('id', 1).single().catch(() => ({ data: null }));
+    const SPEND_PER_PLAY = appCfg?.spend_per_play || 20000;
     const spendSinceLaunch = custom || 0;
     const playsEarned = Math.floor(spendSinceLaunch / SPEND_PER_PLAY);
     const playsFromSpend = Number(currentPlayer?.plays_from_spend || 0);
