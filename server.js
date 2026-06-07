@@ -404,6 +404,16 @@ async function startServer() {
         } catch(e) {}
       });
 
+      // Chess gift notify — broadcast cho opponent qua Railway socket
+      socket.on('chess:gift_notify', ({ toUserId, fromUserId, giftIcon, giftName, charm }) => {
+        for (const [, s] of ioInstance.sockets.sockets) {
+          if (s.data?.communityUserId === toUserId || s.data?.userId === toUserId) {
+            s.emit('chess:tip_received', { fromUserId, toUserId, giftIcon, giftName, charm, fromMe: false });
+            break;
+          }
+        }
+      });
+
       socket.on('community:voice_start', ({ userId }) => {
         socket.broadcast.emit('community:voice_start', { userId });
       });
@@ -524,6 +534,16 @@ async function startServer() {
           await redisClient.ltrim('community:chat:history', 0, 99);
           await redisClient.expire('community:chat:history', 86400); // 24h
         } catch(e) { console.warn('[COMMUNITY] Redis save error:', e.message); }
+      });
+
+      // Chess gift notify — broadcast cho opponent qua Railway socket
+      socket.on('chess:gift_notify', ({ toUserId, fromUserId, giftIcon, giftName, charm }) => {
+        for (const [, s] of ioInstance.sockets.sockets) {
+          if (s.data?.communityUserId === toUserId || s.data?.userId === toUserId) {
+            s.emit('chess:tip_received', { fromUserId, toUserId, giftIcon, giftName, charm, fromMe: false });
+            break;
+          }
+        }
       });
 
       socket.on('community:voice_start', ({ userId }) => {
