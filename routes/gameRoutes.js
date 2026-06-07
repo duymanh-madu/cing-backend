@@ -191,6 +191,18 @@ router.get("/daily-challenge", async (req, res) => {
   }
 });
 
+// DELETE /api/game/daily-challenge/reset — Admin xóa challenge hôm nay để tạo lại
+router.delete("/daily-challenge/reset", async (req, res) => {
+  try {
+    const supabase = require("../supabase");
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
+    await supabase.from("daily_challenges").delete().eq("challenge_date", today);
+    res.json({ success: true, message: "Đã reset thách thức hôm nay. Sẽ tạo lại khi có request tiếp theo." });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST /api/game/daily-challenge/claim
 router.post("/daily-challenge/claim", async (req, res) => {
   try {
