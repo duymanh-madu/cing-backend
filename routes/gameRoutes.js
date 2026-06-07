@@ -244,17 +244,59 @@ router.get("/leaderboard/alltime-games", async (req, res) => {
       }
     });
 
-    const result = validGames
-      .filter(key => byGame[key])
-      .map(gameKey => ({
+    // Chess dùng chess_stats thay vì game_scores
+    let chessData = [];
+    if (validGames.includes("chess")) {
+      const { data: chessStats } = await supabase
+        .from("chess_stats")
+        .select("user_id, wins, losses, draws, total_games")
+        .order("wins", { ascending: false })
+        .limit(100);
+
+      const chessIds = (chessStats||[]).map(s => s.user_id);
+      const { data: chessPlayers } = chessIds.length > 0
+        ? await supabase.from("players").select("user_id, zalo_name, avatar").in("user_id", chessIds)
+        : { data: [] };
+      const cpMap = new Map((chessPlayers||[]).map(p => [p.user_id, p]));
+
+      chessData = (chessStats||[]).map((s, i) => {
+        const p = cpMap.get(s.user_id);
+        return {
+          rank: i + 1,
+          user_id: s.user_id,
+          player_name: p?.zalo_name || s.user_id,
+          avatar: p?.avatar || "",
+          score: s.wins, // dùng wins làm score để hiển thị
+          wins: s.wins,
+          losses: s.losses,
+          total_games: s.total_games,
+          winRate: s.total_games > 0 ? Math.round(s.wins / s.total_games * 100) : 0,
+        };
+      });
+    }
+
+    const result = validGames.map(gameKey => {
+      if (gameKey === "chess") {
+        return {
+          game_key: "chess",
+          display_name: gamesConfig["chess"]?.display_name || "Kỳ thủ cờ vua",
+          icon: gamesConfig["chess"]?.icon || "♟️",
+          score_label: "Số trận thắng",
+          data: chessData,
+        };
+      }
+      if (!byGame[gameKey]) return null;
+      return {
         game_key:     gameKey,
         display_name: gamesConfig[gameKey]?.display_name || gameKey,
         icon:         gamesConfig[gameKey]?.icon || "🎮",
+        score_label:  "Điểm cao nhất",
         data:         Object.values(byGame[gameKey])
           .sort((a, b) => b.score - a.score)
           .slice(0, 100)
           .map((e, i) => ({ ...e, rank: i + 1 })),
-      }));
+      };
+    }).filter(Boolean);
 
     res.json({ success:true, data:result });
   } catch(e) {
