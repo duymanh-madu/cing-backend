@@ -56,6 +56,26 @@ function buildPayload(order, momo_trans_id = "") {
       Trans_Verified: momo_trans_id ? 1 : 0,
     },
 
+    // partner_voucher_info: truyền chiết khấu hạng thành viên + điểm tích lũy
+    // iPos ghi nhận doanh thu = total_amount (giá trị thực khách trả)
+    ...(() => {
+      const tierDiscount  = order.tier_discount  || 0;
+      const pointsDiscount = order.points_discount || (order.points_used ? order.points_used * 1000 : 0);
+      const totalDiscount  = tierDiscount + pointsDiscount;
+      if (totalDiscount <= 0) return {};
+      const parts = [];
+      if (tierDiscount > 0)   parts.push(`Ưu đãi hạng thành viên: -${tierDiscount.toLocaleString('vi-VN')}đ`);
+      if (pointsDiscount > 0) parts.push(`Đổi ${order.points_used || 0} điểm: -${pointsDiscount.toLocaleString('vi-VN')}đ`);
+      return {
+        partner_voucher_info: {
+          voucher_code:    "MEMBER-" + (order.order_code || "").slice(-8),
+          discount_amount: totalDiscount,
+          merchant_rate:   100,
+          description:     parts.join(' | '),
+        },
+      };
+    })(),
+
     order_data_item: (order.items || []).map(item => ({
       Item_Type_Id: item.category || "",
       Item_Id:      String(item.item_id || item.id || item.ipos_id || ""),
