@@ -20,15 +20,27 @@ async function getTodayChallenge(game_key = "black-pearl-rush") {
 
   if (existing) return existing;
 
+  // Đọc config từ DB
+  const { data: cfgRow } = await supabase
+    .from("app_configs")
+    .select("daily_challenge_config")
+    .eq("id", 1)
+    .single();
+
+  const challenges = cfgRow?.daily_challenge_config?.challenges || [];
+  const cfg = challenges.find(c => c.game_key === game_key && c.enabled !== false)
+    || { game_key, challenge_type:"combo", target_value:100, reward_points:50, label:"Đạt combo 100 trong game Bay cùng trân châu" };
+
   // Tao challenge moi cho ngay hom nay
   const { data: created } = await supabase
     .from("daily_challenges")
     .insert({
       challenge_date: today,
-      game_key,
-      challenge_type: "combo",
-      target_value: 100,
-      reward_points: 50,
+      game_key:        cfg.game_key,
+      challenge_type:  cfg.challenge_type || "combo",
+      target_value:    cfg.target_value   || 100,
+      reward_points:   cfg.reward_points  || 50,
+      label:           cfg.label          || null,
     })
     .select()
     .single();
