@@ -19,17 +19,26 @@ router.get("/list", requireAdmin, async (req, res) => {
     const off = (Number(page) - 1) * Number(limit);
 
     let query = supabase.from("payment_transactions")
-      .select("id,transaction_code,user_id,customer_name,amount,payment_status,payment_method,created_at,updated_at,metadata", { count:"exact" })
+      .select("id,transaction_code,user_id,amount,payment_status,payment_method,created_at,updated_at,metadata", { count:"exact" })
       .order("created_at", { ascending: false })
       .range(off, off + Number(limit) - 1);
 
     if (status) query = query.eq("payment_status", status);
     if (method) query = query.eq("payment_method", method);
-    if (search) query = query.or(`transaction_code.ilike.%${search}%,user_id.ilike.%${search}%,customer_name.ilike.%${search}%`);
+    if (search) query = query.or(`transaction_code.ilike.%${search}%,user_id.ilike.%${search}%`);
 
     const { data, count, error } = await query;
     if (error) throw error;
-    res.json({ success: true, data: data || [], total: count || 0, page: Number(page), limit: Number(limit) });
+    const rows = (data || []).map(txn => ({
+      ...txn,
+      customer_name:
+        txn.metadata?.customer_name ||
+        txn.metadata?.customerName ||
+        txn.metadata?.name ||
+        "",
+    }));
+
+    res.json({ success: true, data: rows, total: count || 0, page: Number(page), limit: Number(limit) });
   } catch(err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
@@ -110,7 +119,7 @@ router.post("/refund/:id", requireAdmin, async (req, res) => {
 router.get("/failed", requireAdmin, async (req, res) => {
   try {
     const { data } = await supabase.from("payment_transactions")
-      .select("id,transaction_code,user_id,customer_name,amount,payment_method,created_at,metadata")
+      .select("id,transaction_code,user_id,amount,payment_method,created_at,metadata")
       .eq("payment_status","failed")
       .order("created_at",{ascending:false})
       .limit(100);

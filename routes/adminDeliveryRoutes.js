@@ -28,7 +28,7 @@ router.get("/list", requireAdmin, async (req, res) => {
     const off = (Number(page)-1)*Number(limit);
 
     let query = supabase.from("delivery_tracking")
-      .select("*, orders(order_code,customer_name,customer_phone,total_amount,shipping_address,items)", { count:"exact" })
+      .select("*", { count:"exact" })
       .order("created_at", { ascending:false })
       .range(off, off+Number(limit)-1);
 
@@ -37,7 +37,28 @@ router.get("/list", requireAdmin, async (req, res) => {
 
     const { data, count, error } = await query;
     if (error) throw error;
-    res.json({ success:true, data: data||[], total: count||0 });
+
+    const rows = data || [];
+    const orderIds = [...new Set(rows.map(r => r.order_id).filter(Boolean))];
+
+    let orderMap = {};
+    if (orderIds.length > 0) {
+      const { data: orders, error: orderError } = await supabase
+        .from("orders")
+        .select("id,order_code,customer_name,customer_phone,total_amount,shipping_address,items")
+        .in("id", orderIds);
+
+      if (orderError) throw orderError;
+
+      orderMap = Object.fromEntries((orders || []).map(o => [o.id, o]));
+    }
+
+    const enriched = rows.map(r => ({
+      ...r,
+      orders: orderMap[r.order_id] || null,
+    }));
+
+    res.json({ success:true, data: enriched, total: count||0 });
   } catch(err) { res.status(500).json({ success:false, error:err.message }); }
 });
 
