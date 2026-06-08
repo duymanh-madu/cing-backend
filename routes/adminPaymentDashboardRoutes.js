@@ -19,7 +19,7 @@ router.get("/list", requireAdmin, async (req, res) => {
     const off = (Number(page) - 1) * Number(limit);
 
     let query = supabase.from("payment_transactions")
-      .select("id,transaction_code,user_id,amount,payment_status,payment_method,created_at,updated_at,metadata", { count:"exact" })
+      .select("id,transaction_code,user_id,amount,payment_status,payment_method,created_at,updated_at", { count:"exact" })
       .order("created_at", { ascending: false })
       .range(off, off + Number(limit) - 1);
 
@@ -31,11 +31,7 @@ router.get("/list", requireAdmin, async (req, res) => {
     if (error) throw error;
     const rows = (data || []).map(txn => ({
       ...txn,
-      customer_name:
-        txn.metadata?.customer_name ||
-        txn.metadata?.customerName ||
-        txn.metadata?.name ||
-        "",
+      customer_name: "",
     }));
 
     res.json({ success: true, data: rows, total: count || 0, page: Number(page), limit: Number(limit) });
@@ -119,7 +115,7 @@ router.post("/refund/:id", requireAdmin, async (req, res) => {
 router.get("/failed", requireAdmin, async (req, res) => {
   try {
     const { data } = await supabase.from("payment_transactions")
-      .select("id,transaction_code,user_id,amount,payment_method,created_at,metadata")
+      .select("id,transaction_code,user_id,amount,payment_method,created_at")
       .eq("payment_status","failed")
       .order("created_at",{ascending:false})
       .limit(100);
