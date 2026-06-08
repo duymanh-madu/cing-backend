@@ -19,7 +19,7 @@ router.get("/list", requireAdmin, async (req, res) => {
     const off = (Number(page) - 1) * Number(limit);
 
     let query = supabase.from("payment_transactions")
-      .select("id,transaction_code,user_id,amount,payment_status,payment_method,created_at,updated_at", { count:"exact" })
+      .select("id,transaction_code,user_id,order_id,amount,payment_status,payment_method,payment_provider,payment_session_status,paid_at,cart_snapshot,created_at,updated_at", { count:"exact" })
       .order("created_at", { ascending: false })
       .range(off, off + Number(limit) - 1);
 
@@ -29,10 +29,32 @@ router.get("/list", requireAdmin, async (req, res) => {
 
     const { data, count, error } = await query;
     if (error) throw error;
-    const rows = (data || []).map(txn => ({
-      ...txn,
-      customer_name: "",
-    }));
+
+    const txns = data || [];
+    const orderIds = [...new Set(txns.map(t => t.order_id).filter(Boolean))];
+
+    let orderMap = {};
+    if (orderIds.length > 0) {
+      const { data: orders, error: orderError } = await supabase
+        .from("orders")
+        .select("id,order_code,customer_name,customer_phone,total_amount,items,shipping_address,payment_status,status")
+        .in("id", orderIds);
+
+      if (orderError) throw orderError;
+
+      orderMap = Object.fromEntries((orders || []).map(o => [o.id, o]));
+    }
+
+    const rows = txns.map(txn => {
+      const order = orderMap[txn.order_id] || null;
+      return {
+        ...txn,
+        customer_name: order?.customer_name || "",
+        customer_phone: order?.customer_phone || "",
+        order_code: order?.order_code || "",
+        order,
+      };
+    });
 
     res.json({ success: true, data: rows, total: count || 0, page: Number(page), limit: Number(limit) });
   } catch(err) { res.status(500).json({ success: false, error: err.message }); }
