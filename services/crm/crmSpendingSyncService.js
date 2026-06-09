@@ -117,7 +117,10 @@ async function syncOnePlayer(player) {
     // Lưu vào Supabase — timestamp dùng UTC chuẩn (Supabase tự xử lý)
     const { error } = await supabase
       .from('players')
-      .update({
+      .upsert({
+        user_id: userId,
+        zalo_name: memberData.name || player.zalo_name || null,
+        name: memberData.name || player.name || null,
         crm_tier:            (() => {
           const rawTier = mapTierKey(memberData.membership_type_name || "");
           if (rawTier === 'loyal_partner' && monthly < 2000000) return 'member';
@@ -132,8 +135,7 @@ async function syncOnePlayer(player) {
         crm_spend_custom:    custom,
         crm_orders_alltime:  allTimeOrders,
         crm_synced_at:       new Date().toISOString(), // UTC — Supabase chuẩn
-      })
-      .eq('user_id', userId);
+      }, { onConflict: 'user_id' });
 
     if (error) {
       console.error('Supabase error:', userId, error.message);
