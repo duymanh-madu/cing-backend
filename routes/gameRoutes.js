@@ -12,15 +12,14 @@ const router =
   express.Router();
 
 const {
-const { normalizePhone } = require("../utils/phoneIdentity");
-
   useGamePlay,
-
   saveGameScore,
-
 } = require(
   "../services/gameService"
 );
+
+const { normalizePhone } =
+  require("../utils/phoneIdentity");
 
 const validateGameScore =
   require(

@@ -11,8 +11,10 @@ const {
 );
 
 const supabase =
-const { normalizePhone } = require("../utils/phoneIdentity");
   require("../supabase");
+
+const { normalizePhone } =
+  require("../utils/phoneIdentity");
 
 /**
  * ============================================
