@@ -358,7 +358,7 @@ async function startServer() {
       });
 
       // Community chat qua main namespace
-      socket.on('community:join', async ({ userId, name, avatar, tierKey }) => {
+      socket.on('community:join', async ({ userId, name, avatar, tierKey, charmBadgeKey }) => {
         if (!userId) return;
         // Lấy charm_points từ DB
         let charmPoints = 0;
@@ -366,14 +366,15 @@ async function startServer() {
           const { data } = await supabase.from('players').select('charm_points').eq('user_id', userId).single();
           charmPoints = Number(data?.charm_points || 0);
         } catch(e) {}
-        socket.data = { ...socket.data, communityUserId: userId, communityName: name, communityAvatar: avatar, communityTierKey: tierKey, charmPoints };
-        socket.broadcast.emit('community:user_joined', { userId, name, avatar, tierKey, charmPoints });
+        socket.data = { ...socket.data, communityUserId: userId, communityName: name, communityAvatar: avatar, communityTierKey: tierKey, communityCharmBadgeKey: charmBadgeKey, charmPoints };
+        socket.broadcast.emit('community:user_joined', { userId, name, avatar, tierKey, charmBadgeKey, charmPoints });
         // Danh sách user online
         const users = [];
         for (const [, s] of ioInstance.sockets.sockets) {
           if (s.data?.communityUserId) users.push({
             userId: s.data.communityUserId, name: s.data.communityName,
             avatar: s.data.communityAvatar, tierKey: s.data.communityTierKey,
+            charmBadgeKey: s.data.communityCharmBadgeKey || null,
             charmPoints: s.data.charmPoints || 0,
           });
         }
@@ -385,7 +386,7 @@ async function startServer() {
         } catch(e) {}
       });
 
-      socket.on('community:chat', async ({ userId, name, avatar, message, tierKey }) => {
+      socket.on('community:chat', async ({ userId, name, avatar, message, tierKey, charmBadgeKey }) => {
         if (!message?.trim()) return;
         // Lấy charm_points realtime
         let charmPoints = socket.data?.charmPoints || 0;
@@ -394,7 +395,7 @@ async function startServer() {
           charmPoints = Number(data?.charm_points || 0);
           socket.data.charmPoints = charmPoints;
         } catch(e) {}
-        const msg = { userId, name, avatar, message: message.trim().slice(0,200), timestamp: Date.now(), tierKey, charmPoints };
+        const msg = { userId, name, avatar, message: message.trim().slice(0,200), timestamp: Date.now(), tierKey, charmBadgeKey: charmBadgeKey || socket.data?.communityCharmBadgeKey || null, charmPoints };
         ioInstance.emit('community:chat', msg);
         try {
           const rc = require('./services/infrastructure/cache/redisClient');

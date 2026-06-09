@@ -203,7 +203,7 @@ router.get("/profile/:userId", async (req, res) => {
     const { userId } = req.params;
     const { data, error } = await supabase
       .from("players")
-      .select("user_id, zalo_name, avatar, crm_tier, crm_spend_alltime, crm_orders_alltime, total_points, profile_changed_at, is_blocked, chat_locked_until, charm_points, custom_badges")
+      .select("user_id, zalo_name, avatar, crm_tier, crm_spend_alltime, crm_orders_alltime, total_points, profile_changed_at, is_blocked, chat_locked_until, charm_points, custom_badges, selected_badge, chat_charm_badge")
       .eq("user_id", userId)
       .single();
     if (error) throw error;
@@ -289,6 +289,41 @@ router.post("/notifications/mark-read", async (req, res) => {
     res.json({ success: true });
   } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
+
+// PATCH /profile/:userId/preferences — save user display badge preferences
+router.patch("/profile/:userId/preferences", async (req, res) => {
+  try {
+    const userId = String(req.params.userId || "").replace(/\D/g, "").replace(/^84/, "0");
+    if (!userId) return res.status(400).json({ success:false, message:"Missing userId" });
+
+    const allowed = ["member","loyal","silver","gold","partner","diamond","loyal_partner","champion","hof_1","hof_2","hof_3","idol","ngoi_sao","minh_tinh", null];
+
+    const payload = {};
+    if ("selected_badge" in req.body && allowed.includes(req.body.selected_badge)) {
+      payload.selected_badge = req.body.selected_badge;
+    }
+    if ("chat_charm_badge" in req.body && ["idol","ngoi_sao","minh_tinh",null].includes(req.body.chat_charm_badge)) {
+      payload.chat_charm_badge = req.body.chat_charm_badge;
+    }
+
+    if (!Object.keys(payload).length) {
+      return res.json({ success:true, data:{} });
+    }
+
+    const { data, error } = await supabase
+      .from("players")
+      .update(payload)
+      .eq("user_id", userId)
+      .select("user_id, selected_badge, chat_charm_badge")
+      .maybeSingle();
+
+    if (error) throw error;
+    res.json({ success:true, data });
+  } catch (err) {
+    res.status(500).json({ success:false, error:err.message });
+  }
+});
+
 
 module.exports = router;
 
