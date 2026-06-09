@@ -203,7 +203,7 @@ router.get("/profile/:userId", async (req, res) => {
     const { userId } = req.params;
     const { data, error } = await supabase
       .from("players")
-      .select("user_id, zalo_name, avatar, crm_tier, crm_spend_alltime, crm_orders_alltime, total_points, profile_changed_at, is_blocked, chat_locked_until, charm_points, custom_badges, selected_badge, chat_charm_badge")
+      .select("user_id, zalo_name, avatar, crm_tier, crm_spend_alltime, crm_spend_weekly, crm_spend_monthly, crm_spend_quarterly, crm_spend_yearly, crm_spend_custom, crm_orders_alltime, total_points, profile_changed_at, is_blocked, chat_locked_until, charm_points, custom_badges, selected_badge, chat_charm_badge")
       .eq("user_id", userId)
       .single();
     if (error) throw error;
