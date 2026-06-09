@@ -11,6 +11,7 @@ const {
 );
 
 const supabase =
+const { normalizePhone } = require("../utils/phoneIdentity");
   require("../supabase");
 
 /**
@@ -475,7 +476,7 @@ router.get("/history/:phone", async (req, res) => {
     const supabase = require("../supabase");
 
     // Chuẩn hóa phone
-    const phoneNorm = phone.replace(/\D/g,"").replace(/^84/,"0");
+    const phoneNorm = normalizePhone(phone);
 
     // 1. Lấy từ iPOS CRM
     let iposOrders = [];

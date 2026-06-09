@@ -12,6 +12,7 @@ const router =
   express.Router();
 
 const {
+const { normalizePhone } = require("../utils/phoneIdentity");
 
   useGamePlay,
 
@@ -170,7 +171,7 @@ router.get("/plays/:userId", async (req, res) => {
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
     if (isUUID) {
       const { data: customer } = await supabase.from("customers").select("phone").eq("id", userId).maybeSingle();
-      if (customer?.phone) userId = customer.phone.replace(/\D/g,"").replace(/^84/,"0");
+      if (customer?.phone) userId = normalizePhone(customer.phone);
     }
 
     const { data: player } = await supabase.from("players").select("game_plays, total_points").eq("user_id", userId).maybeSingle();

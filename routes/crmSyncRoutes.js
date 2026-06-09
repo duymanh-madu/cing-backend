@@ -9,6 +9,7 @@
 const express = require("express");
 const router  = express.Router();
 const {
+const { normalizePhone } = require("../utils/phoneIdentity");
   syncAllPlayersCrmSpending,
   syncSingleUserSpending,
 } = require("../services/crm/crmSpendingSyncService");
@@ -84,7 +85,7 @@ router.post("/sync-one", async (req, res) => {
   try {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ success: false, message: "Thiếu phone" });
-    const n = phone.replace(/\D/g,"").replace(/^84/,"0");
+    const n = normalizePhone(phone);
     const { syncOnePlayer } = require('../services/crm/crmSpendingSyncService');
     const result = await syncOnePlayer({ user_id: n });
     res.json({ success: true, result });

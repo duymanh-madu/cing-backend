@@ -3,6 +3,7 @@ const router  = express.Router();
 const jwt     = require('jsonwebtoken');
 const supabase = require('../supabase');
 const JWT_SECRET = process.env.JWT_SECRET || 'cing-admin-secret-2026';
+const { normalizePhone } = require("../utils/phoneIdentity");
 
 function requireAdmin(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -207,7 +208,7 @@ router.post('/member-action', requireAdmin, async (req, res) => {
 router.post('/add-member', requireAdmin, async (req, res) => {
   try {
     const { phone, name } = req.body;
-    const p = phone.replace(/\D/g,'').replace(/^84/,'0');
+    const p = normalizePhone(phone);
     const { data: existing } = await supabase.from('players').select('user_id').eq('user_id', p).maybeSingle();
     if (existing) return res.status(400).json({ success: false, message: 'Thành viên đã tồn tại' });
     await supabase.from('players').insert({ user_id: p, zalo_name: name || p, game_plays: 0, total_points: 0 });

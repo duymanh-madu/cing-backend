@@ -4,6 +4,7 @@ const supabase = require("../supabase");
 const { pushOrderToIPOS } = require("../services/iposOrderService");
 const { calculateOrderPoints } = require("../services/membershipBenefitsService");
 const redisClient = require("../services/infrastructure/cache/redisClient");
+const { normalizePhone } = require("../utils/phoneIdentity");
 
 router.post("/momo", async (req, res) => {
   const { resultCode, orderId, transId, amount, message } = req.body;
@@ -113,7 +114,7 @@ router.post("/momo", async (req, res) => {
       .eq("transaction_code", orderId);
 
     // Resolve phone từ customer_phone — dùng xuyên suốt thay vì UUID
-    const resolvedPhone = (order.customer_phone || "").replace(/\D/g,"").replace(/^84/,"0");
+    const resolvedPhone = normalizePhone(order.customer_phone);
 
     // ─── 0. Emit payment.success realtime → frontend navigate ngay ──
     try {
@@ -193,7 +194,7 @@ router.post("/momo", async (req, res) => {
     // ─── 5. Cộng điểm theo tier ────────────────────────────────────
     try {
       const { addPoints } = require("../services/loyaltyPointService");
-      const playerPhone = (order.customer_phone || "").replace(/\D/g,"").replace(/^84/,"0");
+      const playerPhone = normalizePhone(order.customer_phone);
       const { data: player } = await supabase
         .from("players")
         .select("crm_tier")
@@ -203,7 +204,7 @@ router.post("/momo", async (req, res) => {
       const finalAmount = order.total_amount || 0;
       const pointsToAdd = calculateOrderPoints(finalAmount, tierKey);
       if (pointsToAdd > 0) {
-        const pointPhone = (order.customer_phone || "").replace(/\D/g,"").replace(/^84/,"0");
+        const pointPhone = normalizePhone(order.customer_phone);
         await addPoints({
           phone:   pointPhone || order.customer_phone,
           user_id: pointPhone || order.customer_phone,
@@ -220,7 +221,7 @@ router.post("/momo", async (req, res) => {
     try {
       const { syncSingleUserSpending } = require("../services/crm/crmSpendingSyncService");
       // Dùng customer_phone thật để getMembershipLog hoạt động đúng
-      const spendPhone = (order.customer_phone || "").replace(/\D/g,"").replace(/^84/,"0");
+      const spendPhone = normalizePhone(order.customer_phone);
       if (spendPhone && spendPhone.length >= 9) {
         await syncSingleUserSpending(spendPhone);
         console.log("[MOMO IPN] Spending synced for", spendPhone);

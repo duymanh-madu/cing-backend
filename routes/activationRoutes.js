@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../supabase");
 const { getMember } = require("../services/foodbook");
+const { normalizePhone } = require("../utils/phoneIdentity");
 
 /**
  * POST /api/activation/bootstrap
@@ -36,7 +37,7 @@ router.post("/bootstrap", async (req, res) => {
       if (cleanPhone && zaloUserId) {
         await supabase.from("players")
           .update({ zalo_user_id: zaloUserId, zalo_name: zaloName||"Cing Customer", zalo_avatar: zaloAvatar||null })
-          .eq("user_id", cleanPhone.replace(/^84/, "0"))
+          .eq("user_id", normalizePhone(cleanPhone))
           .is("zalo_user_id", null);
       }
     }
@@ -49,7 +50,7 @@ router.post("/bootstrap", async (req, res) => {
         let q = supabase.from("players")
           .select("zalo_name,avatar,profile_changed_at")
           .not("profile_changed_at", "is", null);
-        if (cleanPhone) q = q.eq("user_id", cleanPhone.replace(/^84/,"0"));
+        if (cleanPhone) q = q.eq("user_id", normalizePhone(cleanPhone));
         else q = q.eq("zalo_user_id", zaloUserId);
         const { data: customPlayer } = await q.maybeSingle();
         if (customPlayer?.profile_changed_at) {

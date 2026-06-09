@@ -5,6 +5,7 @@ const router =
   express.Router();
 
 const {
+const { normalizePhone } = require("../utils/phoneIdentity");
 
   getGlobalLeaderboard,
 
@@ -228,7 +229,7 @@ router.get("/user-game-rank/:userId/:gameKey", async (req, res) => {
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
     if (isUUID) {
       const { data: customer } = await supabase.from("customers").select("phone").eq("id", userId).maybeSingle();
-      if (customer?.phone) lookupId = customer.phone.replace(/\D/g,"").replace(/^84/,"0");
+      if (customer?.phone) lookupId = normalizePhone(customer.phone);
     }
 
     // Filter weekly (played_at >= last Monday)

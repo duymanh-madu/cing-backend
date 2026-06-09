@@ -18,6 +18,7 @@ const sessionRepository =
   );
 
 const tokenService =
+const { normalizePhone } = require("../../utils/phoneIdentity");
   require(
     "./tokenService"
   );
@@ -58,7 +59,7 @@ async function loginWithZalo({
   // Lấy birthday từ iPOS nếu chưa có
   if (!zaloUser.birthday) {
     try {
-      const phone = (zaloUser.phone || "").replace(/\D/g,"").replace(/^84/,"0");
+      const phone = normalizePhone(zaloUser.phone);
       if (phone) {
         const { getMember } = require("../foodbook");
         const memberResult = await getMember(phone).catch(() => null);

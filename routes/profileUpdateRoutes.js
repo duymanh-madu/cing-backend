@@ -11,6 +11,7 @@ const upload = multer({
 
 const COOLDOWN_DAYS = 10;
 const POINT_COST    = 10;
+const { normalizePhone } = require("../utils/phoneIdentity");
 
 function getCooldownStatus(profileChangedAt, currentPoints) {
   const now       = new Date();
@@ -238,7 +239,7 @@ router.post("/birthday", async (req, res) => {
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user_id);
     if (isUUID) {
       const { data: c } = await supabase.from("customers").select("phone").eq("id", user_id).maybeSingle();
-      if (c?.phone) phone = c.phone.replace(/\D/g,"").replace(/^84/,"0");
+      if (c?.phone) phone = normalizePhone(c.phone);
     }
 
     // Update customers table
@@ -265,7 +266,7 @@ router.post("/birthday", async (req, res) => {
 router.get("/notifications/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const phone = userId.replace(/\D/g,"").replace(/^84/,"0");
+    const phone = normalizePhone(userId);
     const { data } = await supabase.from("notifications")
       .select("id, type, title, message, metadata, is_read, created_at")
       .eq("user_id", phone)
@@ -280,7 +281,7 @@ router.get("/notifications/:userId", async (req, res) => {
 router.post("/notifications/mark-read", async (req, res) => {
   try {
     const { userId, ids } = req.body;
-    const phone = userId.replace(/\D/g,"").replace(/^84/,"0");
+    const phone = normalizePhone(userId);
     if (ids?.length) {
       await supabase.from("notifications").update({ is_read: true }).in("id", ids).eq("user_id", phone);
     } else {
@@ -293,7 +294,7 @@ router.post("/notifications/mark-read", async (req, res) => {
 // PATCH /profile/:userId/preferences — save user display badge preferences
 router.patch("/profile/:userId/preferences", async (req, res) => {
   try {
-    const userId = String(req.params.userId || "").replace(/\D/g, "").replace(/^84/, "0");
+    const userId = normalizePhone(req.params.userId);
     if (!userId) return res.status(400).json({ success:false, message:"Missing userId" });
 
     const allowed = ["member","loyal","silver","gold","partner","diamond","loyal_partner","champion","hof_1","hof_2","hof_3","idol","ngoi_sao","minh_tinh", null];
@@ -331,7 +332,7 @@ module.exports = router;
 router.get("/plays-history/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const phone = userId.replace(/\D/g,"").replace(/^84/,"0");
+    const phone = normalizePhone(userId);
     const { data: playerData } = await supabase
       .from("players").select("user_id, zalo_user_id")
       .eq("user_id", phone).maybeSingle();
@@ -361,7 +362,7 @@ router.get("/plays-history/:userId", async (req, res) => {
 router.get("/points-history/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const phone = userId.replace(/\D/g,"").replace(/^84/,"0");
+    const phone = normalizePhone(userId);
     const { data: playerData } = await supabase
       .from("players").select("user_id, zalo_user_id")
       .eq("user_id", phone).maybeSingle();

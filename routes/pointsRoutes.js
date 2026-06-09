@@ -4,6 +4,7 @@ const supabase = require("../supabase");
 const { deductPoints } = require("../services/loyaltyPointService");
 
 const POINTS_PER_PLAY = 5;
+const { normalizePhone } = require("../utils/phoneIdentity");
 
 // GET /api/points/:user_id
 router.get("/:user_id", async (req, res) => {
@@ -76,7 +77,7 @@ router.post("/pay-with-points", async (req, res) => {
     const { user_id, phone, points, order_id, order_data } = req.body;
     if (!user_id || !points) return res.status(400).json({ success: false, message: "Thiếu thông tin" });
 
-    const finalPhone = (phone || user_id).replace(/\D/g,"").replace(/^84/,"0");
+    const finalPhone = normalizePhone(phone || user_id);
 
     // 1. Deduct points
     const result = await deductPoints({
@@ -128,7 +129,7 @@ router.post("/exchange-voucher", async (req, res) => {
     if (!user_id || !points || points <= 0) 
       return res.status(400).json({ success: false, message: "Thiếu thông tin" });
 
-    const finalPhone = (phone || user_id).replace(/\D/g,"").replace(/^84/,"0");
+    const finalPhone = normalizePhone(phone || user_id);
     const phoneIpos = "84" + finalPhone.replace(/^0/, "");
 
     // 1. Kiểm tra đủ điểm
