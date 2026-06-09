@@ -18,10 +18,11 @@ const sessionRepository =
   );
 
 const tokenService =
-const { normalizePhone } = require("../../utils/phoneIdentity");
   require(
     "./tokenService"
   );
+
+const { normalizePhone } = require("../../utils/phoneIdentity");
 
 const logger =
   require(

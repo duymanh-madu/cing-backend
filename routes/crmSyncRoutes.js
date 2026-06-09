@@ -9,10 +9,11 @@
 const express = require("express");
 const router  = express.Router();
 const {
-const { normalizePhone } = require("../utils/phoneIdentity");
   syncAllPlayersCrmSpending,
   syncSingleUserSpending,
 } = require("../services/crm/crmSpendingSyncService");
+
+const { normalizePhone } = require("../utils/phoneIdentity");
  
 /**
  * POST /crm/sync-spending

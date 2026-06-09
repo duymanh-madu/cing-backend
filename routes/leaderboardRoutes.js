@@ -5,8 +5,6 @@ const router =
   express.Router();
 
 const {
-const { normalizePhone } = require("../utils/phoneIdentity");
-
   getGlobalLeaderboard,
 
   getTopSpenders,
@@ -18,6 +16,8 @@ const { normalizePhone } = require("../utils/phoneIdentity");
 } = require(
   "../services/leaderboardService"
 );
+
+const { normalizePhone } = require("../utils/phoneIdentity");
 
 /**
  * ============================================
