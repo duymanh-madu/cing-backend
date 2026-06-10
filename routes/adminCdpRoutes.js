@@ -93,7 +93,7 @@ router.get("/segment-users/:segmentKey", requireAdmin, async (req, res) => {
     const day90ago = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString();
 
     let query = supabase.from("players")
-      .select("user_id, zalo_name, crm_tier, crm_spend_alltime, crm_orders_alltime, crm_synced_at")
+      .select("user_id, display_name, zalo_name, avatar, zalo_avatar, crm_tier, crm_spend_alltime, crm_orders_alltime, crm_synced_at")
       .limit(Number(limit));
 
     if (segmentKey === "vip")          query = query.eq("crm_tier", "diamond");

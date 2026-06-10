@@ -23,7 +23,7 @@ router.get('/online', requireAdmin, async (req, res) => {
     let players = [];
     if (ids.length > 0) {
       const { data } = await supabase.from('players')
-        .select('user_id, zalo_name, avatar, crm_tier, total_points, crm_spend_alltime, last_seen_at')
+        .select('user_id, display_name, zalo_name, avatar, zalo_avatar, crm_tier, total_points, crm_spend_alltime, last_seen_at')
         .in('user_id', ids);
       players = data || [];
     }
@@ -35,8 +35,8 @@ router.get('/online', requireAdmin, async (req, res) => {
       const gameMs = u.gameStartedAt ? Date.now() - new Date(u.gameStartedAt).getTime() : 0;
       return {
         ...u,
-        name:              p.zalo_name || u.name || u.userId,
-        avatar:            p.avatar    || u.avatar || '',
+        name:              p.display_name || p.zalo_name || u.name || u.userId,
+        avatar:            p.avatar || p.zalo_avatar || u.avatar || '',
         tier:              p.crm_tier  || 'member',
         points:            p.total_points || 0,
         spend:             p.crm_spend_alltime || 0,
@@ -59,7 +59,7 @@ router.get('/recent-offline', requireAdmin, async (req, res) => {
   try {
     const onlineIds = [...(global.onlineUsers||new Map()).keys()];
     const { data } = await supabase.from('players')
-      .select('user_id, zalo_name, avatar, crm_tier, total_points, last_seen_at, is_online')
+      .select('user_id, display_name, zalo_name, avatar, zalo_avatar, crm_tier, total_points, last_seen_at, is_online')
       .eq('is_online', false)
       .not('last_seen_at', 'is', null)
       .order('last_seen_at', { ascending: false })
@@ -70,8 +70,8 @@ router.get('/recent-offline', requireAdmin, async (req, res) => {
       .filter(p => !onlineIds.includes(p.user_id))
       .map(p => ({
         userId:   p.user_id,
-        name:     p.zalo_name || p.user_id,
-        avatar:   p.avatar || '',
+        name:     p.display_name || p.zalo_name || p.user_id,
+        avatar:   p.avatar || p.zalo_avatar || '',
         tier:     p.crm_tier || 'member',
         points:   p.total_points || 0,
         lastSeen: p.last_seen_at,
@@ -151,7 +151,7 @@ router.get('/players-badges', requireAdmin, async (req, res) => {
     let all = [], from = 0, size = 1000;
     while (true) {
       const { data, error } = await supabase.from('players')
-        .select('user_id, zalo_name, zalo_avatar, crm_tier, custom_badges, is_blocked, chat_locked_until')
+        .select('user_id, display_name, zalo_name, avatar, zalo_avatar, crm_tier, custom_badges, is_blocked, chat_locked_until')
         .order('zalo_name', { ascending: true })
         .range(from, from + size - 1);
       if (error) throw error;
