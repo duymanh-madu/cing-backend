@@ -50,7 +50,7 @@ function buildPayload(order, momo_trans_id = "") {
     is_estimate:     0,
     client: order.payment_method === "momo" ? "momo" : "online",
     PaymentInfo: {
-      Payment_Method: order.payment_method === "momo" ? "MOMO_ORDER_ONLINE" : "BANK_TRANSFER",
+      Payment_Method: "BANK_TRANSFER",
       Payment_Info: momo_trans_id ? "MOMO-" + momo_trans_id : (order.payment_method === "momo" ? "MOMO" : ""),
       Amount: order.total_amount || 0,
       Trans_Verified: momo_trans_id ? 1 : 0,
