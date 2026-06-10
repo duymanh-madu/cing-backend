@@ -148,7 +148,7 @@ router.post("/momo", async (req, res) => {
       const orderWithMeta = {
         ...order,
         order_type: snap.order_type || (snap.shipping_address ? "DELI" : "STORE"),
-        note: [snap.note, afterHoursNote].filter(Boolean).join(" | "),
+        note: [snap.note || snap.customer_note || "", afterHoursNote].filter(Boolean).join(" | "),
         payment_method: "momo",
       };
       const iposResult = await pushOrderToIPOS({

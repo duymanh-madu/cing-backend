@@ -39,17 +39,15 @@ function buildPayload(order, momo_trans_id = "") {
     order_type,
     user_id:         iposUserId,
     username:        order.customer_name || "Khách hàng",
-    note:            order.payment_method === "points" ? `[Điểm tích lũy] ${order.note || ""}`.trim() : (order.note || ""),
+    note:            (() => {
+      const userNote = order.note || order.customer_note || "";
+      const prefix = order.payment_method === "points" ? "[Điểm tích lũy] " : "";
+      return (prefix + userNote).trim();
+    })(),
     to_address:      order.shipping_address || "",
     ship_price_real: order.shipping_fee || 0,
-    // Tính giá trị thực khách trả = total_amount - tier_discount - points_discount
-    ...(() => {
-      const gross         = order.total_amount || order.subtotal || 0;
-      const tierDiscount  = order.tier_discount   || 0;
-      const pointsDiscount = order.points_discount || (order.points_used ? order.points_used * 1000 : 0);
-      const netAmount     = Math.max(0, gross - tierDiscount - pointsDiscount);
-      return { amount: netAmount, total_amount: netAmount };
-    })(),
+    amount:       order.total_amount || 0,
+    total_amount: order.total_amount || 0,
     adapt_to_online: 1,
     return_data:     "full",
     is_pending:      0,
