@@ -86,11 +86,6 @@ router.use(
 );
 
 router.use(
-  "/wheel",
-  require("./wheelRoutes")
-);
-
-router.use(
   "/levels",
   require("./levelRoutes")
 );
