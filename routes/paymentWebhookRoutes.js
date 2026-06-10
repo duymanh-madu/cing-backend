@@ -258,12 +258,14 @@ router.post("/momo", async (req, res) => {
           console.log(`[MOMO IPN] +${bonusPlays} plays from spending for ${phone}`);
         }
 
-        await supabase.from("players").update(updateData).eq("user_id", phone);
+        const { data: updated, error: updateErr } = await supabase.from("players")
+          .update(updateData).eq("user_id", phone).select("crm_spend_alltime,plays_from_spend,game_plays");
+        if (updateErr) console.warn("[MOMO IPN] Player update error:", updateErr.message);
 
-        // Đánh dấu đơn đã sync spending — iPos webhook sẽ bỏ qua spending sync
+        // Đánh dấu đơn đã sync spending
         await supabase.from("orders").update({ spending_synced: true }).eq("id", order.id);
 
-        console.log(`[MOMO IPN] Instant spending +${amount} for ${phone} | week:${newWeekly} month:${newMonthly}`);
+        console.log(`[MOMO IPN] Instant spending +${amount} for ${phone} | week:${newWeekly} month:${newMonthly} alltime:${newAlltime} plays:${updated?.[0]?.game_plays}`);
       }
     } catch (e) {
       console.warn("[MOMO IPN] Instant spending failed:", e.message);
