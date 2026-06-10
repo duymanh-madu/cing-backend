@@ -178,7 +178,7 @@ router.get('/members-list', requireAdmin, async (req, res) => {
     let all = [], from = 0, size = 1000;
     while (true) {
       let query = supabase.from('players')
-        .select('user_id, zalo_name, zalo_avatar, crm_tier, is_blocked, chat_locked_until, member_activated, created_at')
+        .select('user_id, zalo_name, zalo_avatar, crm_tier, is_blocked, chat_locked_until, member_activated, created_at, crm_spend_alltime, crm_spend_monthly, charm_points, total_points, game_plays')
         .order('created_at', { ascending: false });
       if (req.query.activated_only === 'true') query = query.eq('member_activated', true);
       const { data, error } = await query.range(from, from + size - 1);
