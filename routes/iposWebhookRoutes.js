@@ -135,8 +135,11 @@ router.post("/callback", async (req, res) => {
       // Nếu đơn đã được instant sync từ MoMo IPN thì bỏ qua để tránh duplicate
       try {
         let skipSync = false;
-        if (body.sale_manager?.foodbook_code || body.membership_log?.foodbook_code) {
-          const foodbookCode = body.sale_manager?.foodbook_code || body.membership_log?.foodbook_code;
+        // foodbook_code có thể ở nhiều event khác nhau
+        const foodbookCode = body.notify_order_online?.foodbook_code
+          || body.sale_manager?.foodbook_code
+          || body.membership_log?.foodbook_code;
+        if (foodbookCode) {
           const { data: existingOrder } = await supabase
             .from("orders")
             .select("spending_synced")
