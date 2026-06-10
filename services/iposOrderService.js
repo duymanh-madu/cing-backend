@@ -56,7 +56,7 @@ function buildPayload(order, momo_trans_id = "") {
     PaymentInfo: {
       Payment_Method: "MOMO_QR_AIO",
       Payment_Info: momo_trans_id ? "MOMO-" + momo_trans_id : (order.payment_method === "momo" ? "MOMO" : ""),
-      Amount: Math.max(0, (order.total_amount||0) - (order.tier_discount||0) - (order.points_discount || (order.points_used ? order.points_used*1000 : 0))),
+      Amount: order.total_amount || 0,
       Trans_Verified: momo_trans_id ? 1 : 0,
     },
 
