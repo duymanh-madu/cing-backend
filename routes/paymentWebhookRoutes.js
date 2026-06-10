@@ -135,13 +135,20 @@ router.post("/momo", async (req, res) => {
       console.log("[MOMO IPN] Emitted payment.success for", order.user_id);
     } catch(e) { console.warn("[MOMO IPN] Realtime emit failed:", e.message); }
 
-    // ─── 1. Push lên iPOS ──────────────────────────────────────────
+    // ─── 1. Push lên iPOS (kèm logic giờ) ───────────────────────
+    const nowVN = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+    const hourVN = nowVN.getHours();
+    // 8:00–23:00: bình thường | 23:00–8:00: vẫn push, thêm note "đặt ngoài giờ"
+    const isAfterHours = hourVN >= 23 || hourVN < 8;
+    const afterHoursNote = isAfterHours
+      ? "[ĐẶT NGOÀI GIỜ] Khách đã thanh toán online. Giao hàng lúc 8:00 sáng hôm sau."
+      : "";
+
     try {
-      // Bổ sung order_type và note từ snap vì orders table không có columns này
       const orderWithMeta = {
         ...order,
         order_type: snap.order_type || (snap.shipping_address ? "DELI" : "STORE"),
-        note: snap.note || "",
+        note: [snap.note, afterHoursNote].filter(Boolean).join(" | "),
         payment_method: "momo",
       };
       const iposResult = await pushOrderToIPOS({
@@ -150,12 +157,31 @@ router.post("/momo", async (req, res) => {
         momo_trans_id: String(transId || ""),
       });
       if (iposResult.success) {
-        console.log("[MOMO IPN] Pushed to iPOS OK:", order.order_code);
+        console.log("[MOMO IPN] Pushed to iPOS OK:", order.order_code, isAfterHours ? "(after-hours)" : "");
       } else {
         console.error("[MOMO IPN] iPOS push failed:", iposResult.error);
       }
     } catch (e) {
       console.error("[MOMO IPN] iPOS push exception:", e.message);
+    }
+
+    // ─── 1b. Thông báo đặc biệt nếu sau 23:00 ─────────────────────
+    if (isAfterHours) {
+      try {
+        const { broadcastNotification } = require("../services/notificationService");
+        const playerPhone = normalizePhone(order.customer_phone);
+        await broadcastNotification({
+          template_key: "CAMPAIGN_BROADCAST",
+          target_user_ids: [playerPhone],
+          custom: {
+            title: "✅ Thanh toán thành công!",
+            message: "Đơn hàng của bạn đã được thanh toán thành công. Hiện nay cửa hàng đã đóng cửa, cửa hàng sẽ liên hệ lại với bạn để giao hàng vào 8:00 sáng hôm sau.",
+          },
+        });
+        console.log("[MOMO IPN] After-hours notification sent to", playerPhone);
+      } catch (e) {
+        console.warn("[MOMO IPN] After-hours notification failed:", e.message);
+      }
     }
 
     // ─── 2. Daily missions ─────────────────────────────────────────
