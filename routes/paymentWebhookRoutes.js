@@ -116,6 +116,9 @@ router.post("/momo", async (req, res) => {
       .update({ order_created: true, order_id: order.id })
       .eq("transaction_code", orderId);
 
+    // Đánh dấu spending_synced ngay — trước khi push iPos để tránh race condition
+    await supabase.from("orders").update({ spending_synced: true }).eq("id", order.id);
+
     // Resolve phone từ customer_phone — dùng xuyên suốt thay vì UUID
     const resolvedPhone = normalizePhone(order.customer_phone);
 
