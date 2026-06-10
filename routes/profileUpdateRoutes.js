@@ -64,7 +64,7 @@ router.post("/save/:userId", async (req, res) => {
       const { data: existing } = await supabase
         .from("players")
         .select("user_id")
-        .eq("zalo_name", newName)
+        .or(`custom_name.eq.${newName},zalo_name.eq.${newName}`)
         .not("user_id", "eq", userId)
         .not("profile_changed_at", "is", null) // Chỉ check các user đã tự đổi tên
         .maybeSingle();
@@ -82,7 +82,7 @@ router.post("/save/:userId", async (req, res) => {
 
     const { data: player } = await supabase
       .from("players")
-      .select("profile_changed_at, total_points, zalo_name, avatar")
+      .select("profile_changed_at, total_points, zalo_name, custom_name, avatar")
       .eq("user_id", userId)
       .single();
 
@@ -129,8 +129,8 @@ router.post("/save/:userId", async (req, res) => {
       updates.avatar = avatarUrl;
     }
 
-    const newName = display_name?.trim() || player?.zalo_name;
-    if (display_name?.trim()) updates.zalo_name = newName;
+    const newName = display_name?.trim() || player?.custom_name || player?.zalo_name;
+    if (display_name?.trim()) updates.custom_name = newName;
 
     const { error } = await supabase.from("players").update(updates).eq("user_id", userId);
     if (error) throw error;
@@ -204,7 +204,7 @@ router.get("/profile/:userId", async (req, res) => {
     const { userId } = req.params;
     const { data, error } = await supabase
       .from("players")
-      .select("user_id, zalo_name, avatar, crm_tier, crm_spend_alltime, crm_spend_weekly, crm_spend_monthly, crm_spend_quarterly, crm_spend_yearly, crm_spend_custom, crm_orders_alltime, total_points, profile_changed_at, is_blocked, chat_locked_until, charm_points, custom_badges, selected_badge, chat_charm_badge")
+      .select("user_id, zalo_name, custom_name, avatar, crm_tier, crm_spend_alltime, crm_spend_weekly, crm_spend_monthly, crm_spend_quarterly, crm_spend_yearly, crm_spend_custom, crm_orders_alltime, total_points, profile_changed_at, is_blocked, chat_locked_until, charm_points, custom_badges, selected_badge, chat_charm_badge")
       .eq("user_id", userId)
       .single();
     if (error) throw error;
