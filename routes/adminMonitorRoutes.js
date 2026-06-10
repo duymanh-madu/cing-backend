@@ -175,19 +175,21 @@ router.post('/update-player-badges', requireAdmin, async (req, res) => {
 // GET /api/admin/monitor/members-list
 router.get('/members-list', requireAdmin, async (req, res) => {
   try {
-    let all = [], from = 0, size = 1000;
-    while (true) {
-      let query = supabase.from('players')
-        .select('user_id, zalo_name, zalo_avatar, crm_tier, is_blocked, chat_locked_until, member_activated, created_at, crm_spend_alltime, crm_spend_monthly, charm_points, total_points, game_plays')
-        .order('created_at', { ascending: false });
-      if (req.query.activated_only === 'true') query = query.eq('member_activated', true);
-      const { data, error } = await query.range(from, from + size - 1);
-      if (error) throw error;
-      all = all.concat(data || []);
-      if (!data || data.length < size) break;
-      from += size;
-    }
-    res.json({ success: true, data: all });
+    let query = supabase.from('players')
+      .select('user_id, zalo_name, zalo_avatar, crm_tier, is_blocked, chat_locked_until, member_activated, created_at, crm_spend_alltime, crm_spend_monthly, charm_points, total_points, game_plays')
+      .order('crm_spend_alltime', { ascending: false })
+      .limit(5000);
+    if (req.query.activated_only === 'true') query = query.eq('member_activated', true);
+    const { data, error } = await query;
+    if (error) throw error;
+    // Deduplicate by user_id
+    const seen = new Set();
+    const deduped = (data || []).filter(p => {
+      if (seen.has(p.user_id)) return false;
+      seen.add(p.user_id);
+      return true;
+    });
+    res.json({ success: true, data: deduped });
   } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
