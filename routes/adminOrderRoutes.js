@@ -19,7 +19,7 @@ router.get("/list", requireAdmin, async (req, res) => {
     const off = (Number(page)-1) * Number(limit);
 
     let query = supabase.from("orders")
-      .select("id,order_code,customer_name,customer_phone,total_amount,status,payment_method,payment_status,type,created_at,items,shipping_address", { count:"exact" })
+      .select("id,order_code,customer_name,customer_phone,total_amount,status,payment_method,payment_status,created_at,items,shipping_address,order_type,note", { count:"exact" })
       .order("created_at", { ascending:false })
       .range(off, off + Number(limit) - 1);
 
