@@ -218,6 +218,18 @@ router.post("/momo", async (req, res) => {
         .select("crm_spend_weekly, crm_spend_monthly, crm_spend_yearly, crm_spend_alltime, game_plays, plays_from_spend")
         .eq("user_id", phone).single();
 
+      if (!player) {
+        await supabase.from("players").upsert({
+          user_id: phone,
+          crm_spend_weekly: amount, crm_spend_monthly: amount,
+          crm_spend_yearly: amount, crm_spend_alltime: amount,
+          plays_from_spend: Math.floor(amount / (spendPerPlay||20000)),
+          game_plays: Math.floor(amount / (spendPerPlay||20000)),
+          crm_synced_at: new Date().toISOString(),
+        }, { onConflict: "user_id" });
+        await supabase.from("orders").update({ spending_synced: true }).eq("id", order.id);
+        console.log(`[MOMO IPN] New player instant spending +${amount} for ${phone}`);
+      }
       if (player) {
         const spendPerPlay = await supabase.from("app_configs")
           .select("spend_per_play").eq("id",1).single()
