@@ -281,7 +281,7 @@ router.get("/leaderboard/alltime-games", async (req, res) => {
 
       const chessIds = (chessStats||[]).map(s => s.user_id);
       const { data: chessPlayers } = chessIds.length > 0
-        ? await supabase.from("players").select("user_id, zalo_name, avatar").in("user_id", chessIds)
+        ? await supabase.from("players").select("user_id, display_name, zalo_name, avatar").in("user_id", chessIds)
         : { data: [] };
       const cpMap = new Map((chessPlayers||[]).map(p => [p.user_id, p]));
 
@@ -290,7 +290,7 @@ router.get("/leaderboard/alltime-games", async (req, res) => {
         return {
           rank: i + 1,
           user_id: s.user_id,
-          player_name: p?.zalo_name || s.user_id,
+          player_name: p?.display_name || p?.zalo_name || s.user_id,
           avatar: p?.avatar || "",
           score: s.wins, // dùng wins làm score để hiển thị
           wins: s.wins,

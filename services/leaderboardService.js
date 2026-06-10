@@ -15,7 +15,7 @@ async function getTopSpenders({ period = "alltime", from, to, limit = 100 } = {}
 
   const { data, error } = await supabase
     .from("players")
-    .select(`user_id, zalo_name, name, avatar, crm_tier,
+    .select(`user_id, display_name, zalo_name, name, avatar, crm_tier,
              crm_spend_alltime, crm_spend_weekly, crm_spend_monthly,
              crm_spend_quarterly, crm_spend_yearly, crm_spend_custom,
              crm_orders_alltime`)
@@ -28,7 +28,7 @@ async function getTopSpenders({ period = "alltime", from, to, limit = 100 } = {}
   return (data || []).map((p, i) => ({
     rank:                 i + 1,
     user_id:              p.user_id,
-    player_name:          p.zalo_name || p.name || "Cing iu",
+    player_name:          p.display_name || p.zalo_name || p.name || "Cing iu",
     avatar:               p.avatar || "",
     crm_tier:             p.crm_tier || "",
     total_spent:          p[col] || 0,
@@ -80,7 +80,7 @@ async function getGameLeaderboard(gameKey, { limit = 100, weekly = true } = {}) 
   const userIds = [...bestMap.keys()];
   const { data: players } = await supabase
     .from("players")
-    .select("user_id, zalo_name, avatar")
+    .select("user_id, display_name, zalo_name, avatar")
     .in("user_id", userIds.slice(0, 500));
 
   const playerMap = new Map((players||[]).map(p => [String(p.user_id), p]));
@@ -97,7 +97,7 @@ async function getGameLeaderboard(gameKey, { limit = 100, weekly = true } = {}) 
       return {
         ...s,
         rank:        i + 1,
-        player_name: p?.zalo_name || s.player_name || "Cing iu",
+        player_name: p?.display_name || p?.zalo_name || s.player_name || "Cing iu",
         avatar:      p?.avatar    || s.avatar || "",
       };
     });
@@ -111,7 +111,7 @@ async function getUserRank(userId, { period = "alltime", from, to } = {}) {
     const col = PERIOD_COLUMN[period] || "crm_spend_alltime";
     const { data: player } = await supabase
       .from("players")
-      .select("user_id, zalo_name, avatar, crm_spend_alltime, crm_spend_weekly, crm_spend_monthly, crm_spend_custom, crm_spend_yearly")
+      .select("user_id, display_name, zalo_name, avatar, crm_spend_alltime, crm_spend_weekly, crm_spend_monthly, crm_spend_custom, crm_spend_yearly")
       .eq("user_id", userId)
       .single();
 
@@ -119,7 +119,7 @@ async function getUserRank(userId, { period = "alltime", from, to } = {}) {
       rank:                null,
       total:               all.length,
       user_id:             userId,
-      player_name:         player?.zalo_name || "Bạn",
+      player_name:         player?.display_name || player?.zalo_name || "Bạn",
       avatar:              player?.avatar || "",
       total_spent:         player?.[col] || 0,
       total_spent_all_time: player?.crm_spend_alltime || 0,

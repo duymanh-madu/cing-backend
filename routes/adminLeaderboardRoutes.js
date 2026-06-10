@@ -219,7 +219,7 @@ router.get("/alltime-games", requireAdmin, async (req, res) => {
       // Lấy tên mới nhất
       const userIds = [...bestMap.keys()].slice(0,200);
       const { data: players } = await supabase
-        .from("players").select("user_id,zalo_name,avatar").in("user_id", userIds);
+        .from("players").select("user_id,display_name,zalo_name,avatar").in("user_id", userIds);
       const pMap = new Map((players||[]).map(p=>[String(p.user_id),p]));
 
       const top100 = [...bestMap.values()]
@@ -227,7 +227,7 @@ router.get("/alltime-games", requireAdmin, async (req, res) => {
         .map((s,i) => {
           const p = pMap.get(String(s.user_id));
           return { rank:i+1, user_id:s.user_id,
-            player_name: p?.zalo_name||s.player_name||"Cing iu",
+            player_name: p?.display_name||p?.zalo_name||s.player_name||"Cing iu",
             avatar: p?.avatar||s.avatar||"",
             score: s.score, kills: s.kills||0 };
         });
