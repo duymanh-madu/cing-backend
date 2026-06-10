@@ -245,11 +245,45 @@ router.post("/momo", async (req, res) => {
         const newPlaysFromSpend = Math.floor(newAlltime / spendPerPlay);
         const bonusPlays = newPlaysFromSpend - oldPlaysFromSpend;
 
+// Custom leaderboard realtime
+let customSpendIncrement = 0;
+
+try {
+  const { data: cfg } = await supabase
+    .from("app_configs")
+    .select("custom_leaderboard_from, custom_leaderboard_to")
+    .eq("id", 1)
+    .single();
+
+  const now = new Date();
+
+  const from = cfg?.custom_leaderboard_from
+    ? new Date(cfg.custom_leaderboard_from + "T00:00:00")
+    : null;
+
+  const to = cfg?.custom_leaderboard_to
+    ? new Date(cfg.custom_leaderboard_to + "T23:59:59")
+    : null;
+
+  const inRange =
+    from &&
+    now >= from &&
+    (!to || now <= to);
+
+  if (inRange) {
+    customSpendIncrement = amount;
+  }
+} catch (e) {
+  console.warn("[MOMO IPN] Custom leaderboard check failed:", e.message);
+}
+
         const updateData = {
           crm_spend_weekly:  newWeekly,
           crm_spend_monthly: newMonthly,
           crm_spend_yearly:  newYearly,
           crm_spend_alltime: newAlltime,
+          crm_spend_custom:
+         Number(player.crm_spend_custom || 0) + customSpendIncrement,
           plays_from_spend:  newPlaysFromSpend,
         };
 
