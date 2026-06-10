@@ -18,7 +18,6 @@ router.post("/bootstrap", async (req, res) => {
     if (zaloUserId) {
       const playerData = {
         zalo_user_id: zaloUserId,
-        zalo_name: zaloName || "Cing Customer",
         zalo_avatar: zaloAvatar || null,
         last_login_at: new Date().toISOString(),
       };
@@ -36,9 +35,10 @@ router.post("/bootstrap", async (req, res) => {
       // Cập nhật zalo_user_id vào row theo phone (user_id)
       if (cleanPhone && zaloUserId) {
         await supabase.from("players")
-          .update({ zalo_user_id: zaloUserId, zalo_name: zaloName||"Cing Customer", zalo_avatar: zaloAvatar||null })
+          .update({ zalo_user_id: zaloUserId, zalo_avatar: zaloAvatar||null })
           .eq("user_id", normalizePhone(cleanPhone))
-          .is("zalo_user_id", null);
+          .is("zalo_user_id", null)
+          .is("profile_changed_at", null);
       }
     }
 

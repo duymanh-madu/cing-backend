@@ -78,6 +78,25 @@ async function importAllCrmCustomers() {
         };
       });
 
+    // Preserve custom profile name/avatar:
+    // Nếu player đã từng đổi profile (profile_changed_at != null), không import đè zalo_name từ CRM.
+    const phones = rawRows.map(r => r.user_id);
+    const { data: existingPlayers } = phones.length
+      ? await supabase
+          .from("players")
+          .select("user_id,zalo_name,profile_changed_at")
+          .in("user_id", phones)
+      : { data: [] };
+
+    const existingMap = new Map((existingPlayers || []).map(p => [p.user_id, p]));
+
+    for (const r of rawRows) {
+      const ex = existingMap.get(r.user_id);
+      if (ex?.profile_changed_at) {
+        r.zalo_name = ex.zalo_name;
+      }
+    }
+
     // DEDUPE trong cùng batch — tránh lỗi ON CONFLICT duplicate
     const seen      = new Set();
     const uniqueRows = rawRows.filter(r => {
