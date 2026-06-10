@@ -119,7 +119,7 @@ async function syncOnePlayer(player) {
       .from('players')
       .upsert({
         user_id: userId,
-        zalo_name: memberData.name || player.zalo_name || null,
+        zalo_name: player.profile_changed_at ? player.zalo_name : (memberData.name || player.zalo_name || null),
         name: memberData.name || player.name || null,
         crm_tier:            (() => {
           const rawTier = mapTierKey(memberData.membership_type_name || "");

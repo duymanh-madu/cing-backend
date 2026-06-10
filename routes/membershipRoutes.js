@@ -102,7 +102,16 @@ router.get("/:phone", async (req, res) => {
       };
       // Chỉ sync tên từ iPOS nếu user chưa tự đổi tên
       if (!existing?.profile_changed_at) {
-        syncData.zalo_name = memberData.name;
+        // Chỉ sync tên CRM/Zalo nếu user chưa từng tự đổi profile
+        const { data: existingPlayer } = await supabase
+          .from("players")
+          .select("profile_changed_at")
+          .eq("user_id", phone)
+          .maybeSingle();
+
+        if (!existingPlayer?.profile_changed_at) {
+          syncData.zalo_name = memberData.name;
+        }
       }
       await supabase.from("players").upsert(syncData, { onConflict: "user_id" });
     } catch(e) { console.warn("[MEMBERSHIP] Sync failed:", e.message); }

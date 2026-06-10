@@ -50,7 +50,7 @@ router.post(
       if (!zalo_id || !avatar) return res.json({ success: false });
       const supabase = require("../supabase");
       await Promise.all([
-        supabase.from("players").update({ avatar, zalo_avatar: avatar, ...(name ? { zalo_name: name } : {}) }).eq("zalo_user_id", zalo_id),
+        supabase.from("players").update({ avatar, zalo_avatar: avatar }).eq("zalo_user_id", zalo_id).is("profile_changed_at", null),
         supabase.from("customers").update({ avatar, ...(name ? { name } : {}) }).eq("zalo_id", zalo_id),
         supabase.from("game_scores").update({ avatar }).eq("user_id", 
           (await supabase.from("players").select("user_id").eq("zalo_user_id", zalo_id).maybeSingle()).data?.user_id || ""
