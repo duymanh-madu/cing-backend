@@ -9,6 +9,15 @@ const axios = require("axios");
 
 const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
 
+
+function normalizeDisplayUser(p = {}) {
+  return {
+    ...p,
+    display_name: p.display_name || p.zalo_name || p.user_id || "",
+    avatar: p.avatar || p.zalo_avatar || "",
+  };
+}
+
 async function sendZaloMessage(zalo_user_id, message) {
   try {
     const { data: config } = await supabase.from("app_configs")
@@ -108,7 +117,7 @@ router.get("/segment-users/:segmentKey", requireAdmin, async (req, res) => {
       // 7 ngày = weekly=0, 30 ngày = monthly=0, 90 ngày = quarterly=0
       // Ngoài ra dùng last_order_at nếu có
       let inactiveQuery = supabase.from("players")
-        .select("user_id, zalo_name, avatar, crm_spend_alltime, crm_orders_alltime, last_order_at, crm_synced_at", { count:"exact" })
+        .select("user_id, display_name, zalo_name, avatar, zalo_avatar, crm_spend_alltime, crm_orders_alltime, last_order_at, crm_synced_at", { count:"exact" })
         .gt("crm_orders_alltime", 0);
 
       if (days <= 7) {
@@ -125,12 +134,12 @@ router.get("/segment-users/:segmentKey", requireAdmin, async (req, res) => {
         .order("crm_spend_alltime", { ascending: false })
         .limit(Number(limit));
 
-      return res.json({ success:true, data: inactive||[], count: inactiveCount||0 });
+      return res.json({ success:true, data: (inactive||[]).map(normalizeDisplayUser), count: inactiveCount||0 });
     }
 
     const { data, error } = await query;
     if (error) throw error;
-    res.json({ success: true, data: data || [] });
+    res.json({ success: true, data: (data || []).map(normalizeDisplayUser) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
