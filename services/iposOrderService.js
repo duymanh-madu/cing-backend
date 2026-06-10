@@ -82,12 +82,7 @@ function buildPayload(order, momo_trans_id = "") {
 
     order_data_item: (() => {
       const items = order.items || [];
-      const tierDiscount = order.tier_discount || 0;
-      const subtotal = items.reduce((s, i) => s + (i.price||0) * (i.quantity||i.qty||1), 0);
       return items.map(item => {
-        const itemSubtotal = (item.price||0) * (item.quantity||item.qty||1);
-        // Phân bổ tier discount theo tỷ lệ giá từng item
-        const itemTierDiscount = subtotal > 0 ? Math.floor(tierDiscount * itemSubtotal / subtotal) : 0;
         return {
           Item_Type_Id: item.category || "",
           Item_Id:      String(item.item_id || item.id || item.ipos_id || ""),
@@ -95,7 +90,7 @@ function buildPayload(order, momo_trans_id = "") {
           Price:        item.price || 0,
           Quantity:     item.quantity || item.qty || 1,
           Note:         item.note || "",
-          Discount:     (item.discount || 0) + itemTierDiscount,
+          Discount:     item.discount || 0,
           Foc:          0,
           Package_Id:   "",
           Parent_Id:    "",
