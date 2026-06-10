@@ -256,6 +256,18 @@ router.post("/momo", async (req, res) => {
         if (bonusPlays > 0) {
           updateData.game_plays = Number(player.game_plays || 0) + bonusPlays;
           console.log(`[MOMO IPN] +${bonusPlays} plays from spending for ${phone}`);
+          // Ghi log vào analytics_events để hiển thị lịch sử
+          supabase.from("analytics_events").insert({
+            user_id: phone,
+            event_name: "plays_added",
+            event_data: {
+              amount: bonusPlays,
+              reason: `Tiêu dùng ${amount.toLocaleString("vi-VN")}đ — đơn ${order.order_code}`,
+              new_total: Number(player.game_plays || 0) + bonusPlays,
+              source: "spending",
+            },
+            created_at: new Date().toISOString(),
+          }).then(() => {}).catch(() => {});
         }
 
         const { data: updated, error: updateErr } = await supabase.from("players")
