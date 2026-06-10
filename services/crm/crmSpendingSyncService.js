@@ -135,6 +135,7 @@ async function syncOnePlayer(player) {
         crm_spend_custom:    custom,
         crm_orders_alltime:  allTimeOrders,
         crm_synced_at:       new Date().toISOString(), // UTC — Supabase chuẩn
+        member_activated:    allTimeOrders > 0 ? true : undefined,
       }, { onConflict: 'user_id' });
 
     if (error) {
