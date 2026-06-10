@@ -56,6 +56,33 @@ module.exports = router;
 module.exports.verifyAdmin = verifyAdmin;
 
 // GET /api/admin/auth/list — danh sách tài khoản admin
+// GET /api/admin/auth/system-badges — public badge map for app UI
+router.get("/system-badges", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("admins")
+      .select("user_id, role, active")
+      .eq("active", true)
+      .not("user_id", "is", null);
+
+    if (error) throw error;
+
+    const map = {};
+    for (const a of data || []) {
+      const uid = String(a.user_id || "").replace(/\D/g, "").replace(/^84/, "0");
+      if (!uid) continue;
+      map[uid] = {
+        role: a.role,
+        badge: a.role === "super_admin" ? "super_admin" : "admin",
+      };
+    }
+
+    res.json({ success: true, data: map });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 router.get("/list", verifyAdmin, async (req, res) => {
   try {
     const { data } = await supabase
