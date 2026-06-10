@@ -300,18 +300,8 @@ router.post("/momo", async (req, res) => {
       console.warn("[MOMO IPN] Point addition failed:", e.message);
     }
 
-    // ─── 5b. Sync spending → cộng lượt chơi game ──────────────────
-    try {
-      const { syncSingleUserSpending } = require("../services/crm/crmSpendingSyncService");
-      // Dùng customer_phone thật để getMembershipLog hoạt động đúng
-      const spendPhone = normalizePhone(order.customer_phone);
-      if (spendPhone && spendPhone.length >= 9) {
-        await syncSingleUserSpending(spendPhone);
-        console.log("[MOMO IPN] Spending synced for", spendPhone);
-      }
-    } catch(e) {
-      console.warn("[MOMO IPN] Spending sync failed:", e.message);
-    }
+    // ─── 5b. Spending đã được sync tại section 3b (instant) ────────
+    // syncSingleUserSpending bị bỏ để tránh overwrite instant spending
 
     // ─── 6. Thông báo ──────────────────────────────────────────────
     try {
