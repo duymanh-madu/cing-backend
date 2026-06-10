@@ -176,7 +176,23 @@ router.post('/update-player-badges', requireAdmin, async (req, res) => {
 router.get('/members-list', requireAdmin, async (req, res) => {
   try {
     let query = supabase.from('players')
-      .select('user_id, zalo_name, zalo_avatar, crm_tier, is_blocked, chat_locked_until, member_activated, created_at, crm_spend_alltime, crm_spend_monthly, charm_points, total_points, game_plays')
+      .select(`
+  user_id,
+  display_name,
+  zalo_name,
+  avatar,
+  zalo_avatar,
+  crm_tier,
+  is_blocked,
+  chat_locked_until,
+  member_activated,
+  created_at,
+  crm_spend_alltime,
+  crm_spend_monthly,
+  charm_points,
+  total_points,
+  game_plays
+`)
       .order('crm_spend_alltime', { ascending: false })
       .limit(5000);
     if (req.query.activated_only === 'true') query = query.eq('member_activated', true);
@@ -189,7 +205,20 @@ router.get('/members-list', requireAdmin, async (req, res) => {
       seen.add(p.user_id);
       return true;
     });
-    res.json({ success: true, data: deduped });
+    const normalized = deduped.map(p => ({
+  ...p,
+
+  display_name:
+    p.display_name ||
+    p.zalo_name ||
+    p.user_id,
+
+  avatar:
+    p.avatar ||
+    p.zalo_avatar ||
+    "",
+}));
+    res.json({ success: true, data: normalized });
   } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
