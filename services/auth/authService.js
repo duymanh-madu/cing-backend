@@ -78,12 +78,13 @@ async function loginWithZalo({
     if (zaloId) {
       const { data: playerData } = await require("../../supabase")
         .from("players")
-        .select("avatar, zalo_name")
+        .select("avatar, display_name, zalo_name")
         .eq("zalo_user_id", zaloId)
         .maybeSingle();
       if (playerData?.avatar) customer.avatar = playerData.avatar;
-      if (playerData?.zalo_name && playerData.zalo_name !== "Khách hàng") {
-        customer.name = playerData.zalo_name;
+      const displayName = playerData?.display_name || playerData?.zalo_name;
+      if (displayName && displayName !== "Khách hàng") {
+        customer.name = displayName;
       }
     }
   } catch(e) { console.warn("[AUTH] read player avatar failed:", e.message); }

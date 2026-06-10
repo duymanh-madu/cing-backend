@@ -48,13 +48,13 @@ router.post("/bootstrap", async (req, res) => {
     if (cleanPhone || zaloUserId) {
       try {
         let q = supabase.from("players")
-          .select("zalo_name,avatar,profile_changed_at")
+          .select("display_name,zalo_name,avatar,profile_changed_at")
           .not("profile_changed_at", "is", null);
         if (cleanPhone) q = q.eq("user_id", normalizePhone(cleanPhone));
         else q = q.eq("zalo_user_id", zaloUserId);
         const { data: customPlayer } = await q.maybeSingle();
         if (customPlayer?.profile_changed_at) {
-          customName   = customPlayer.zalo_name || null;
+          customName   = customPlayer.display_name || customPlayer.zalo_name || null;
           customAvatar = customPlayer.avatar    || null;
         }
       } catch(e) {}
