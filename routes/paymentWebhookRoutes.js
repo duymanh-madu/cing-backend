@@ -203,6 +203,57 @@ router.post("/momo", async (req, res) => {
       console.warn("[MOMO IPN] Partner spending failed:", e.message);
     }
 
+    // ─── 3b. Instant spending sync vào players table ───────────────
+    // Cộng ngay tiêu dùng vào players — không đợi iPos xác nhận
+    try {
+      const phone = resolvedPhone || order.customer_phone;
+      const amount = order.total_amount || 0;
+      const nowVNStr = new Date().toLocaleDateString("en-CA", { timeZone:"Asia/Ho_Chi_Minh" });
+
+      // Lấy spending hiện tại
+      const { data: player } = await supabase.from("players")
+        .select("crm_spend_weekly, crm_spend_monthly, crm_spend_yearly, crm_spend_alltime, game_plays, plays_from_spend")
+        .eq("user_id", phone).single();
+
+      if (player) {
+        const spendPerPlay = await supabase.from("app_configs")
+          .select("spend_per_play").eq("id",1).single()
+          .then(r => r.data?.spend_per_play || 20000);
+
+        const newWeekly   = Number(player.crm_spend_weekly   || 0) + amount;
+        const newMonthly  = Number(player.crm_spend_monthly  || 0) + amount;
+        const newYearly   = Number(player.crm_spend_yearly   || 0) + amount;
+        const newAlltime  = Number(player.crm_spend_alltime  || 0) + amount;
+
+        // Tính lượt chơi mới từ spending
+        const oldPlaysFromSpend = Number(player.plays_from_spend || 0);
+        const newPlaysFromSpend = Math.floor(newAlltime / spendPerPlay);
+        const bonusPlays = newPlaysFromSpend - oldPlaysFromSpend;
+
+        const updateData = {
+          crm_spend_weekly:  newWeekly,
+          crm_spend_monthly: newMonthly,
+          crm_spend_yearly:  newYearly,
+          crm_spend_alltime: newAlltime,
+          plays_from_spend:  newPlaysFromSpend,
+        };
+
+        if (bonusPlays > 0) {
+          updateData.game_plays = Number(player.game_plays || 0) + bonusPlays;
+          console.log(`[MOMO IPN] +${bonusPlays} plays from spending for ${phone}`);
+        }
+
+        await supabase.from("players").update(updateData).eq("user_id", phone);
+
+        // Đánh dấu đơn đã sync spending — iPos webhook sẽ bỏ qua spending sync
+        await supabase.from("orders").update({ spending_synced: true }).eq("id", order.id);
+
+        console.log(`[MOMO IPN] Instant spending +${amount} for ${phone} | week:${newWeekly} month:${newMonthly}`);
+      }
+    } catch (e) {
+      console.warn("[MOMO IPN] Instant spending failed:", e.message);
+    }
+
     // ─── 4. Trừ điểm nếu dùng điểm ────────────────────────────────
     const pointsUsed = snap.points_used || 0;
     if (pointsUsed > 0) {

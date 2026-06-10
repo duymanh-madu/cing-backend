@@ -132,9 +132,25 @@ router.post("/callback", async (req, res) => {
       });
 
       // 5. Sync spending vào Supabase → leaderboard cập nhật ngay
+      // Nếu đơn đã được instant sync từ MoMo IPN thì bỏ qua để tránh duplicate
       try {
-        await syncSingleUserSpending(p0);
-        console.log(`[FOODBOOK] Spending synced for ${p0} - event: ${event}`);
+        let skipSync = false;
+        if (body.sale_manager?.foodbook_code || body.membership_log?.foodbook_code) {
+          const foodbookCode = body.sale_manager?.foodbook_code || body.membership_log?.foodbook_code;
+          const { data: existingOrder } = await supabase
+            .from("orders")
+            .select("spending_synced")
+            .eq("order_code", "ORD-" + foodbookCode)
+            .maybeSingle();
+          if (existingOrder?.spending_synced === true) {
+            skipSync = true;
+            console.log(`[FOODBOOK] Spending already synced by MoMo IPN, skip for ${p0}`);
+          }
+        }
+        if (!skipSync) {
+          await syncSingleUserSpending(p0);
+          console.log(`[FOODBOOK] Spending synced for ${p0} - event: ${event}`);
+        }
       } catch (syncErr) {
         console.warn(`[FOODBOOK] Spending sync failed for ${p0}:`, syncErr.message);
       }
