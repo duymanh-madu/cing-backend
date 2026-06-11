@@ -116,8 +116,7 @@ router.post("/momo", async (req, res) => {
       .update({ order_created: true, order_id: order.id })
       .eq("transaction_code", orderId);
 
-    // Đánh dấu spending_synced ngay — trước khi push iPos để tránh race condition
-    await supabase.from("orders").update({ spending_synced: true }).eq("id", order.id);
+    // spending_synced sẽ được đánh dấu sau khi instant spending xử lý xong.
 
     // Resolve phone từ customer_phone — dùng xuyên suốt thay vì UUID
     const resolvedPhone = normalizePhone(order.customer_phone);
@@ -233,7 +232,6 @@ router.post("/momo", async (req, res) => {
           game_plays: Math.floor(amount / (spendPerPlay||20000)),
           crm_synced_at: new Date().toISOString(),
         }, { onConflict: "user_id" });
-        await supabase.from("orders").update({ spending_synced: true }).eq("id", order.id);
         console.log(`[MOMO IPN] New player instant spending +${amount} for ${phone}`);
       }
       if (player) {
