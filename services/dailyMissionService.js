@@ -54,7 +54,14 @@ async function doCheckin(user_id) {
   const { data: existing } = await supabase.from("daily_missions")
     .select("id").eq("user_id", user_id).eq("mission_date", today)
     .eq("mission_type", "checkin").eq("completed", true).maybeSingle();
-  if (existing) throw new Error("Bạn đã điểm danh hôm nay rồi!");
+  if (existing) {
+  return {
+    success: true,
+    already_checked_in: true,
+    plays_awarded: 0,
+    message: "Bạn đã điểm danh hôm nay rồi!"
+  };
+}
 
   await supabase.from("daily_missions").upsert({
     user_id, mission_date: today, mission_type: "checkin",
