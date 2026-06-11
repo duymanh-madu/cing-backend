@@ -156,7 +156,7 @@ router.put("/status/:id", requireAdmin, async (req, res) => {
     const orderStatus = { completed:"completed", cancelled:"cancelled", delivering:"delivering", picked_up:"processing" }[status];
     if (orderStatus) {
       await supabase.from("orders").update({ status:orderStatus, updated_at:new Date().toISOString() })
-        .eq("id", tracking.order_id).catch(()=>{});
+        .eq("id", tracking.order_id).then(()=>{}).catch(()=>{});
     }
 
     // Realtime notify user
