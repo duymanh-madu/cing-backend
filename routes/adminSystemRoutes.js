@@ -4,6 +4,20 @@ const express =
 const router =
   express.Router();
 
+const jwt = require("jsonwebtoken");
+const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
+
+function requireAdmin(req, res, next) {
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (!token) return res.status(401).json({ success: false, message: "Unauthorized" });
+  try {
+    req.admin = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ success: false, message: "Token không hợp lệ" });
+  }
+}
+
 const {
 
   requirePermission,
@@ -53,9 +67,7 @@ router.get(
 
   "/",
 
-  requirePermission(
-    "system.read"
-  ),
+  requireAdmin,
 
   getSystemState
 
@@ -71,9 +83,7 @@ router.patch(
 
   "/runtime",
 
-  requirePermission(
-    "system.runtime.update"
-  ),
+  requireAdmin,
 
   updateSystemRuntime
 
@@ -89,9 +99,7 @@ router.post(
 
   "/features/:feature/enable",
 
-  requirePermission(
-    "system.feature.enable"
-  ),
+  requireAdmin,
 
   enableSystemFeature
 
@@ -107,9 +115,7 @@ router.post(
 
   "/features/:feature/disable",
 
-  requirePermission(
-    "system.feature.disable"
-  ),
+  requireAdmin,
 
   disableSystemFeature
 
@@ -125,9 +131,7 @@ router.post(
 
   "/maintenance/enable",
 
-  requirePermission(
-    "system.maintenance.enable"
-  ),
+  requireAdmin,
 
   enableSystemMaintenance
 
@@ -143,9 +147,7 @@ router.post(
 
   "/maintenance/disable",
 
-  requirePermission(
-    "system.maintenance.disable"
-  ),
+  requireAdmin,
 
   disableSystemMaintenance
 
@@ -160,7 +162,7 @@ router.post(
 
 router.get(
   "/health",
-  requirePermission("system.read"),
+  requireAdmin,
   getSystemHealth
 );
 
@@ -172,43 +174,43 @@ router.get(
 
 router.get(
   "/crm-recovery/stats",
-  requirePermission("system.read"),
+  requireAdmin,
   getCrmRecoveryStats
 );
 
 router.get(
   "/crm-recovery/jobs",
-  requirePermission("system.read"),
+  requireAdmin,
   getCrmRecoveryJobs
 );
 
 router.post(
   "/crm-recovery/retry/:id",
-  requirePermission("system.runtime.update"),
+  requireAdmin,
   retryCrmRecoveryJob
 );
 
 router.post(
   "/crm-recovery/retry-failed",
-  requirePermission("system.runtime.update"),
+  requireAdmin,
   retryAllFailedCrmRecovery
 );
 
 router.post(
   "/crm-recovery/enqueue",
-  requirePermission("system.runtime.update"),
+  requireAdmin,
   enqueueCrmRecoveryManual
 );
 
 router.post(
   "/crm-recovery/run",
-  requirePermission("system.runtime.update"),
+  requireAdmin,
   runCrmRecoveryWorkerNow
 );
 
 router.post(
   "/crm-recovery/cleanup",
-  requirePermission("system.runtime.update"),
+  requireAdmin,
   cleanupCrmRecoveryDone
 );
 
