@@ -108,9 +108,9 @@ router.get("/segment-users/:segmentKey", requireAdmin, async (req, res) => {
     if (segmentKey === "vip")          query = query.eq("crm_tier", "diamond");
     if (segmentKey === "partner")      query = query.eq("crm_tier", "partner");
     if (segmentKey === "loyal_partner") query = query.eq("crm_tier", "loyal_partner");
-    if (segmentKey === "new_inactive") query = query.lt("crm_synced_at", day7ago).gt("crm_orders_alltime", 0);
-    if (segmentKey === "inactive_30")  query = query.lt("crm_synced_at", day30ago).gt("crm_orders_alltime", 0);
-    if (segmentKey === "dormant_90")   query = query.lt("crm_synced_at", day90ago).gt("crm_orders_alltime", 0);
+    if (segmentKey === "new_inactive") query = query.eq("crm_spend_weekly", 0).gt("crm_orders_alltime", 0);
+    if (segmentKey === "inactive_30")  query = query.eq("crm_spend_monthly", 0).gt("crm_orders_alltime", 0);
+    if (segmentKey === "dormant_90")   query = query.eq("crm_spend_quarterly", 0).gt("crm_orders_alltime", 0);
     if (segmentKey === "inactive_custom") {
       const days = parseInt(req.query.days) || 30;
       // Logic: dùng crm_spend columns để xác định chưa mua
