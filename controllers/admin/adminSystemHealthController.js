@@ -76,7 +76,7 @@ async function getCrmRecoveryJobs(req, res) {
     let query = supabase
       .from("crm_sync_queue")
       .select("*", { count:"exact" })
-      .order("scheduled_at", { ascending:false })
+      .order("created_at", { ascending:false })
       .range(off, off + Number(limit) - 1);
 
     if (status) query = query.eq("status", status);
@@ -290,7 +290,7 @@ async function getIposRecoveryJobs(req, res) {
     let query = supabase
       .from("ipos_sync_queue")
       .select("*", { count:"exact" })
-      .order("scheduled_at", { ascending:false })
+      .order("created_at", { ascending:false })
       .range(off, off + Number(limit) - 1);
 
     if (status) query = query.eq("status", status);
