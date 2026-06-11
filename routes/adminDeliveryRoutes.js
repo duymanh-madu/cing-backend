@@ -101,7 +101,7 @@ router.post("/assign", requireAdmin, async (req, res) => {
 
     const { data, error } = await supabase.from("delivery_tracking").insert({
       order_id, shipper_name, shipper_phone: shipper_phone||"",
-      status: "assigned", note: note||"",
+      status: "assigned", delivery_status: "assigned", note: note||"",
       assigned_by: req.admin.username,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -141,12 +141,13 @@ router.put("/status/:id", requireAdmin, async (req, res) => {
       .select("*").eq("id", req.params.id).single();
     if (!tracking) return res.status(404).json({ success:false, message:"Không tìm thấy tracking" });
 
-    const validNext = DELIVERY_STATUS[tracking.status]?.next || [];
+    const currentStatus = tracking.status || tracking.delivery_status;
+    const validNext = DELIVERY_STATUS[currentStatus]?.next || [];
     if (!validNext.includes(status))
-      return res.status(400).json({ success:false, message:`Không thể chuyển từ "${tracking.status}" sang "${status}"` });
+      return res.status(400).json({ success:false, message:`Không thể chuyển từ "${currentStatus}" sang "${status}"` });
 
     await supabase.from("delivery_tracking").update({
-      status, note: note||tracking.note||"",
+      status, delivery_status: status, note: note||tracking.note||"",
       updated_at: new Date().toISOString(),
       ...(status==="completed" ? { completed_at:new Date().toISOString() } : {}),
     }).eq("id", req.params.id);
