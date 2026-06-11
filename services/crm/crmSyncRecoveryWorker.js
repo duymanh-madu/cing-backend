@@ -15,6 +15,11 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function isValidVietnamPhone(value) {
+  const n = normalizePhone(value || "");
+  return /^0[0-9]{9}$/.test(n);
+}
+
 function nextRetryIso(retryCount) {
   const minutes = Math.min(60, Math.max(5, retryCount * 10));
   return new Date(Date.now() + minutes * 60 * 1000).toISOString();
@@ -166,8 +171,11 @@ async function enqueueStalePlayers(limit = DEFAULT_STALE_LIMIT) {
   }
 
   for (const p of players || []) {
-    const uid = normalizePhone(p.user_id || p.phone || p.phone_number || "");
-    if (!uid || uid.length < 9) continue;
+    const uid = normalizePhone(p.phone || p.phone_number || p.user_id || "");
+
+    // Chỉ sync user có số điện thoại Việt Nam thật.
+    // Không enqueue Zalo ID / UUID / mã nội bộ để tránh gọi iPOS vô ích.
+    if (!isValidVietnamPhone(uid)) continue;
 
     await enqueueCrmSyncRecovery({
       user_id: uid,
@@ -202,9 +210,9 @@ async function processCrmSyncQueue({ batchSize = DEFAULT_BATCH_SIZE, staleLimit 
 
     for (const job of jobs) {
       try {
-        const uid = normalizePhone(job.user_id || job.phone || "");
-        if (!uid || uid.length < 9) {
-          await failJob(job, "invalid_user_id");
+        const uid = normalizePhone(job.phone || job.user_id || "");
+        if (!isValidVietnamPhone(uid)) {
+          await failJob(job, "invalid_phone");
           stats.failed++;
           continue;
         }
