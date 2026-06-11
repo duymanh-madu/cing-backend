@@ -1,6 +1,16 @@
 const supabase = require('../supabase');
 const { addPoints } = require('./loyaltyPointService');
 
+function resolvePlayerName(player) {
+  return (
+    player?.display_name ||
+    player?.zalo_name ||
+    player?.player_name ||
+    player?.user_id ||
+    "Cing iu"
+  );
+}
+
 /**
  * Kiểm tra xem có cần reset không (mỗi thứ 2 00:00 VN)
  * Chạy mỗi phút, tự detect khi đến giờ
@@ -32,7 +42,7 @@ async function checkAndResetMonthly(io) {
     const { data: cfg2 } = await supabase.from('app_configs').select('leaderboard_config').eq('id', 1).single();
     const monthlyRewards = cfg2?.leaderboard_config?.spending?.monthly?.rewards || [];
     const { data: spenders } = await supabase.from('players')
-      .select('user_id, zalo_name, crm_spend_monthly')
+      .select('user_id, display_name, zalo_name, crm_spend_monthly')
       .gt('crm_spend_monthly', 0)
       .order('crm_spend_monthly', { ascending: false }).limit(3);
 
@@ -42,7 +52,7 @@ async function checkAndResetMonthly(io) {
       const player = top3[i];
       if (!reward?.points || !player?.user_id) continue;
       await supabase.from('pending_rewards').insert({
-        user_id: player.user_id, player_name: player.zalo_name,
+        user_id: player.user_id, player_name: resolvePlayerName(player),
         points: reward.points, reason: `🏆 ${reward.label||`Top ${i+1}`} BXH chi tiêu tháng`,
         rank: i+1, board: 'Chi tiêu tháng', claimed: false, created_at: new Date().toISOString(),
       }).catch(()=>{});
@@ -52,7 +62,7 @@ async function checkAndResetMonthly(io) {
     await supabase.from('players').update({ crm_spend_monthly: 0 }).gt('crm_spend_monthly', 0);
     await supabase.from('app_configs').update({ last_monthly_reset: new Date().toISOString() }).eq('id', 1);
 
-    const names = top3.slice(0,3).map((p,i)=>['🥇','🥈','🥉'][i]+' '+p.zalo_name).join(' ');
+    const names = top3.slice(0,3).map((p,i)=>['🥇','🥈','🥉'][i]+' '+resolvePlayerName(p)).join(' ');
     const msg = "🎁 BXH chi tiêu tháng đã reset! " + names + "\nMời top 3 vào nhận thưởng! 🏆";
     if (io) { io.emit('leaderboard.monthly_reset', { message: msg }); io.emit('notification', { type:'monthly_reset', message: msg }); }
     console.log('[RESET] Monthly reset done:', msg);
@@ -77,7 +87,7 @@ async function checkAndResetYearly(io) {
     const { data: cfg2 } = await supabase.from('app_configs').select('leaderboard_config').eq('id', 1).single();
     const yearlyRewards = cfg2?.leaderboard_config?.spending?.yearly?.rewards || [];
     const { data: spenders } = await supabase.from('players')
-      .select('user_id, zalo_name, crm_spend_yearly')
+      .select('user_id, display_name, zalo_name, crm_spend_yearly')
       .gt('crm_spend_yearly', 0)
       .order('crm_spend_yearly', { ascending: false }).limit(3);
 
@@ -87,7 +97,7 @@ async function checkAndResetYearly(io) {
       const player = top3[i];
       if (!reward?.points || !player?.user_id) continue;
       await supabase.from('pending_rewards').insert({
-        user_id: player.user_id, player_name: player.zalo_name,
+        user_id: player.user_id, player_name: resolvePlayerName(player),
         points: reward.points, reason: `🏆 ${reward.label||`Top ${i+1}`} BXH chi tiêu năm`,
         rank: i+1, board: 'Chi tiêu năm', claimed: false, created_at: new Date().toISOString(),
       }).catch(()=>{});
@@ -96,7 +106,7 @@ async function checkAndResetYearly(io) {
     // Reset crm_spend_yearly về 0
     await supabase.from('players').update({ crm_spend_yearly: 0 }).gt('crm_spend_yearly', 0);
     await supabase.from('app_configs').update({ last_yearly_reset: new Date().toISOString() }).eq('id', 1);
-    const names = top3.slice(0,3).map((p,i)=>['🥇','🥈','🥉'][i]+' '+p.zalo_name).join(' ');
+    const names = top3.slice(0,3).map((p,i)=>['🥇','🥈','🥉'][i]+' '+resolvePlayerName(p)).join(' ');
     const msg = `🎁 BXH chi tiêu năm đã reset! ${names}
 Mời top 3 vào nhận thưởng! 🏆`;
     if (io) { io.emit('leaderboard.yearly_reset', { message: msg }); }
@@ -187,7 +197,7 @@ async function doWeeklyReset(io) {
     if (weeklySpend?.enabled && weeklySpend?.rewards?.length > 0) {
       const { data: spenders } = await supabase
         .from('players')
-        .select('user_id, zalo_name, crm_spend_weekly')
+        .select('user_id, display_name, zalo_name, crm_spend_weekly')
         .gt('crm_spend_weekly', 0)
         .order('crm_spend_weekly', { ascending: false })
         .limit(10);
@@ -200,7 +210,7 @@ async function doWeeklyReset(io) {
         try {
           await supabase.from('pending_rewards').insert({
             user_id: player.user_id,
-            player_name: player.zalo_name,
+            player_name: resolvePlayerName(player),
             points: reward.points,
             reason: `💰 ${reward.label||`Top ${i+1}`} BXH chi tiêu tuần`,
             rank: i + 1,
@@ -211,7 +221,7 @@ async function doWeeklyReset(io) {
         } catch(e) { console.warn('[RESET] Spend pending reward failed:', e.message); }
       }
       if (top3.length > 0) {
-        messages.push(`💰 Chi tiêu tuần: 🥇${top3[0]?.zalo_name||'?'} 🥈${top3[1]?.zalo_name||'?'} 🥉${top3[2]?.zalo_name||'?'}`);
+        messages.push(`💰 Chi tiêu tuần: 🥇${top3[0] ? resolvePlayerName(top3[0]) : '?'} 🥈${top3[1] ? resolvePlayerName(top3[1]) : '?'} 🥉${top3[2] ? resolvePlayerName(top3[2]) : '?'}`);
       }
     }
 
@@ -273,22 +283,22 @@ async function checkAndNotifyTop1Changes(io) {
     // Check BXH tiêu dùng tuần
     if (lbCfg.spending?.weekly?.enabled) {
       const { data } = await supabase.from('players')
-        .select('user_id, zalo_name').gt('crm_spend_weekly', 0)
+        .select('user_id, display_name, zalo_name').gt('crm_spend_weekly', 0)
         .order('crm_spend_weekly', { ascending: false }).limit(1).single();
       if (data && cache.weekly_top1 !== data.user_id) {
         newCache.weekly_top1 = data.user_id;
-        notifications.push({ name: data.zalo_name||data.user_id, board: 'BXH Chi tiêu tuần' });
+        notifications.push({ name: resolvePlayerName(data), board: 'BXH Chi tiêu tuần' });
       }
     }
 
     // Check BXH tiêu dùng tháng
     if (lbCfg.spending?.monthly?.enabled) {
       const { data } = await supabase.from('players')
-        .select('user_id, zalo_name').gt('crm_spend_monthly', 0)
+        .select('user_id, display_name, zalo_name').gt('crm_spend_monthly', 0)
         .order('crm_spend_monthly', { ascending: false }).limit(1).single();
       if (data && cache.monthly_top1 !== data.user_id) {
         newCache.monthly_top1 = data.user_id;
-        notifications.push({ name: data.zalo_name||data.user_id, board: 'BXH Chi tiêu tháng' });
+        notifications.push({ name: resolvePlayerName(data), board: 'BXH Chi tiêu tháng' });
       }
     }
 
@@ -297,10 +307,10 @@ async function checkAndNotifyTop1Changes(io) {
       .select('user_id').order('wins', { ascending: false }).limit(1).single();
     if (chessTop) {
       const { data: p } = await supabase.from('players')
-        .select('zalo_name').eq('user_id', chessTop.user_id).single();
+        .select('display_name, zalo_name').eq('user_id', chessTop.user_id).single();
       if (cache.chess_top1 !== chessTop.user_id) {
         newCache.chess_top1 = chessTop.user_id;
-        notifications.push({ name: p?.zalo_name||chessTop.user_id, board: 'BXH Kỳ thủ cờ vua' });
+        notifications.push({ name: resolvePlayerName(p || { user_id: chessTop.user_id }), board: 'BXH Kỳ thủ cờ vua' });
       }
     }
 
@@ -315,8 +325,8 @@ async function checkAndNotifyTop1Changes(io) {
         if (cache[cacheKey] !== scores.user_id) {
           newCache[cacheKey] = scores.user_id;
           const { data: gp } = await supabase.from('players')
-            .select('zalo_name').eq('user_id', scores.user_id).maybeSingle();
-          notifications.push({ name: gp?.zalo_name || scores.player_name || scores.user_id, board: gameCfg.display_name||gameKey });
+            .select('display_name, zalo_name').eq('user_id', scores.user_id).maybeSingle();
+          notifications.push({ name: resolvePlayerName(gp || { player_name: scores.player_name, user_id: scores.user_id }), board: gameCfg.display_name||gameKey });
         }
       }
     }
@@ -355,7 +365,7 @@ async function manualMonthlyReset(io) {
     const { data: cfg2 } = await supabase.from('app_configs').select('leaderboard_config').eq('id', 1).single();
     const monthlyRewards = cfg2?.leaderboard_config?.spending?.monthly?.rewards || [];
     const { data: spenders } = await supabase.from('players')
-      .select('user_id, zalo_name, crm_spend_monthly')
+      .select('user_id, display_name, zalo_name, crm_spend_monthly')
       .gt('crm_spend_monthly', 0)
       .order('crm_spend_monthly', { ascending: false }).limit(3);
 
@@ -366,11 +376,11 @@ async function manualMonthlyReset(io) {
       const player = top3[i];
       if (!reward?.points || !player?.user_id) continue;
       await supabase.from('pending_rewards').insert({
-        user_id: player.user_id, player_name: player.zalo_name,
+        user_id: player.user_id, player_name: resolvePlayerName(player),
         points: reward.points, reason: `🏆 ${reward.label||`Top ${i+1}`} BXH chi tiêu tháng`,
         rank: i+1, board: 'Chi tiêu tháng', claimed: false, created_at: new Date().toISOString(),
       });
-      messages.push(`${['🥇','🥈','🥉'][i]} ${player.zalo_name}: +${reward.points}đ`);
+      messages.push(`${['🥇','🥈','🥉'][i]} ${resolvePlayerName(player)}: +${reward.points}đ`);
     }
 
     await supabase.from('players').update({ crm_spend_monthly: 0 }).gt('crm_spend_monthly', 0);
