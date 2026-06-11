@@ -215,14 +215,20 @@ router.post("/momo", async (req, res) => {
 
       // Lấy spending hiện tại
       const { data: player } = await supabase.from("players")
-        .select("crm_spend_weekly, crm_spend_monthly, crm_spend_yearly, crm_spend_alltime, game_plays, plays_from_spend")
+        .select("crm_spend_weekly, crm_spend_monthly, crm_spend_yearly, crm_spend_alltime, crm_spend_custom, game_plays, plays_from_spend")
         .eq("user_id", phone).single();
+
+      const spendPerPlay = await supabase.from("app_configs")
+        .select("spend_per_play").eq("id",1).single()
+        .then(r => r.data?.spend_per_play || 20000)
+        .catch(() => 20000);
 
       if (!player) {
         await supabase.from("players").upsert({
           user_id: phone,
           crm_spend_weekly: amount, crm_spend_monthly: amount,
           crm_spend_yearly: amount, crm_spend_alltime: amount,
+          crm_spend_custom: customSpendIncrement,
           plays_from_spend: Math.floor(amount / (spendPerPlay||20000)),
           game_plays: Math.floor(amount / (spendPerPlay||20000)),
           crm_synced_at: new Date().toISOString(),
@@ -231,9 +237,6 @@ router.post("/momo", async (req, res) => {
         console.log(`[MOMO IPN] New player instant spending +${amount} for ${phone}`);
       }
       if (player) {
-        const spendPerPlay = await supabase.from("app_configs")
-          .select("spend_per_play").eq("id",1).single()
-          .then(r => r.data?.spend_per_play || 20000);
 
         const newWeekly   = Number(player.crm_spend_weekly   || 0) + amount;
         const newMonthly  = Number(player.crm_spend_monthly  || 0) + amount;
