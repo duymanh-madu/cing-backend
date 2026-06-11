@@ -110,10 +110,10 @@ async function broadcastNotification({ template_key, custom = {}, target_user_id
           timestamp: new Date().toISOString(),
         });
         // Lưu vào DB
-        await supabase.from("notifications").insert({
+        supabase.from("notifications").insert({
           user_id: uid, title, message, type: template.type || "info",
           is_read: false, created_at: new Date().toISOString(),
-        }).catch(() => {});
+        }).then(() => {}).catch(() => {});
       }
     } else {
       realtimeEventBus.publish({
