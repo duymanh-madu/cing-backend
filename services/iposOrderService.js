@@ -331,6 +331,19 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
       },
     });
 
+    // Enqueue lightweight recovery job.
+    // Chỉ retry đúng đơn iPOS bị fail, không quét toàn bộ orders.
+    const { enqueueIposRecovery } =
+      require("./ipos/iposSyncRecoveryWorker");
+
+    await enqueueIposRecovery({
+      order_id: order.id,
+      transaction_code,
+      reason: errDetail,
+    }).catch(e =>
+      console.warn("[IPOS RECOVERY] enqueue failed:", e.message)
+    );
+
     return { success: false, error: errDetail };
   }
 }

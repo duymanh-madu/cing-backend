@@ -927,3 +927,17 @@ try {
 } catch (e) {
   console.warn("[CRM RECOVERY] worker start failed:", e.message);
 }
+
+
+/**
+ * =====================================================
+ * IPOS SYNC RECOVERY WORKER
+ * Lightweight retry worker — only failed iPOS orders.
+ * =====================================================
+ */
+try {
+  const { startIposSyncRecoveryWorker } = require("./services/ipos/iposSyncRecoveryWorker");
+  startIposSyncRecoveryWorker();
+} catch (e) {
+  console.warn("[IPOS RECOVERY] worker start failed:", e.message);
+}
