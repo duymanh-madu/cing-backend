@@ -206,6 +206,13 @@ async function getSystemHealth(req, res) {
     checks.crm_recovery = { status: "critical", detail: e.message };
   }
 
+  try {
+    const { error } = await supabase.from("ipos_sync_queue").select("id").limit(1);
+    checks.ipos_recovery = { status: error ? "critical" : "healthy", detail: error?.message || "ok" };
+  } catch (e) {
+    checks.ipos_recovery = { status: "critical", detail: e.message };
+  }
+
   res.json({
     success: true,
     data: {
