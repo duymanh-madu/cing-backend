@@ -53,6 +53,11 @@ const {
   enqueueCrmRecoveryManual,
   runCrmRecoveryWorkerNow,
   cleanupCrmRecoveryDone,
+  getIposRecoveryStats,
+  getIposRecoveryJobs,
+  retryIposRecoveryJob,
+  retryAllFailedIposRecovery,
+  runIposRecoveryWorkerNow,
 } = require(
   "../controllers/admin/adminSystemHealthController"
 );
@@ -212,6 +217,43 @@ router.post(
   "/crm-recovery/cleanup",
   requireAdmin,
   cleanupCrmRecoveryDone
+);
+
+
+/**
+ * =====================================================
+ * IPOS RECOVERY DASHBOARD
+ * =====================================================
+ */
+
+router.get(
+  "/ipos-recovery/stats",
+  requireAdmin,
+  getIposRecoveryStats
+);
+
+router.get(
+  "/ipos-recovery/jobs",
+  requireAdmin,
+  getIposRecoveryJobs
+);
+
+router.post(
+  "/ipos-recovery/retry/:id",
+  requireAdmin,
+  retryIposRecoveryJob
+);
+
+router.post(
+  "/ipos-recovery/retry-failed",
+  requireAdmin,
+  retryAllFailedIposRecovery
+);
+
+router.post(
+  "/ipos-recovery/run",
+  requireAdmin,
+  runIposRecoveryWorkerNow
 );
 
 /**
