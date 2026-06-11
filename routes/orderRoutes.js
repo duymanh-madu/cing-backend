@@ -512,11 +512,24 @@ router.get("/history/:phone", async (req, res) => {
         .order("created_at", { ascending: false })
         .limit(50);
 
+      // Lấy delivery tracking cho các đơn app
+      const appOrderIds = (dbOrders||[]).map(o => o.id);
+      let deliveryMap = {};
+      if (appOrderIds.length > 0) {
+        const { data: trackings } = await supabase.from("delivery_tracking")
+          .select("order_id,status,shipper_name,shipper_phone,updated_at,note")
+          .in("order_id", appOrderIds);
+        (trackings||[]).forEach(t => { deliveryMap[t.order_id] = t; });
+      }
+
       appOrders = (dbOrders || []).map(o => ({
         id:       "app_" + o.id,
         tran_no:  o.order_code || o.id,
         date:     o.created_at,
         amount:   o.total_amount || 0,
+        delivery: deliveryMap[o.id] || null,
+        order_status: o.status,
+        shipping_address: o.shipping_address || "",
         items:    Array.isArray(o.items) ? o.items.map(i => ({
           name:     i.name || i.product_name,
           quantity: i.quantity,
