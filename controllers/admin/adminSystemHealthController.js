@@ -201,29 +201,100 @@ async function getSystemHealth(req, res) {
   const checks = {};
 
   try {
+    const { error } = await supabase
+      .from("players")
+      .select("user_id")
+      .limit(1);
+
+    checks.database = {
+      status: error ? "critical" : "healthy",
+      detail: error?.message || "ok",
+    };
+  } catch (e) {
+    checks.database = { status: "critical", detail: e.message };
+  }
+
+  try {
     const pong = await redisClient.ping();
-    checks.redis = { status: pong === "PONG" ? "healthy" : "warning", detail: pong };
+
+    checks.redis = {
+      status: pong === "PONG" ? "healthy" : "warning",
+      detail: pong,
+    };
   } catch (e) {
     checks.redis = { status: "critical", detail: e.message };
   }
 
   try {
-    const { error } = await supabase.from("crm_sync_queue").select("id").limit(1);
-    checks.crm_recovery = { status: error ? "critical" : "healthy", detail: error?.message || "ok" };
+    const { error } = await supabase
+      .from("crm_sync_queue")
+      .select("id")
+      .limit(1);
+
+    checks.crm_recovery = {
+      status: error ? "critical" : "healthy",
+      detail: error?.message || "ok",
+    };
   } catch (e) {
     checks.crm_recovery = { status: "critical", detail: e.message };
   }
 
   try {
-    const { error } = await supabase.from("ipos_sync_queue").select("id").limit(1);
-    checks.ipos_recovery = { status: error ? "critical" : "healthy", detail: error?.message || "ok" };
+    const { error } = await supabase
+      .from("ipos_sync_queue")
+      .select("id")
+      .limit(1);
+
+    checks.ipos_recovery = {
+      status: error ? "critical" : "healthy",
+      detail: error?.message || "ok",
+    };
   } catch (e) {
     checks.ipos_recovery = { status: "critical", detail: e.message };
   }
 
+  try {
+    const { error } = await supabase
+      .from("notification_jobs")
+      .select("id")
+      .limit(1);
+
+    checks.notification_recovery = {
+      status: error ? "critical" : "healthy",
+      detail: error?.message || "ok",
+    };
+  } catch (e) {
+    checks.notification_recovery = { status: "critical", detail: e.message };
+  }
+
+  try {
+    const onlineUsers =
+      global.onlineUsers instanceof Map
+        ? global.onlineUsers.size
+        : 0;
+
+    checks.socket_runtime = {
+      status: "healthy",
+      detail: `${onlineUsers} online users`,
+      online_users: onlineUsers,
+    };
+  } catch (e) {
+    checks.socket_runtime = { status: "warning", detail: e.message };
+  }
+
+  const values = Object.values(checks);
+  const critical = values.filter(v => v.status === "critical").length;
+  const warning = values.filter(v => v.status === "warning").length;
+
+  const overall_status =
+    critical > 0 ? "critical" :
+    warning > 0 ? "warning" :
+    "healthy";
+
   res.json({
     success: true,
     data: {
+      overall_status,
       checks,
       timestamp: new Date().toISOString(),
     },
