@@ -6,7 +6,7 @@ const { normalizePhone } = require("../../utils/phoneIdentity");
 const WORKER_NAME = "crm-sync-recovery-worker";
 const DEFAULT_INTERVAL_MS = Number(process.env.CRM_RECOVERY_INTERVAL_MS || 5 * 60 * 1000);
 const DEFAULT_BATCH_SIZE = Number(process.env.CRM_RECOVERY_BATCH_SIZE || 5);
-const DEFAULT_STALE_LIMIT = Number(process.env.CRM_RECOVERY_STALE_LIMIT || 3);
+const DEFAULT_STALE_LIMIT = Number(process.env.CRM_RECOVERY_STALE_LIMIT || 1);
 
 let timer = null;
 let running = false;
@@ -44,12 +44,24 @@ async function enqueueCrmSyncRecovery({
     updated_at: nowIso(),
   };
 
+  const { data: existing } = await supabase
+    .from("crm_sync_queue")
+    .select("id")
+    .eq("user_id", uid)
+    .eq("status", "pending")
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    return {
+      success: true,
+      skipped: true,
+      reason: "already_pending",
+    };
+  }
+
   const { data, error } = await supabase
     .from("crm_sync_queue")
-    .upsert(row, {
-      onConflict: "user_id,source,order_id",
-      ignoreDuplicates: false,
-    })
+    .insert(row)
     .select()
     .maybeSingle();
 
