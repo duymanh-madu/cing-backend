@@ -13,6 +13,11 @@ router.use("/crm", crmSyncRoutes);
  * =====================================================
  */
 
+router.use(
+  "/game/rewards",
+  require("./gameRewardsRoutes")
+);
+
 router.use("/obs", require("./observability"));
 
 router.use(
