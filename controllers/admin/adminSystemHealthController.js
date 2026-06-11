@@ -76,7 +76,7 @@ async function getCrmRecoveryJobs(req, res) {
     let query = supabase
       .from("crm_sync_queue")
       .select("*", { count:"exact" })
-      .order("created_at", { ascending:false })
+      .order("scheduled_at", { ascending:false })
       .range(off, off + Number(limit) - 1);
 
     if (status) query = query.eq("status", status);
@@ -290,7 +290,7 @@ async function getIposRecoveryJobs(req, res) {
     let query = supabase
       .from("ipos_sync_queue")
       .select("*", { count:"exact" })
-      .order("created_at", { ascending:false })
+      .order("scheduled_at", { ascending:false })
       .range(off, off + Number(limit) - 1);
 
     if (status) query = query.eq("status", status);
@@ -401,7 +401,7 @@ async function getNotificationRecoveryStats(req, res) {
       supabase.from("notification_jobs").select("id", { count:"exact", head:true }).eq("job_status", "processing"),
       supabase.from("notification_jobs").select("id", { count:"exact", head:true }).eq("job_status", "failed"),
       supabase.from("notification_jobs").select("id", { count:"exact", head:true }).eq("job_status", "completed").gte("processed_at", today.toISOString()),
-      supabase.from("notification_jobs").select("id,notification_id,created_at,scheduled_at").eq("job_status", "pending").order("created_at", { ascending:true }).limit(1).maybeSingle(),
+      supabase.from("notification_jobs").select("id,notification_id,scheduled_at").eq("job_status", "pending").order("scheduled_at", { ascending:true }).limit(1).maybeSingle(),
       supabase.from("notification_jobs").select("id,notification_id,processed_at").eq("job_status", "completed").order("processed_at", { ascending:false }).limit(1).maybeSingle(),
       supabase.from("notification_dead_jobs").select("id", { count:"exact", head:true }),
     ]);
@@ -443,7 +443,7 @@ async function getNotificationRecoveryJobs(req, res) {
     let query = supabase
       .from("notification_jobs")
       .select("*", { count:"exact" })
-      .order("created_at", { ascending:false })
+      .order("scheduled_at", { ascending:false })
       .range(off, off + Number(limit) - 1);
 
     if (status) query = query.eq("job_status", status);
