@@ -98,13 +98,32 @@ async function broadcastNotification({ template_key, custom = {} }) {
     const title = custom.title || template.title;
     const message = custom.message || template.message;
 
-    realtimeEventBus.publish({
-      event: "notification.broadcast",
-      delivery_type: "BROADCAST",
-      payload: { notification: { title, message, type: template.type, created_at: new Date().toISOString() } },
-      channel: "notification",
-      timestamp: new Date().toISOString(),
-    });
+    if (target_user_ids && target_user_ids.length > 0) {
+      // Gửi đến user cụ thể
+      for (const uid of target_user_ids) {
+        realtimeEventBus.publish({
+          event: "notification.broadcast",
+          delivery_type: "ROOM",
+          room: `member:${uid}`,
+          payload: { notification: { title, message, type: template.type, created_at: new Date().toISOString() } },
+          channel: "notification",
+          timestamp: new Date().toISOString(),
+        });
+        // Lưu vào DB
+        await supabase.from("notifications").insert({
+          user_id: uid, title, message, type: template.type || "info",
+          is_read: false, created_at: new Date().toISOString(),
+        }).catch(() => {});
+      }
+    } else {
+      realtimeEventBus.publish({
+        event: "notification.broadcast",
+        delivery_type: "BROADCAST",
+        payload: { notification: { title, message, type: template.type, created_at: new Date().toISOString() } },
+        channel: "notification",
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     console.log(`[NOTIF] Broadcast ${template_key}`);
   } catch(e) {
