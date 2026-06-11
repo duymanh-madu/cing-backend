@@ -470,6 +470,36 @@ router.get("/latest/:userId", async (req, res) => {
 module.exports =
   router;
 
+// GET /orders/active/:phone — đơn đang xử lý
+router.get("/active/:phone", async (req, res) => {
+  try {
+    const phoneNorm = normalizePhone(req.params.phone);
+    const { data: orders } = await supabase.from("orders")
+      .select("id,order_code,created_at,total_amount,status,items,shipping_address,note")
+      .or(`customer_phone.eq.${phoneNorm},customer_phone.eq.84${phoneNorm.slice(1)}`)
+      .not("status","in","(completed,cancelled,pending_payment)")
+      .order("created_at",{ascending:false})
+      .limit(10);
+
+    // Lấy delivery tracking
+    const ids = (orders||[]).map(o=>o.id);
+    let deliveryMap = {};
+    if (ids.length > 0) {
+      const { data: trackings } = await supabase.from("delivery_tracking")
+        .select("order_id,status,shipper_name,shipper_phone,note,updated_at")
+        .in("order_id",ids).not("status","in","(completed,cancelled)");
+      (trackings||[]).forEach(t => { deliveryMap[t.order_id] = t; });
+    }
+
+    const result = (orders||[]).map(o => ({
+      ...o,
+      delivery: deliveryMap[o.id] || null,
+    }));
+
+    res.json({ success:true, data:result });
+  } catch(err) { res.status(500).json({ success:false, error:err.message }); }
+});
+
 router.get("/history/:phone", async (req, res) => {
   try {
     const { phone } = req.params;

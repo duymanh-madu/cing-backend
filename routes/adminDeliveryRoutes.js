@@ -172,6 +172,29 @@ router.put("/status/:id", requireAdmin, async (req, res) => {
       });
     } catch(e) {}
 
+    // Gửi push notification cho khách
+    try {
+      const notifMap = {
+        picked_up:  { title:"📦 Shipper đã lấy hàng", msg:"Đơn hàng đang trên đường giao đến bạn!" },
+        delivering: { title:"🛵 Đang giao hàng", msg:"Shipper đang trên đường, vui lòng chú ý điện thoại!" },
+        delivered:  { title:"✅ Giao hàng thành công", msg:"Đơn hàng đã được giao thành công. Cảm ơn bạn!" },
+        failed:     { title:"❌ Giao hàng thất bại", msg:"Rất tiếc, giao hàng thất bại. Chúng tôi sẽ liên hệ lại!" },
+        completed:  { title:"🎉 Đơn hàng hoàn thành", msg:"Cảm ơn bạn đã tin tưởng Cing Hu Tang Kinh Bắc!" },
+      };
+      const notif = notifMap[status];
+      if (notif) {
+        const { data: ord } = await supabase.from("orders").select("customer_phone,order_code").eq("id",tracking.order_id).single();
+        if (ord?.customer_phone) {
+          const { broadcastNotification } = require("../services/notificationService");
+          await broadcastNotification({
+            template_key: "CAMPAIGN_BROADCAST",
+            target_user_ids: [ord.customer_phone],
+            custom: { title: notif.title, message: `${notif.msg} (Đơn ${ord.order_code})` },
+          });
+        }
+      }
+    } catch(e) { console.warn("[DELIVERY] Notify failed:", e.message); }
+
     res.json({ success:true, message:`Đã cập nhật trạng thái giao hàng: ${DELIVERY_STATUS[status].label}` });
   } catch(err) { res.status(500).json({ success:false, error:err.message }); }
 });
