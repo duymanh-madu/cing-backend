@@ -90,7 +90,7 @@ async function sendNotification({ user_id, template_key, custom = {}, data = {} 
 /**
  * Broadcast cho tat ca users (flash sales, campaigns)
  */
-async function broadcastNotification({ template_key, custom = {} }) {
+async function broadcastNotification({ template_key, custom = {}, target_user_ids = [] }) {
   try {
     const template = TEMPLATES[template_key];
     if (!template) return;
