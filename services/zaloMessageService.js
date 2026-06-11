@@ -78,8 +78,7 @@ async function sendZBS({ title, message, follower_ids = [] }) {
     // Broadcast đến tất cả followers có zalo_user_id
     const { data: followers } = await supabase.from('players')
       .select('zalo_user_id')
-      .not('zalo_user_id', 'is', null)
-      .eq('zalo_follow_oa', true);
+      .not('zalo_user_id', 'is', null);
 
     if (!followers?.length) return { success: true, sent: 0, message: 'Chưa có followers', channel: 'zbs' };
 
