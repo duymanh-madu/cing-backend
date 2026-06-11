@@ -197,7 +197,10 @@ router.put("/status/:id", requireAdmin, async (req, res) => {
     } catch(e) { console.warn("[DELIVERY] Notify failed:", e.message); }
 
     res.json({ success:true, message:`Đã cập nhật trạng thái giao hàng: ${DELIVERY_STATUS[status].label}` });
-  } catch(err) { res.status(500).json({ success:false, error:err.message }); }
+  } catch(err) {
+    console.error("[DELIVERY STATUS] Error:", err.message, err.stack?.split('\n')[1]);
+    res.status(500).json({ success:false, error:err.message });
+  }
 });
 
 // GET /admin/delivery/orders-ready — đơn hàng sẵn sàng giao (chưa có shipper)
