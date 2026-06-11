@@ -914,3 +914,16 @@ app.use(
 );
 
 startServer();
+
+/**
+ * =====================================================
+ * CRM SYNC RECOVERY WORKER
+ * Lightweight queue worker — not full CRM sync.
+ * =====================================================
+ */
+try {
+  const { startCrmSyncRecoveryWorker } = require("./services/crm/crmSyncRecoveryWorker");
+  startCrmSyncRecoveryWorker();
+} catch (e) {
+  console.warn("[CRM RECOVERY] worker start failed:", e.message);
+}
