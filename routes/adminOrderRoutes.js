@@ -2,6 +2,7 @@ const express  = require("express");
 const router   = express.Router();
 const jwt      = require("jsonwebtoken");
 const supabase = require("../supabase");
+const { pushOrderToIPOS } = require("../services/iposOrderService");
 
 const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
 
@@ -156,5 +157,72 @@ router.put("/cancel/:id", requireAdmin, async (req, res) => {
     res.json({ success:true, message:"Đã huỷ đơn hàng" });
   } catch(err) { res.status(500).json({ success:false, error:err.message }); }
 });
+
+
+// PUT /admin/orders/retry-ipos/:id — retry đẩy đơn lên iPOS
+router.put("/retry-ipos/:id", requireAdmin, async (req, res) => {
+  try {
+    const { data: order, error } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("id", req.params.id)
+      .single();
+
+    if (error || !order) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy đơn hàng",
+      });
+    }
+
+    if (order.pos_sync_status === "success") {
+      return res.status(400).json({
+        success: false,
+        message: "Đơn hàng đã đồng bộ iPOS thành công, không cần retry",
+      });
+    }
+
+    const transactionCode =
+      order.order_code ||
+      String(order.id);
+
+    const result = await pushOrderToIPOS({
+      order,
+      transaction_code: transactionCode,
+    });
+
+    await supabase.from("analytics_events").insert({
+      event_name: result.success ? "admin_retry_ipos_success" : "admin_retry_ipos_failed",
+      user_id: String(order.customer_phone || ""),
+      event_data: {
+        order_id: order.id,
+        order_code: order.order_code,
+        result,
+        admin: req.admin.username,
+      },
+      created_at: new Date().toISOString(),
+    }).catch(() => {});
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: "Retry iPOS thất bại",
+        error: result.error,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Đã retry iPOS thành công",
+      data: result,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
+
 
 module.exports = router;
