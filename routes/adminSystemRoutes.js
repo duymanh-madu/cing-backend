@@ -58,6 +58,13 @@ const {
   retryIposRecoveryJob,
   retryAllFailedIposRecovery,
   runIposRecoveryWorkerNow,
+  getNotificationRecoveryStats,
+  getNotificationRecoveryJobs,
+  getNotificationDeadJobs,
+  retryNotificationJob,
+  retryAllFailedNotificationJobs,
+  releaseStuckNotificationRecovery,
+  cleanupCompletedNotificationJobs,
 } = require(
   "../controllers/admin/adminSystemHealthController"
 );
@@ -254,6 +261,55 @@ router.post(
   "/ipos-recovery/run",
   requireAdmin,
   runIposRecoveryWorkerNow
+);
+
+
+/**
+ * =====================================================
+ * NOTIFICATION RECOVERY DASHBOARD
+ * =====================================================
+ */
+
+router.get(
+  "/notification-recovery/stats",
+  requireAdmin,
+  getNotificationRecoveryStats
+);
+
+router.get(
+  "/notification-recovery/jobs",
+  requireAdmin,
+  getNotificationRecoveryJobs
+);
+
+router.get(
+  "/notification-recovery/dead-jobs",
+  requireAdmin,
+  getNotificationDeadJobs
+);
+
+router.post(
+  "/notification-recovery/retry/:id",
+  requireAdmin,
+  retryNotificationJob
+);
+
+router.post(
+  "/notification-recovery/retry-failed",
+  requireAdmin,
+  retryAllFailedNotificationJobs
+);
+
+router.post(
+  "/notification-recovery/release-stuck",
+  requireAdmin,
+  releaseStuckNotificationRecovery
+);
+
+router.post(
+  "/notification-recovery/cleanup",
+  requireAdmin,
+  cleanupCompletedNotificationJobs
 );
 
 /**

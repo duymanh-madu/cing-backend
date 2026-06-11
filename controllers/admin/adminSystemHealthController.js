@@ -9,6 +9,14 @@ const {
   processIposSyncQueue,
 } = require("../../services/ipos/iposSyncRecoveryWorker");
 
+const {
+  releaseStuckJobs: releaseStuckNotificationJobs,
+} = require("../../services/notificationQueueService");
+
+const {
+  getDeadJobs,
+} = require("../../services/deadLetterQueueService");
+
 async function getCrmRecoveryStats(req, res) {
   try {
     const today = new Date();
@@ -374,7 +382,203 @@ async function runIposRecoveryWorkerNow(req, res) {
 }
 
 
+
+async function getNotificationRecoveryStats(req, res) {
+  try {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const [
+      pending,
+      processing,
+      failed,
+      completedToday,
+      oldestPending,
+      lastProcessed,
+      deadJobs,
+    ] = await Promise.all([
+      supabase.from("notification_jobs").select("id", { count:"exact", head:true }).eq("job_status", "pending"),
+      supabase.from("notification_jobs").select("id", { count:"exact", head:true }).eq("job_status", "processing"),
+      supabase.from("notification_jobs").select("id", { count:"exact", head:true }).eq("job_status", "failed"),
+      supabase.from("notification_jobs").select("id", { count:"exact", head:true }).eq("job_status", "completed").gte("processed_at", today.toISOString()),
+      supabase.from("notification_jobs").select("id,notification_id,created_at,scheduled_at").eq("job_status", "pending").order("created_at", { ascending:true }).limit(1).maybeSingle(),
+      supabase.from("notification_jobs").select("id,notification_id,processed_at").eq("job_status", "completed").order("processed_at", { ascending:false }).limit(1).maybeSingle(),
+      supabase.from("notification_dead_jobs").select("id", { count:"exact", head:true }),
+    ]);
+
+    const totalToday = Number(completedToday.count || 0) + Number(failed.count || 0);
+    const successRate = totalToday > 0
+      ? Math.round((Number(completedToday.count || 0) / totalToday) * 1000) / 10
+      : 100;
+
+    res.json({
+      success: true,
+      data: {
+        pending: pending.count || 0,
+        processing: processing.count || 0,
+        failed: failed.count || 0,
+        completed_today: completedToday.count || 0,
+        done_today: completedToday.count || 0,
+        dead_jobs: deadJobs.count || 0,
+        success_rate: successRate,
+        oldest_pending: oldestPending.data || null,
+        last_processed: lastProcessed.data || null,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+}
+
+async function getNotificationRecoveryJobs(req, res) {
+  try {
+    const {
+      status = "",
+      limit = 50,
+      page = 1,
+    } = req.query;
+
+    const off = (Number(page) - 1) * Number(limit);
+
+    let query = supabase
+      .from("notification_jobs")
+      .select("*", { count:"exact" })
+      .order("created_at", { ascending:false })
+      .range(off, off + Number(limit) - 1);
+
+    if (status) query = query.eq("job_status", status);
+
+    const { data, count, error } = await query;
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data: data || [],
+      total: count || 0,
+      page: Number(page),
+      limit: Number(limit),
+    });
+  } catch (e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+}
+
+async function getNotificationDeadJobs(req, res) {
+  try {
+    const limit = Number(req.query.limit || 50);
+    const jobs = await getDeadJobs({ limit });
+
+    res.json({
+      success: true,
+      data: jobs,
+      total: jobs.length,
+    });
+  } catch (e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+}
+
+async function retryNotificationJob(req, res) {
+  try {
+    const { id } = req.params;
+
+    const { data: job, error } = await supabase
+      .from("notification_jobs")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error || !job) {
+      return res.status(404).json({ success:false, message:"Không tìm thấy notification job" });
+    }
+
+    await supabase
+      .from("notification_jobs")
+      .update({
+        job_status: "pending",
+        retry_count: 0,
+        failed_reason: null,
+        scheduled_at: new Date().toISOString(),
+        worker_id: null,
+        locked_until: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+    res.json({ success:true, message:"Đã đưa notification job về hàng chờ retry" });
+  } catch (e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+}
+
+async function retryAllFailedNotificationJobs(req, res) {
+  try {
+    const { data, error } = await supabase
+      .from("notification_jobs")
+      .update({
+        job_status: "pending",
+        retry_count: 0,
+        failed_reason: null,
+        scheduled_at: new Date().toISOString(),
+        worker_id: null,
+        locked_until: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("job_status", "failed")
+      .select("id");
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      message: `Đã đưa ${data?.length || 0} notification job lỗi về hàng chờ`,
+      count: data?.length || 0,
+    });
+  } catch (e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+}
+
+async function releaseStuckNotificationRecovery(req, res) {
+  try {
+    await releaseStuckNotificationJobs();
+    res.json({ success:true, message:"Đã release stuck notification jobs" });
+  } catch (e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+}
+
+async function cleanupCompletedNotificationJobs(req, res) {
+  try {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+      .from("notification_jobs")
+      .delete()
+      .eq("job_status", "completed")
+      .lt("processed_at", cutoff)
+      .select("id");
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      deleted: data?.length || 0,
+    });
+  } catch (e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+}
+
+
 module.exports = {
+  cleanupCompletedNotificationJobs,
+  releaseStuckNotificationRecovery,
+  retryAllFailedNotificationJobs,
+  retryNotificationJob,
+  getNotificationDeadJobs,
+  getNotificationRecoveryJobs,
+  getNotificationRecoveryStats,
   runIposRecoveryWorkerNow,
   retryAllFailedIposRecovery,
   retryIposRecoveryJob,
