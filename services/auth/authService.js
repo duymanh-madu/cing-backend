@@ -99,6 +99,21 @@ async function loginWithZalo({
     }
   }
 
+  // Sync zalo_user_id vào players table — cần cho CDP (UID/ZBS gửi tin qua Zalo OA)
+  try {
+    const zaloId = zaloUser.zalo_id || zaloUser.id || "";
+    const phone = normalizePhone(customer.phone || zaloUser.phone || "");
+    if (zaloId && phone && phone.length >= 9) {
+      const { error: zErr } = await require("../../supabase")
+        .from("players")
+        .update({ zalo_user_id: zaloId })
+        .eq("user_id", phone)
+        .is("zalo_user_id", null); // chỉ set nếu chưa có, tránh overwrite
+      if (zErr) console.warn("[AUTH] players.zalo_user_id sync failed:", zErr.message);
+      else console.log(`[AUTH] players.zalo_user_id synced: ${phone} -> ${zaloId}`);
+    }
+  } catch(e) { console.warn("[AUTH] zalo_user_id sync error:", e.message); }
+
   const accessToken =
     tokenService.generateAccessToken({
       customer,
