@@ -320,6 +320,30 @@ async function getSystemHealth(req, res) {
     checks.transaction_integrity = { status: "warning", detail: e.message };
   }
 
+  try {
+    const { data: cfg } = await supabase.from("app_configs")
+      .select("zalo_oa_token_expiry").eq("id", 1).single();
+
+    const expiry = cfg?.zalo_oa_token_expiry ? new Date(cfg.zalo_oa_token_expiry) : null;
+    const now = new Date();
+    const hoursLeft = expiry ? (expiry - now) / (1000*60*60) : null;
+
+    let status, detail;
+    if (!expiry) {
+      status = "critical"; detail = "Chưa có token hoặc chưa rõ hạn";
+    } else if (hoursLeft <= 0) {
+      status = "critical"; detail = "Token đã hết hạn — cần kết nối lại Zalo OA";
+    } else if (hoursLeft < 4) {
+      status = "warning"; detail = `Token còn ${hoursLeft.toFixed(1)}h — sắp hết hạn`;
+    } else {
+      status = "healthy"; detail = `Token còn ${hoursLeft.toFixed(1)}h`;
+    }
+
+    checks.zalo_oa = { status, detail, expiry: cfg?.zalo_oa_token_expiry || null };
+  } catch (e) {
+    checks.zalo_oa = { status: "warning", detail: e.message };
+  }
+
 
   const values = Object.values(checks);
   const critical = values.filter(v => v.status === "critical").length;
