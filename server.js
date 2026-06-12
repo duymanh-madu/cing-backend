@@ -65,6 +65,20 @@ const {
 
 const app = createApp();
 
+// Zalo OA domain verification — file phải accessible ở ROOT path
+app.get("/zalo_verifierIDxcEwgkGZ9UWiaqjOWJ5sBsjpMEW69YCZOt.html", (req, res) => {
+  res.set("Content-Type", "text/html");
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta property="zalo-platform-site-verification" content="IDxcEwgkGZ9UWiaqjOWJ5sBsjpMEW69YCZOt" />
+</head>
+<body>
+There Is No Limit To What You Can Accomplish Using Zalo!
+</body>
+</html>`);
+});
+
 /**
  * =====================================================
  * API PREFIX
