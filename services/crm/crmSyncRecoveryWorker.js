@@ -1,6 +1,7 @@
 const supabase = require("../../supabase");
 const redisClient = require("../infrastructure/cache/redisClient");
 const { syncSingleUserSpending } = require("./crmSpendingSyncService");
+const { sendAdminAlert } = require("../alerts/adminAlertService");
 const { normalizePhone } = require("../../utils/phoneIdentity");
 const {
   registerScheduler,
@@ -144,6 +145,15 @@ async function failJob(job, errorMessage) {
       updated_at: nowIso(),
     })
     .eq("id", job.id);
+
+  // Cảnh báo admin khi job thất bại hoàn toàn (đã retry tối đa)
+  if (status === "failed") {
+    await sendAdminAlert({
+      title: "🔴 CRM Sync thất bại",
+      message: `Không thể sync CRM cho SĐT ${job.phone || job.user_id} sau ${retryCount} lần thử. Lỗi: ${errorMessage}. Vui lòng kiểm tra và sync tay trong System Health.`,
+      source: "crm_sync_failed",
+    }).catch(()=>{});
+  }
 }
 
 async function releaseStuckJobs() {

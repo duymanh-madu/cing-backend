@@ -8,12 +8,15 @@ const {
   markSchedulerSuccess,
   markSchedulerError,
 } = require("../scheduler/schedulerHealthService");
+const { sendAdminAlert } = require("../alerts/adminAlertService");
 
 const DEFAULT_INTERVAL_MS =
   Number(process.env.TRANSACTION_INTEGRITY_INTERVAL_MS || 5 * 60 * 1000);
 
 let timer = null;
 let running = false;
+let consecutiveIssues = 0;
+const ALERT_THRESHOLD = 5;
 
 async function runTransactionIntegrityCheck() {
   if (running) return { success:true, skipped:true, reason:"already_running" };
@@ -30,6 +33,23 @@ async function runTransactionIntegrityCheck() {
       missing_ipos: snapshot.missing_ipos,
       paid_orders_today: snapshot.paid_orders_today,
     });
+
+    // Theo dõi số lần liên tiếp phát hiện vấn đề chưa tự fix được
+    const hasIssue = (snapshot.missing_crm > 0 || snapshot.missing_ipos > 0);
+    if (hasIssue) {
+      consecutiveIssues++;
+      console.warn(`[TX INTEGRITY] Phát hiện vấn đề lần ${consecutiveIssues}: missing_crm=${snapshot.missing_crm}, missing_ipos=${snapshot.missing_ipos}`);
+      if (consecutiveIssues >= ALERT_THRESHOLD) {
+        await sendAdminAlert({
+          title: "⚠️ Cảnh báo Transaction Integrity",
+          message: `Hệ thống phát hiện ${snapshot.missing_crm} đơn thiếu CRM sync và ${snapshot.missing_ipos} đơn thiếu iPOS sync, đã thử tự fix ${consecutiveIssues} lần không thành công. Vui lòng kiểm tra System Health.`,
+          source: "transaction_integrity",
+        });
+        consecutiveIssues = 0; // reset sau khi đã cảnh báo, tránh spam
+      }
+    } else {
+      consecutiveIssues = 0;
+    }
 
     return { success:true, data:snapshot };
   } catch (e) {

@@ -1,4 +1,5 @@
 const supabase = require("../../supabase");
+const { sendAdminAlert } = require("../alerts/adminAlertService");
 const redisClient = require("../infrastructure/cache/redisClient");
 const { pushOrderToIPOS } = require("../iposOrderService");
 const {
@@ -137,6 +138,14 @@ async function failJob(job, errorMessage) {
       updated_at: nowIso(),
     })
     .eq("id", job.id);
+
+  if (status === "failed") {
+    await sendAdminAlert({
+      title: "🔴 iPOS Sync thất bại",
+      message: `Không thể đẩy đơn ${job.order_code || job.order_id} lên iPOS sau ${retryCount} lần thử. Lỗi: ${errorMessage}. Vui lòng kiểm tra System Health.`,
+      source: "ipos_sync_failed",
+    }).catch(()=>{});
+  }
 }
 
 async function processIposSyncQueue({ batchSize = DEFAULT_BATCH_SIZE } = {}) {
