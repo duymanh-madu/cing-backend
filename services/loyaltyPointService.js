@@ -22,6 +22,32 @@ const POINT_VALUE = 1000; // 1 diem = 1000 VND
  * @param {number} points - so diem can tru
  * @param {string} reason - ly do tru diem (de log)
  */
+async function logPointTransaction({
+  user_id,
+  order_id = null,
+  transaction_type,
+  points,
+  balance_before = null,
+  balance_after = null,
+  reason = "",
+  metadata = {},
+}) {
+  try {
+    await supabase.from("point_transactions").insert({
+      user_id,
+      order_id,
+      transaction_type,
+      points,
+      balance_before,
+      balance_after,
+      reason,
+      metadata,
+    });
+  } catch (e) {
+    console.warn("[POINT LEDGER] insert failed:", e.message);
+  }
+}
+
 async function deductPoints({ phone, user_id, points, reason = "Sử dụng điểm" }) {
   if (!points || points <= 0) throw new Error("Số điểm không hợp lệ");
 
@@ -41,6 +67,16 @@ async function deductPoints({ phone, user_id, points, reason = "Sử dụng đi�
   await supabase.from("players")
     .update({ total_points: currentPoints - points })
     .eq("user_id", user_id);
+
+  await logPointTransaction({
+    user_id,
+    transaction_type: "deduct",
+    points: -Math.abs(points),
+    balance_before: currentPoints,
+    balance_after: currentPoints - points,
+    reason,
+    metadata: { phone: phone || user_id },
+  });
 
   // 3. Sync nguoc ve iPOS neu co phone
   if (phone) {
@@ -111,6 +147,16 @@ async function addPoints({ phone, user_id, points, reason = "Nhận điểm thư
 
   await supabase.from("players")
     .upsert({ user_id, total_points: currentPoints + points }, { onConflict: "user_id" });
+
+  await logPointTransaction({
+    user_id,
+    transaction_type: "add",
+    points: Math.abs(points),
+    balance_before: currentPoints,
+    balance_after: currentPoints + points,
+    reason,
+    metadata: { phone: phone || user_id },
+  });
 
   // Sync ve iPOS neu co phone
   if (phone) {
