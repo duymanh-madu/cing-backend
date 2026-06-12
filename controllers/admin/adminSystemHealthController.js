@@ -2,6 +2,14 @@ const supabase = require("../../supabase");
 const {
   getSchedulerHealth,
 } = require("../../services/scheduler/schedulerHealthService");
+
+const {
+  getTransactionIntegritySnapshot,
+} = require("../../services/transaction/transactionIntegrityService");
+
+const {
+  runTransactionIntegrityCheck,
+} = require("../../services/transaction/transactionIntegrityWorker");
 const redisClient = require("../../services/infrastructure/cache/redisClient");
 const {
   enqueueCrmSyncRecovery,
@@ -295,6 +303,21 @@ async function getSystemHealth(req, res) {
     };
   } catch (e) {
     checks.scheduler_health = { status: "warning", detail: e.message };
+  }
+
+  try {
+    const txIntegrity = await getTransactionIntegritySnapshot({
+      autoRecover: false,
+      graceMinutes: Number(process.env.TRANSACTION_INTEGRITY_GRACE_MINUTES || 10),
+    });
+
+    checks.transaction_integrity = {
+      status: txIntegrity.status,
+      detail: `CRM missing ${txIntegrity.missing_crm}, iPOS missing ${txIntegrity.missing_ipos}`,
+      ...txIntegrity,
+    };
+  } catch (e) {
+    checks.transaction_integrity = { status: "warning", detail: e.message };
   }
 
 
@@ -658,7 +681,36 @@ async function cleanupCompletedNotificationJobs(req, res) {
 }
 
 
+
+async function getTransactionIntegrityHealth(req, res) {
+  try {
+    const result = await getTransactionIntegritySnapshot({
+      autoRecover: false,
+      graceMinutes: Number(req.query.graceMinutes || process.env.TRANSACTION_INTEGRITY_GRACE_MINUTES || 10),
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+}
+
+async function runTransactionIntegrityNow(req, res) {
+  try {
+    const result = await runTransactionIntegrityCheck();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+}
+
+
 module.exports = {
+  runTransactionIntegrityNow,
+  getTransactionIntegrityHealth,
   cleanupCompletedNotificationJobs,
   releaseStuckNotificationRecovery,
   retryAllFailedNotificationJobs,

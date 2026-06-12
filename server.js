@@ -941,3 +941,17 @@ try {
 } catch (e) {
   console.warn("[IPOS RECOVERY] worker start failed:", e.message);
 }
+
+
+/**
+ * =====================================================
+ * TRANSACTION INTEGRITY WORKER
+ * Detect paid orders missing CRM/iPOS sync and auto-recover.
+ * =====================================================
+ */
+try {
+  const { startTransactionIntegrityWorker } = require("./services/transaction/transactionIntegrityWorker");
+  startTransactionIntegrityWorker();
+} catch (e) {
+  console.warn("[TX INTEGRITY] worker start failed:", e.message);
+}

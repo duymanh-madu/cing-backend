@@ -65,6 +65,8 @@ const {
   retryAllFailedNotificationJobs,
   releaseStuckNotificationRecovery,
   cleanupCompletedNotificationJobs,
+  getTransactionIntegrityHealth,
+  runTransactionIntegrityNow,
 } = require(
   "../controllers/admin/adminSystemHealthController"
 );
@@ -310,6 +312,25 @@ router.post(
   "/notification-recovery/cleanup",
   requireAdmin,
   cleanupCompletedNotificationJobs
+);
+
+
+/**
+ * =====================================================
+ * TRANSACTION INTEGRITY HEALTH
+ * =====================================================
+ */
+
+router.get(
+  "/transaction-integrity",
+  requireAdmin,
+  getTransactionIntegrityHealth
+);
+
+router.post(
+  "/transaction-integrity/run",
+  requireAdmin,
+  runTransactionIntegrityNow
 );
 
 /**
