@@ -19,7 +19,8 @@ router.get("/oa-callback", async (req, res) => {
 
     console.log("[ZALO OA] Calling authorization_code exchange with app_id:", process.env.ZALO_APP_ID);
     const result = await axios.post("https://oauth.zaloapp.com/v4/oa/access_token", null, {
-      params: { app_id: APP_ID, app_secret: APP_SECRET, code, grant_type: "authorization_code" }
+      params: { app_id: APP_ID, code, grant_type: "authorization_code" },
+      headers: { secret_key: APP_SECRET, "Content-Type": "application/x-www-form-urlencoded" }
     });
 
     console.log("[ZALO OA] Exchange result.data:", JSON.stringify(result.data));
