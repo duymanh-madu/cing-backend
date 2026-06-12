@@ -976,3 +976,10 @@ try {
 } catch (e) {
   console.warn("[ZALO TOKEN] worker start failed:", e.message);
 }
+
+try {
+  const { startIposActivityWorker } = require("./services/ipos/iposActivityWorker");
+  startIposActivityWorker();
+} catch (e) {
+  console.warn("[IPOS ACTIVITY] worker start failed:", e.message);
+}

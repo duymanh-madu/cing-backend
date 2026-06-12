@@ -371,6 +371,28 @@ async function getSystemHealth(req, res) {
     checks.webhook_dedup = { status: "warning", detail: e.message };
   }
 
+  try {
+    const fiveMinAgo = new Date(Date.now() - 5*60*1000).toISOString();
+    const oneHourAgo = new Date(Date.now() - 60*60*1000).toISOString();
+
+    const [{ count: pending }, { count: recentTotal }] = await Promise.all([
+      supabase.from("ipos_webhook_log").select("*",{count:'exact',head:true}).eq("synced",false).not("phone","is",null),
+      supabase.from("ipos_webhook_log").select("*",{count:'exact',head:true}).gte("received_at", oneHourAgo),
+    ]);
+
+    const p = pending || 0;
+    const status = p > 10 ? "critical" : p > 3 ? "warning" : "healthy";
+
+    checks.ipos_activity = {
+      status,
+      detail: `${p} giao dịch đang chờ sync, ${recentTotal||0} events trong 1h qua`,
+      pending_sync: p,
+      events_last_hour: recentTotal || 0,
+    };
+  } catch (e) {
+    checks.ipos_activity = { status: "warning", detail: e.message };
+  }
+
 
   const values = Object.values(checks);
   const critical = values.filter(v => v.status === "critical").length;
