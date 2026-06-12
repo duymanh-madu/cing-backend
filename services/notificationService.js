@@ -41,7 +41,7 @@ async function createNotification({ user_id, type, title, message, data = {} }) 
   try {
     const { data: notif } = await supabase
       .from("notifications")
-      .insert({ user_id, type, title, message, data, read: false })
+      .insert({ user_id, type, title, message, data, is_read: false })
       .select()
       .single();
     return notif;
