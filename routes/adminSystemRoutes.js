@@ -66,6 +66,7 @@ const {
   releaseStuckNotificationRecovery,
   cleanupCompletedNotificationJobs,
   getTransactionIntegrityHealth,
+  getLoyaltyIntegrityHealth,
   runTransactionIntegrityNow,
 } = require(
   "../controllers/admin/adminSystemHealthController"
