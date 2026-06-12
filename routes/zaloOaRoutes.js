@@ -7,6 +7,19 @@ const APP_ID     = process.env.ZALO_APP_ID;
 const APP_SECRET = process.env.ZALO_APP_SECRET;
 
 // Zalo domain verification
+router.get("/zalo_verifierIDxcEwgkGZ9UWiaqjOWJ5sBsjpMEW69YCZOt.html", (req, res) => {
+  res.set("Content-Type", "text/html");
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta property="zalo-platform-site-verification" content="IDxcEwgkGZ9UWiaqjOWJ5sBsjpMEW69YCZOt" />
+</head>
+<body>
+There Is No Limit To What You Can Accomplish Using Zalo!
+</body>
+</html>`);
+});
+
 router.get("/zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu.html", (req, res) => {
   res.send("zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu");
 });
