@@ -65,13 +65,15 @@ router.post("/callback", async (req, res) => {
     // Trả về 200 ngay — không để iPos timeout
     res.json({ success: true });
 
-    // Idempotency check — tránh xử lý double event từ iPOS
-    const eventId = body.event_id || body.id;
-    if (eventId) {
-      const lockKey = `ipos:event:${eventId}`;
+    // Idempotency check — dùng id riêng của từng giao dịch (object.id), không phải event_id cố định
+    // event_id (10, 11, 3...) chỉ là LOẠI event, không phải định danh giao dịch
+    const eventData = body[event] || {};
+    const uniqueId = eventData.id || body.event_id || body.id;
+    if (uniqueId) {
+      const lockKey = `ipos:event:${event}:${uniqueId}`;
       const locked = await redisClient.set(lockKey, '1', 'NX', 'EX', 300).catch(() => null);
       if (!locked) {
-        console.log(`[FOODBOOK] Duplicate event skipped: ${event} #${eventId}`);
+        console.log(`[FOODBOOK] Duplicate event skipped: ${event} #${uniqueId}`);
         return;
       }
     }
