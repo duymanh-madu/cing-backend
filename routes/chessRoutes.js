@@ -265,12 +265,25 @@ router.post("/tip", async (req, res) => {
         fromName,
       });
 
+      const giftTitle = `${fromName} đã tặng bạn ${giftIcon || ""} ${giftName || "vật phẩm"}`;
+      const giftBody = `+${charmAmount} điểm quyến rũ`;
+
       io.emit("notification:new", {
         userId: toId,
-        title: `${fromName} đã tặng bạn ${giftIcon || ""} ${giftName || "vật phẩm"}`,
-        body: `+${charmAmount} điểm quyến rũ`,
+        title: giftTitle,
+        body: giftBody,
         type: "gift_received",
       });
+
+      // Lưu DB — đảm bảo người nhận offline vẫn thấy khi vào lại app
+      supabase.from("notifications").insert({
+        user_id: toId,
+        title: giftTitle,
+        message: giftBody,
+        type: "gift_received",
+        is_read: false,
+        created_at: new Date().toISOString(),
+      }).then(() => {}).catch(e => console.warn("[CHESS GIFT] notification insert failed:", e.message));
     }
 
     console.log(`[CHESS GIFT] ${fromId} → ${toId}: ${giftName} (+${charmAmount} charm) newCharm=${newCharm}`);
