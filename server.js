@@ -955,3 +955,10 @@ try {
 } catch (e) {
   console.warn("[TX INTEGRITY] worker start failed:", e.message);
 }
+
+try {
+  const { startZaloTokenRefreshWorker } = require("./services/zalo/zaloTokenRefreshWorker");
+  startZaloTokenRefreshWorker();
+} catch (e) {
+  console.warn("[ZALO TOKEN] worker start failed:", e.message);
+}
