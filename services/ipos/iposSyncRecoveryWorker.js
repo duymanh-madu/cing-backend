@@ -1,6 +1,12 @@
 const supabase = require("../../supabase");
 const redisClient = require("../infrastructure/cache/redisClient");
 const { pushOrderToIPOS } = require("../iposOrderService");
+const {
+  registerScheduler,
+  markSchedulerStarted,
+  markSchedulerSuccess,
+  markSchedulerError,
+} = require("../scheduler/schedulerHealthService");
 
 const DEFAULT_INTERVAL_MS = Number(process.env.IPOS_RECOVERY_INTERVAL_MS || 5 * 60 * 1000);
 const DEFAULT_BATCH_SIZE = Number(process.env.IPOS_RECOVERY_BATCH_SIZE || 3);
@@ -209,6 +215,15 @@ function startIposSyncRecoveryWorker() {
 
   if (timer) return;
 
+  registerScheduler({
+    key: "ipos_recovery_worker",
+    name: "iPOS Recovery Worker",
+    interval_ms: DEFAULT_INTERVAL_MS,
+    type: "worker",
+  });
+
+  markSchedulerStarted("ipos_recovery_worker");
+
   console.log("[IPOS RECOVERY] worker started", {
     interval_ms: DEFAULT_INTERVAL_MS,
     batch_size: DEFAULT_BATCH_SIZE,
@@ -216,14 +231,16 @@ function startIposSyncRecoveryWorker() {
 
   setTimeout(() => {
     processIposSyncQueue().then(r => {
+      markSchedulerSuccess("ipos_recovery_worker", r?.stats || r || {});
       if (r?.stats?.total) console.log("[IPOS RECOVERY] boot run:", r.stats);
-    }).catch(() => {});
+    }).catch(e => markSchedulerError("ipos_recovery_worker", e));
   }, 45 * 1000);
 
   timer = setInterval(() => {
     processIposSyncQueue().then(r => {
+      markSchedulerSuccess("ipos_recovery_worker", r?.stats || r || {});
       if (r?.stats?.total) console.log("[IPOS RECOVERY] tick:", r.stats);
-    }).catch(() => {});
+    }).catch(e => markSchedulerError("ipos_recovery_worker", e));
   }, DEFAULT_INTERVAL_MS);
 }
 

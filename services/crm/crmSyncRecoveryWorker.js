@@ -2,6 +2,12 @@ const supabase = require("../../supabase");
 const redisClient = require("../infrastructure/cache/redisClient");
 const { syncSingleUserSpending } = require("./crmSpendingSyncService");
 const { normalizePhone } = require("../../utils/phoneIdentity");
+const {
+  registerScheduler,
+  markSchedulerStarted,
+  markSchedulerSuccess,
+  markSchedulerError,
+} = require("../scheduler/schedulerHealthService");
 
 const WORKER_NAME = "crm-sync-recovery-worker";
 const DEFAULT_INTERVAL_MS = Number(process.env.CRM_RECOVERY_INTERVAL_MS || 5 * 60 * 1000);
@@ -250,6 +256,15 @@ function startCrmSyncRecoveryWorker() {
 
   if (timer) return;
 
+  registerScheduler({
+    key: "crm_recovery_worker",
+    name: "CRM Recovery Worker",
+    interval_ms: DEFAULT_INTERVAL_MS,
+    type: "worker",
+  });
+
+  markSchedulerStarted("crm_recovery_worker");
+
   console.log("[CRM RECOVERY] worker started", {
     interval_ms: DEFAULT_INTERVAL_MS,
     batch_size: DEFAULT_BATCH_SIZE,
@@ -258,14 +273,16 @@ function startCrmSyncRecoveryWorker() {
 
   setTimeout(() => {
     processCrmSyncQueue().then(r => {
+      markSchedulerSuccess("crm_recovery_worker", r?.stats || r || {});
       if (r?.stats?.total) console.log("[CRM RECOVERY] boot run:", r.stats);
-    }).catch(() => {});
+    }).catch(e => markSchedulerError("crm_recovery_worker", e));
   }, 30 * 1000);
 
   timer = setInterval(() => {
     processCrmSyncQueue().then(r => {
+      markSchedulerSuccess("crm_recovery_worker", r?.stats || r || {});
       if (r?.stats?.total) console.log("[CRM RECOVERY] tick:", r.stats);
-    }).catch(() => {});
+    }).catch(e => markSchedulerError("crm_recovery_worker", e));
   }, DEFAULT_INTERVAL_MS);
 }
 

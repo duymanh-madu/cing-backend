@@ -1,4 +1,7 @@
 const supabase = require("../../supabase");
+const {
+  getSchedulerHealth,
+} = require("../../services/scheduler/schedulerHealthService");
 const redisClient = require("../../services/infrastructure/cache/redisClient");
 const {
   enqueueCrmSyncRecovery,
@@ -281,6 +284,19 @@ async function getSystemHealth(req, res) {
   } catch (e) {
     checks.socket_runtime = { status: "warning", detail: e.message };
   }
+
+  try {
+    const schedulerHealth = getSchedulerHealth();
+
+    checks.scheduler_health = {
+      status: schedulerHealth.status,
+      detail: `${schedulerHealth.healthy}/${schedulerHealth.total} healthy`,
+      ...schedulerHealth,
+    };
+  } catch (e) {
+    checks.scheduler_health = { status: "warning", detail: e.message };
+  }
+
 
   const values = Object.values(checks);
   const critical = values.filter(v => v.status === "critical").length;
