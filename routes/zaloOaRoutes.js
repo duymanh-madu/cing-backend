@@ -22,7 +22,12 @@ router.get("/oa-callback", async (req, res) => {
       params: { app_id: APP_ID, app_secret: APP_SECRET, code, grant_type: "authorization_code" }
     });
 
+    console.log("[ZALO OA] Exchange result.data:", JSON.stringify(result.data));
     const { access_token, refresh_token, expires_in } = result.data;
+
+    if (!access_token) {
+      return res.status(500).send("❌ Zalo trả về: " + JSON.stringify(result.data));
+    }
 
     await supabase.from("app_configs").update({
       zalo_oa_access_token:  access_token,
