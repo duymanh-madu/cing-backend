@@ -74,6 +74,10 @@ router.post("/callback", async (req, res) => {
       const locked = await redisClient.set(lockKey, '1', 'NX', 'EX', 300).catch(() => null);
       if (!locked) {
         console.log(`[FOODBOOK] Duplicate event skipped: ${event} #${uniqueId}`);
+        // Track số lần skip — dùng cho System Health dedup monitor
+        const hourKey = `ipos:dedup_skip:${new Date().toISOString().slice(0,13)}`;
+        await redisClient.incr(hourKey).catch(()=>{});
+        await redisClient.expire(hourKey, 7200).catch(()=>{});
         return;
       }
     }

@@ -344,6 +344,33 @@ async function getSystemHealth(req, res) {
     checks.zalo_oa = { status: "warning", detail: e.message };
   }
 
+  try {
+    const now = new Date();
+    const curHour = now.toISOString().slice(0,13);
+    const prevHour = new Date(now.getTime() - 3600*1000).toISOString().slice(0,13);
+
+    const [curCount, prevCount] = await Promise.all([
+      redisClient.get(`ipos:dedup_skip:${curHour}`).catch(()=>null),
+      redisClient.get(`ipos:dedup_skip:${prevHour}`).catch(()=>null),
+    ]);
+
+    const cur = Number(curCount || 0);
+    const prev = Number(prevCount || 0);
+    const total = cur + prev;
+
+    // Threshold: >20 skip/2h là bất thường (mỗi giao dịch giờ unique, skip thật hiếm)
+    const status = total > 50 ? "critical" : total > 20 ? "warning" : "healthy";
+
+    checks.webhook_dedup = {
+      status,
+      detail: `${total} duplicate events bị skip trong 2h qua (giờ này: ${cur}, giờ trước: ${prev})`,
+      skip_count_current_hour: cur,
+      skip_count_prev_hour: prev,
+    };
+  } catch (e) {
+    checks.webhook_dedup = { status: "warning", detail: e.message };
+  }
+
 
   const values = Object.values(checks);
   const critical = values.filter(v => v.status === "critical").length;

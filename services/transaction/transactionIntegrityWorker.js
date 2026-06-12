@@ -9,6 +9,7 @@ const {
   markSchedulerError,
 } = require("../scheduler/schedulerHealthService");
 const { sendAdminAlert } = require("../alerts/adminAlertService");
+const redisClient = require("../infrastructure/cache/redisClient");
 
 const DEFAULT_INTERVAL_MS =
   Number(process.env.TRANSACTION_INTEGRITY_INTERVAL_MS || 5 * 60 * 1000);
@@ -49,6 +50,27 @@ async function runTransactionIntegrityCheck() {
       }
     } else {
       consecutiveIssues = 0;
+    }
+
+    // Check webhook dedup — phát hiện đơn bị skip nhầm do idempotency
+    try {
+      const now = new Date();
+      const curHour = now.toISOString().slice(0,13);
+      const prevHour = new Date(now.getTime() - 3600*1000).toISOString().slice(0,13);
+      const [curCount, prevCount] = await Promise.all([
+        redisClient.get(`ipos:dedup_skip:${curHour}`).catch(()=>null),
+        redisClient.get(`ipos:dedup_skip:${prevHour}`).catch(()=>null),
+      ]);
+      const total = Number(curCount||0) + Number(prevCount||0);
+      if (total > 50) {
+        await sendAdminAlert({
+          title: "🔴 Webhook iPOS: nhiều duplicate bị skip",
+          message: `Phát hiện ${total} sự kiện duplicate bị skip trong 2h qua — có thể đơn hàng đang bị bỏ sót. Vui lòng kiểm tra System Health.`,
+          source: "webhook_dedup_high",
+        });
+      }
+    } catch(e) {
+      console.warn("[TX INTEGRITY] dedup check failed:", e.message);
     }
 
     return { success:true, data:snapshot };
