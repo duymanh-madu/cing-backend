@@ -39,14 +39,27 @@ const TEMPLATES = {
  */
 async function createNotification({ user_id, type, title, message, data = {} }) {
   try {
-    const { data: notif } = await supabase
+    const { data: notif, error } = await supabase
       .from("notifications")
       .insert({ user_id, type, title, message, data, is_read: false })
       .select()
       .single();
+
+    if (error) throw new Error(error.message);
     return notif;
   } catch(e) {
     console.error("[NOTIF] Create failed:", e.message);
+    // Log lỗi vào notification_jobs để System Health Notification Recovery phát hiện
+    await supabase.from("notification_jobs").insert({
+      notification_id: null,
+      job_type: "create_notification",
+      job_status: "failed",
+      delivery_channel: "realtime",
+      priority: "normal",
+      retry_count: 0,
+      failed_reason: e.message,
+      processed_at: new Date().toISOString(),
+    }).then(()=>{}).catch(()=>{});
     return null;
   }
 }
