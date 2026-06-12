@@ -12,6 +12,65 @@ function requireAdmin(req, res, next) {
   catch { res.status(401).json({ success: false, message: "Token không hợp lệ" }); }
 }
 
+
+// GET /admin/players/search?q=...
+router.get("/search", requireAdmin, async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    if (!q) return res.status(400).json({ success:false, message:"Thiếu từ khóa tìm kiếm" });
+
+    const digits = q.replace(/\D/g, "");
+    const qLower = q.toLowerCase();
+
+    let query = supabase
+      .from("players")
+      .select("user_id, phone, phone_number, display_name, zalo_name, avatar, zalo_avatar, crm_tier, total_points, crm_spend_alltime")
+      .limit(20);
+
+    if (digits.length >= 6) {
+      query = query.or(`user_id.ilike.%${digits}%,phone.ilike.%${digits}%,phone_number.ilike.%${digits}%`);
+    } else {
+      query = query.or(`display_name.ilike.%${qLower}%,zalo_name.ilike.%${qLower}%,user_id.ilike.%${qLower}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const rows = data || [];
+    if (rows.length === 0) {
+      return res.status(404).json({ success:false, message:"Không tìm thấy người chơi" });
+    }
+
+    const p = rows[0];
+
+    res.json({
+      success: true,
+      data: {
+        user_id: p.user_id,
+        phone: p.phone || p.phone_number || p.user_id,
+        display_name: p.display_name || "",
+        zalo_name: p.zalo_name || "",
+        name: p.display_name || p.zalo_name || p.user_id,
+        avatar: p.avatar || p.zalo_avatar || "",
+        tierKey: p.crm_tier || "member",
+        tierName: p.crm_tier || "member",
+        points: p.total_points || 0,
+        paymentAmount: p.crm_spend_alltime || 0,
+        matches: rows.map(x => ({
+          user_id: x.user_id,
+          phone: x.phone || x.phone_number || x.user_id,
+          display_name: x.display_name || "",
+          zalo_name: x.zalo_name || "",
+          name: x.display_name || x.zalo_name || x.user_id,
+        })),
+      },
+    });
+  } catch(e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+});
+
+
 // POST /admin/players/adjust-plays
 router.post("/adjust-plays", requireAdmin, async (req, res) => {
   try {
