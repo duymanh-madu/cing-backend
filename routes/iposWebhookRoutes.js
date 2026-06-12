@@ -74,7 +74,6 @@ router.post("/callback", async (req, res) => {
       const locked = await redisClient.set(lockKey, '1', 'NX', 'EX', 300).catch(() => null);
       if (!locked) {
         console.log(`[FOODBOOK] Duplicate event skipped: ${event} #${uniqueId}`);
-        // Track số lần skip — dùng cho System Health dedup monitor
         const hourKey = `ipos:dedup_skip:${new Date().toISOString().slice(0,13)}`;
         await redisClient.incr(hourKey).catch(()=>{});
         await redisClient.expire(hourKey, 7200).catch(()=>{});
@@ -101,6 +100,17 @@ router.post("/callback", async (req, res) => {
     // 1. Xóa Redis cache
     const p0  = normalizePhone(phone);
     const p84 = "84" + p0.slice(1);
+
+    // Ghi log event để theo dõi đồng bộ — dùng cho ipos_activity health check
+    let _logId = null;
+    try {
+      const _foodbookCode = (body.notify_order_online || body.sale_manager || body.membership_log)?.foodbook_code || null;
+      const { data: logRow } = await supabase.from("ipos_webhook_log").insert({
+        event, unique_id: uniqueId, phone: p0 || null, foodbook_code: _foodbookCode,
+        synced: false,
+      }).select("id").maybeSingle();
+      _logId = logRow?.id || null;
+    } catch(e) { console.warn("[FOODBOOK] log insert failed:", e.message); }
     await Promise.all([
       redisClient.del(`membership:${p84}`),
       redisClient.del(`membership:${p0}`),
@@ -159,6 +169,10 @@ router.post("/callback", async (req, res) => {
         if (!skipSync) {
           await syncSingleUserSpending(p0);
           console.log(`[FOODBOOK] Spending synced for ${p0} - event: ${event}`);
+        }
+        // Đánh dấu log đã sync (kể cả skip vì đã sync từ MoMo)
+        if (_logId) {
+          await supabase.from("ipos_webhook_log").update({ synced: true }).eq("id", _logId).then(()=>{}).catch(()=>{});
         }
       } catch (syncErr) {
         console.warn(`[FOODBOOK] Spending sync failed for ${p0}:`, syncErr.message);
