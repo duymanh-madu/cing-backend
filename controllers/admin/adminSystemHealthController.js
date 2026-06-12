@@ -8,6 +8,10 @@ const {
 } = require("../../services/transaction/transactionIntegrityService");
 
 const {
+  getLoyaltyIntegritySnapshot,
+} = require("../../services/loyalty/loyaltyIntegrityService");
+
+const {
   runTransactionIntegrityCheck,
 } = require("../../services/transaction/transactionIntegrityWorker");
 const redisClient = require("../../services/infrastructure/cache/redisClient");
@@ -319,6 +323,23 @@ async function getSystemHealth(req, res) {
   } catch (e) {
     checks.transaction_integrity = { status: "warning", detail: e.message };
   }
+
+  try {
+  const loyaltyIntegrity =
+    await getLoyaltyIntegritySnapshot();
+
+  checks.loyalty_integrity = {
+    status: loyaltyIntegrity.status,
+    detail:
+      `${loyaltyIntegrity.mismatch_users} mismatch / ${loyaltyIntegrity.checked_users} users`,
+    ...loyaltyIntegrity,
+  };
+} catch (e) {
+  checks.loyalty_integrity = {
+    status: "warning",
+    detail: e.message,
+  };
+}
 
   try {
     const { data: cfg } = await supabase.from("app_configs")
@@ -780,6 +801,22 @@ async function runTransactionIntegrityNow(req, res) {
   }
 }
 
+async function getLoyaltyIntegrityHealth(req, res) {
+  try {
+    const result =
+      await getLoyaltyIntegritySnapshot();
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (e) {
+    res.status(500).json({
+      success: false,
+      error: e.message,
+    });
+  }
+}
 
 module.exports = {
   runTransactionIntegrityNow,
@@ -804,4 +841,5 @@ module.exports = {
   enqueueCrmRecoveryManual,
   runCrmRecoveryWorkerNow,
   cleanupCrmRecoveryDone,
+  getLoyaltyIntegrityHealth,
 };

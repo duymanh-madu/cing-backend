@@ -327,6 +327,12 @@ router.get(
   getTransactionIntegrityHealth
 );
 
+router.get(
+  "/loyalty-integrity",
+  requireAdmin,
+  getLoyaltyIntegrityHealth
+);
+
 router.post(
   "/transaction-integrity/run",
   requireAdmin,
