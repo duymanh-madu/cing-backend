@@ -1,5 +1,6 @@
 const supabase = require("../../supabase");
 const { sendZaloOAMessage } = require("../zaloMessageService");
+const { broadcastNotification } = require("../notificationService");
 
 // Số điện thoại admin nhận cảnh báo — có thể thêm nhiều số, cách nhau bởi dấu phẩy trong env
 const ADMIN_PHONES = (process.env.ADMIN_ALERT_PHONES || "0984966336")
@@ -30,7 +31,14 @@ async function sendAdminAlert({ title, message, source = "system" }) {
       created_at: new Date().toISOString(),
     }).then(() => {}).catch(e => console.warn("[ADMIN ALERT] DB insert failed:", e.message));
 
-    // Gửi Zalo OA cho từng admin
+    // Gửi socket notification trong app — không cần Zalo OA token
+    await broadcastNotification({
+      template_key: "CAMPAIGN_BROADCAST",
+      target_user_ids: ADMIN_PHONES,
+      custom: { title, message },
+    }).catch(e => console.warn("[ADMIN ALERT] Socket notify failed:", e.message));
+
+    // Gửi Zalo OA cho từng admin (nếu token hợp lệ)
     for (const phone of ADMIN_PHONES) {
       try {
         const { data: player } = await supabase.from("players")
