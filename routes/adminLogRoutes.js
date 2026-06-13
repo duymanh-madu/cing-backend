@@ -26,26 +26,12 @@ router.get("/", requireAdmin, async (req, res) => {
       return q.ilike(cols[0], `%${search}%`);
     };
 
-    const [orders, games, payments, points, playsBought, playsEarned, playsGiven, profileChanges, rewards] = await Promise.all([
-      // Orders
-      (needAll || filter==="orders")
-        ? supabase.from("orders")
-            .select("id,order_code,customer_name,customer_phone,total_amount,status,payment_method,created_at")
-            .order("created_at",{ascending:false}).limit(lim)
-        : {data:[]},
-
+    const [games, points, playsBought, playsGiven, profileChanges, rewards] = await Promise.all([
       // Game scores
       (needAll || filter==="games")
         ? supabase.from("game_scores")
             .select("id,user_id,player_name,game_key,score,kills,played_at")
             .order("played_at",{ascending:false}).limit(lim)
-        : {data:[]},
-
-      // Payments
-      (needAll || filter==="payments")
-        ? supabase.from("payment_transactions")
-            .select("id,transaction_code,user_id,customer_name,amount,payment_status,payment_method,created_at")
-            .order("created_at",{ascending:false}).limit(lim)
         : {data:[]},
 
       // Points history - từ analytics_events
@@ -64,19 +50,11 @@ router.get("/", requireAdmin, async (req, res) => {
             .order("created_at",{ascending:false}).limit(lim)
         : {data:[]},
 
-      // Plays earned from orders
-      (needAll || filter==="plays_earned")
-        ? supabase.from("analytics_events")
-            .select("id,event_name,user_id,event_data,created_at")
-            .in("event_name",["plays_from_order","plays_first_activation","plays_from_spend"])
-            .order("created_at",{ascending:false}).limit(lim)
-        : {data:[]},
-
-      // Plays given by admin
+      // Tặng lượt chơi - gộp từ chi tiêu (plays_added) và admin tặng tay (plays_adjusted)
       (needAll || filter==="plays_given")
         ? supabase.from("analytics_events")
             .select("id,event_name,user_id,event_data,created_at")
-            .eq("event_name","plays_adjusted")
+            .in("event_name",["plays_added","plays_adjusted"])
             .order("created_at",{ascending:false}).limit(lim)
         : {data:[]},
 
@@ -91,7 +69,7 @@ router.get("/", requireAdmin, async (req, res) => {
       (needAll || filter==="profile_changes")
         ? supabase.from("analytics_events")
             .select("id,event_name,user_id,event_data,created_at")
-            .in("event_name",["profile_updated","profile_name_changed","profile_avatar_changed"])
+            .eq("event_name","profile_updated")
             .order("created_at",{ascending:false}).limit(lim)
         : {data:[]},
     ]);
@@ -100,20 +78,21 @@ router.get("/", requireAdmin, async (req, res) => {
     const mapAnalytics = (rows, type) => (rows||[]).map(r => ({
       ...r,
       _type: type,
-      amount:    r.event_data?.amount || r.event_data?.plays || 0,
-      reason:    r.event_data?.reason || r.event_data?.source || "",
+      amount:    r.event_data?.amount ?? r.event_data?.plays ?? 0,
+      reason:    r.event_data?.reason || "",
       field:     r.event_data?.field || "",
       points_used: r.event_data?.points_used || 0,
+      new_total: r.event_data?.new_total,
+      admin:     r.event_data?.admin || "",
+      // plays_given: phân biệt nguồn gốc tặng lượt
+      source:    r.event_name === "plays_adjusted" ? "admin" : "auto",
       created_at: r.created_at,
     }));
 
     const allLogs = [
-      ...(orders.data||[]).map(o=>({...o,_type:"order"})),
       ...(games.data||[]).map(g=>({...g,_type:"game",created_at:g.played_at})),
-      ...(payments.data||[]).map(p=>({...p,_type:"payment"})),
       ...mapAnalytics(points.data,      "points"),
       ...mapAnalytics(playsBought.data, "plays_bought"),
-      ...mapAnalytics(playsEarned.data, "plays_earned"),
       ...mapAnalytics(playsGiven.data,  "plays_given"),
       ...mapAnalytics(profileChanges.data, "profile_change"),
       ...(rewards.data||[]).map(r=>({...r, _type:"reward", created_at:r.claimed_at||r.created_at})),
