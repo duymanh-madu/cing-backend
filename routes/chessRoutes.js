@@ -180,10 +180,7 @@ router.post("/tip", async (req, res) => {
     const fromId = normalizeUserId(fromUserId);
     const toId   = normalizeUserId(toUserId);
 
-    if (!fromId || !toId || !amount) {
-      console.warn("[CHESS TIP] Invalid params - fromUserId:", fromUserId, "-> fromId:", fromId, "| toUserId:", toUserId, "-> toId:", toId, "| amount:", amount);
-      return;
-    }
+    if (!fromId || !toId || !amount) return;
 
     const validAmounts = [5, 10, 20, 50, 100];
     const pointAmount = Number(amount);
