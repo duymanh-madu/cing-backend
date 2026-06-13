@@ -1,20 +1,32 @@
 const supabase = require("../../supabase");
 
+// Supabase hard-caps each request at 1000 rows — paginate to fetch all rows.
+async function fetchAllRows(table, columns) {
+  const pageSize = 1000;
+  let allRows = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(columns)
+      .range(from, from + pageSize - 1);
+    if (error) throw new Error(error.message);
+    allRows = allRows.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allRows;
+}
+
 async function getLoyaltyIntegritySnapshot({
   sampleLimit = 20,
 } = {}) {
 
-  const [{ data: players }, { data: baselines }, { data: txs }]
-    = await Promise.all([
-      supabase.from("players")
-        .select("user_id,total_points"),
-
-      supabase.from("point_balance_baselines")
-        .select("user_id,baseline_points,baseline_at"),
-
-      supabase.from("point_transactions")
-        .select("user_id,points,created_at")
-    ]);
+  const [players, baselines, txs] = await Promise.all([
+    fetchAllRows("players", "user_id,total_points"),
+    fetchAllRows("point_balance_baselines", "user_id,baseline_points,baseline_at"),
+    fetchAllRows("point_transactions", "user_id,points,created_at"),
+  ]);
 
   const baselineMap = new Map(
     (baselines || []).map(x => [
