@@ -1,9 +1,8 @@
 const axios   = require('axios');
 const supabase = require('../supabase');
 
-// Template IDs - admin sẽ config trong DB
-// Zalo ZBS API endpoint
-const ZBS_API = 'https://openapi.zalo.me/v2.0/oa/message/promotion';
+// Zalo Notification Service (ZNS) template API endpoint
+const ZBS_API = 'https://business.openapi.zalo.me/message/template';
 
 async function getZaloToken() {
   const { data } = await supabase.from('app_configs')
@@ -12,28 +11,20 @@ async function getZaloToken() {
 }
 
 /**
- * Gửi ZBS message đến 1 user
+ * Gửi ZNS template message đến 1 user qua số điện thoại
+ * phone format: 84xxxxxxxxx
  */
-async function sendZBSMessage({ zalo_user_id, template_id, template_data }) {
+async function sendZBSMessage({ phone, template_id, template_data }) {
   try {
     const token = await getZaloToken();
     if (!token) throw new Error('No Zalo OA token');
 
     const res = await axios.post(ZBS_API, {
-      recipient: { user_id: zalo_user_id },
-      message: {
-        attachment: {
-          type: 'template',
-          payload: {
-            template_type: 'promotion',
-            elements: [{
-              template_id,
-              data: template_data,
-            }]
-          }
-        }
-      }
-    }, { headers: { access_token: token } });
+      phone,
+      template_id,
+      template_data,
+      tracking_id: `ZBS_${Date.now()}`,
+    }, { headers: { access_token: token, 'Content-Type': 'application/json' } });
 
     console.log('[ZBS] API response:', JSON.stringify(res.data));
     return { success: res.data?.error === 0, data: res.data };
@@ -95,8 +86,9 @@ async function sendZBSBroadcast({ user_ids, template_id, extra_vars = {}, store_
       ...extra_vars,
     };
 
+    const phone84 = '84' + p.user_id.replace(/^0/, '');
     const result = await sendZBSMessage({
-      zalo_user_id: p.zalo_user_id,
+      phone: phone84,
       template_id,
       template_data,
     });
