@@ -127,7 +127,7 @@ router.post("/assign", requireAdmin, async (req, res) => {
     } catch(e) {}
 
     res.json({ success:true, message:`Đã gán shipper ${shipper_name}`, data });
-  } catch(err) { res.status(500).json({ success:false, error:err.message }); }
+  } catch(err) { console.error('[ASSIGN ERROR]', err.message, err.stack); res.status(500).json({ success:false, error:err.message }); }
 });
 
 // PUT /admin/delivery/status/:id — cập nhật trạng thái giao hàng
