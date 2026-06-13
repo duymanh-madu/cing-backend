@@ -36,11 +36,6 @@ router.use(
  * ============================================
  */
 
-router.use(
-  "/vouchers",
-  require("./voucherAdminRoutes")
-);
-
 router.use("/stats", require("./adminStatsRoutes"));
 router.use("/players", require("./adminPlayerRoutes"));
 router.use("/missions", require("./adminMissionRoutes"));
