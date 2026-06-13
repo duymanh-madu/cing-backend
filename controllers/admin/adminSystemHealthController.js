@@ -230,6 +230,29 @@ async function getSystemHealth(req, res) {
   }
 
   try {
+    const { data: dbSize, error: dbErr } = await supabase.rpc("get_database_size");
+    if (dbErr) throw new Error(dbErr.message);
+
+    const PRO_LIMIT_GB = 8;
+    const usedGB = Number(dbSize) / (1024 ** 3);
+    const pct = (usedGB / PRO_LIMIT_GB) * 100;
+
+    let status = "healthy";
+    if (pct >= 90) status = "critical";
+    else if (pct >= 70) status = "warning";
+
+    checks.db_storage = {
+      status,
+      detail: usedGB.toFixed(2) + " GB / " + PRO_LIMIT_GB + " GB (" + pct.toFixed(1) + "%)",
+      used_gb: Number(usedGB.toFixed(3)),
+      limit_gb: PRO_LIMIT_GB,
+      percent: Number(pct.toFixed(1)),
+    };
+  } catch (e) {
+    checks.db_storage = { status: "warning", detail: e.message };
+  }
+
+  try {
     const axios = require("axios");
     const start = Date.now();
     const r = await axios.get("https://game.madu.com.vn/health", { timeout: 5000 });
