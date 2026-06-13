@@ -230,6 +230,21 @@ async function getSystemHealth(req, res) {
   }
 
   try {
+    const axios = require("axios");
+    const start = Date.now();
+    const r = await axios.get("https://game.madu.com.vn/health", { timeout: 5000 });
+    const latency = Date.now() - start;
+    checks.game_server = {
+      status: r.data?.ok ? "healthy" : "warning",
+      detail: r.data?.ok ? `OK (${latency}ms) - games: ${(r.data?.games||[]).join(', ')}` : "Unexpected response",
+      games: r.data?.games || [],
+      latency_ms: latency,
+    };
+  } catch (e) {
+    checks.game_server = { status: "critical", detail: "Mắt Bão không phản hồi: " + e.message };
+  }
+
+  try {
     const pong = await redisClient.ping();
 
     checks.redis = {
