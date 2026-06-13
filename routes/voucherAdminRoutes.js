@@ -24,20 +24,53 @@ router.get("/list", requireAdmin, async (req, res) => {
 // POST /admin/vouchers/create
 router.post("/create", requireAdmin, async (req, res) => {
   try {
-    const { code, type, value, min_order, max_uses, expires_at, description } = req.body;
-    if (!code || !type || !value) return res.status(400).json({ success:false, message:"Thiếu thông tin" });
+    const { title, description, image, discount_type, discount_value, quantity } = req.body;
+    if (!title || !discount_type || discount_value === undefined || discount_value === null || discount_value === "") {
+      return res.status(400).json({ success:false, message:"Thiếu thông tin: cần Tên voucher, Loại giảm giá và Giá trị giảm" });
+    }
+    if (!["percent","fixed","free_ship"].includes(discount_type)) {
+      return res.status(400).json({ success:false, message:"Loại giảm giá không hợp lệ" });
+    }
+    const qty = quantity === "" || quantity === undefined ? null : Number(quantity);
     const { data, error } = await supabase.from("vouchers").insert({
-      code: code.toUpperCase(), type, value: Number(value),
-      min_order: Number(min_order)||0,
-      max_uses: Number(max_uses)||null,
-      used_count: 0,
-      expires_at: expires_at||null,
-      description: description||"",
-      is_active: true,
+      title,
+      description: description || "",
+      image: image || null,
+      discount_type,
+      discount_value: Number(discount_value),
+      quantity: qty,
+      remaining: qty,
+      active: true,
       created_at: new Date().toISOString(),
     }).select().single();
     if (error) return res.status(400).json({ success:false, error:error.message });
     res.json({ success:true, data });
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+// PATCH /admin/vouchers/:id/toggle — bật/tắt voucher
+router.patch("/:id/toggle", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: current, error: getErr } = await supabase.from("vouchers")
+      .select("active").eq("id", id).maybeSingle();
+    if (getErr) return res.status(400).json({ success:false, error:getErr.message });
+    if (!current) return res.status(404).json({ success:false, message:"Không tìm thấy voucher" });
+
+    const { data, error } = await supabase.from("vouchers")
+      .update({ active: !current.active }).eq("id", id).select().single();
+    if (error) return res.status(400).json({ success:false, error:error.message });
+    res.json({ success:true, data });
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+// DELETE /admin/vouchers/:id
+router.delete("/:id", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase.from("vouchers").delete().eq("id", id);
+    if (error) return res.status(400).json({ success:false, error:error.message });
+    res.json({ success:true });
   } catch(e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
