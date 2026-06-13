@@ -1,4 +1,5 @@
 const express = require("express");
+const supabase = require("../supabase");
 const router = express.Router();
 const redisClient = require("../services/infrastructure/cache/redisClient");
 const redisPublisher = require("../services/infrastructure/cache/redisPublisher");
