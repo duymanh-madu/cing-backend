@@ -76,9 +76,21 @@ async function sendZBS({ title, message, follower_ids = [] }) {
     }
 
     // Broadcast đến tất cả followers có zalo_user_id
-    const { data: followers } = await supabase.from('players')
-      .select('zalo_user_id')
-      .not('zalo_user_id', 'is', null);
+    // Supabase hard-caps each request at 1000 rows — paginate to fetch all.
+    let followers = [];
+    {
+      const pageSize = 1000;
+      let from = 0;
+      while (true) {
+        const { data } = await supabase.from('players')
+          .select('zalo_user_id')
+          .not('zalo_user_id', 'is', null)
+          .range(from, from + pageSize - 1);
+        followers = followers.concat(data || []);
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+    }
 
     if (!followers?.length) return { success: true, sent: 0, message: 'Chưa có followers', channel: 'zbs' };
 

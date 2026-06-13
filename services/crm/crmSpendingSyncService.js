@@ -1,4 +1,21 @@
 const supabase = require('../../supabase');
+
+// Supabase hard-caps each request at 1000 rows — paginate to fetch all rows.
+async function fetchAllPlayerRows(columns, filterFn) {
+  const pageSize = 1000;
+  let allRows = [];
+  let from = 0;
+  while (true) {
+    let q = supabase.from('players').select(columns).range(from, from + pageSize - 1);
+    if (filterFn) q = filterFn(q);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    allRows = allRows.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return allRows;
+}
 const foodbook = require('../foodbook');
 const { addPlays } = require('../loyaltyPointService');
 
@@ -277,11 +294,7 @@ module.exports = {
 async function syncCustomRangeSpending(from, to) {
   console.log(`SYNC CUSTOM RANGE: ${from} -> ${to}`);
 
-  const { data: players, error } = await supabase
-    .from('players')
-    .select('user_id, zalo_name');
-
-  if (error) return { success: false, error: error.message };
+  const players = await fetchAllPlayerRows('user_id, zalo_name').catch(e => { throw e; });
 
   const filtered = players.filter(p => isPhoneId(p.user_id));
   const stats = { success:0, failed:0, skipped:0 };
