@@ -264,8 +264,8 @@ async function getSystemHealth(req, res) {
     else if (latency > 2000) status = "warning";
 
     const uptimeMin = d.uptime_seconds ? Math.round(d.uptime_seconds / 60) : null;
-    const chessQ = d.chess?.queue ?? 0;
-    const chessGames = d.chess?.active_games ?? 0;
+    const chessQ = d.game_stats?.chess?.queue ?? 0;
+    const chessGames = d.game_stats?.chess?.active_games ?? 0;
 
     checks.game_server = {
       status,
