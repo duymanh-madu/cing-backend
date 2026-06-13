@@ -257,11 +257,28 @@ async function getSystemHealth(req, res) {
     const start = Date.now();
     const r = await axios.get("https://game.madu.com.vn/health", { timeout: 5000 });
     const latency = Date.now() - start;
+    const d = r.data || {};
+
+    let status = "healthy";
+    if (!d.ok) status = "warning";
+    else if (latency > 2000) status = "warning";
+
+    const uptimeMin = d.uptime_seconds ? Math.round(d.uptime_seconds / 60) : null;
+    const chessQ = d.chess?.queue ?? 0;
+    const chessGames = d.chess?.active_games ?? 0;
+
     checks.game_server = {
-      status: r.data?.ok ? "healthy" : "warning",
-      detail: r.data?.ok ? `OK (${latency}ms) - games: ${(r.data?.games||[]).join(', ')}` : "Unexpected response",
-      games: r.data?.games || [],
+      status,
+      detail: d.ok
+        ? `${latency}ms · uptime ${uptimeMin}m · ${d.memory_mb}MB · community ${d.community_users_online} · chess: ${chessQ} queue / ${chessGames} games`
+        : "Unexpected response",
+      games: d.games || [],
       latency_ms: latency,
+      uptime_seconds: d.uptime_seconds,
+      memory_mb: d.memory_mb,
+      community_users_online: d.community_users_online,
+      chess_queue: chessQ,
+      chess_active_games: chessGames,
     };
   } catch (e) {
     checks.game_server = { status: "critical", detail: "Mắt Bão không phản hồi: " + e.message };
