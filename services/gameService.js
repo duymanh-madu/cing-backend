@@ -182,6 +182,16 @@ async function saveGameScore({
       .order("score", { ascending: false })
       .limit(10);
     await emitLeaderboardUpdate({ leaderboard: top10 || [] });
+
+    try {
+      const io = global._ioInstance || global.io;
+      if (io) {
+        const { checkAndNotifyTop1Changes } = require("./leaderboardResetService");
+        await checkAndNotifyTop1Changes(io);
+      }
+    } catch(e) {
+      console.warn("[TOP1 GAME]", e.message);
+    }
   } catch(e) {
     console.warn("[GAME] Leaderboard emit failed:", e.message);
   }
