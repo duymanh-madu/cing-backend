@@ -131,6 +131,20 @@ async function syncOnePlayer(player) {
       ) : Promise.resolve(0),
     ]);
 
+    // Không cho CRM sync ghi đè số chi tiêu thấp hơn local instant spending
+    const { data: existingPlayer } = await supabase
+      .from('players')
+      .select('crm_spend_alltime, crm_spend_weekly, crm_spend_monthly, crm_spend_quarterly, crm_spend_yearly, crm_spend_custom')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const safeAlltime  = Math.max(Number(existingPlayer?.crm_spend_alltime  || 0), Number(allTimeSpent || 0));
+    const safeWeekly   = Math.max(Number(existingPlayer?.crm_spend_weekly   || 0), Number(weekly || 0));
+    const safeMonthly  = Math.max(Number(existingPlayer?.crm_spend_monthly  || 0), Number(monthly || 0));
+    const safeQuarter  = Math.max(Number(existingPlayer?.crm_spend_quarterly || 0), Number(quarterly || 0));
+    const safeYearly   = Math.max(Number(existingPlayer?.crm_spend_yearly   || 0), Number(yearly || 0));
+    const safeCustom   = Math.max(Number(existingPlayer?.crm_spend_custom   || 0), Number(custom || 0));
+
     // Lưu vào Supabase — timestamp dùng UTC chuẩn (Supabase tự xử lý)
     const { error } = await supabase
       .from('players')
@@ -140,16 +154,16 @@ async function syncOnePlayer(player) {
         name: memberData.name || player.name || null,
         crm_tier:            (() => {
           const rawTier = mapTierKey(memberData.membership_type_name || "");
-          if (rawTier === 'loyal_partner' && monthly < 2000000) return 'member';
-          if (rawTier === 'partner' && monthly < 1000000) return 'member';
+          if (rawTier === 'loyal_partner' && safeMonthly < 2000000) return 'member';
+          if (rawTier === 'partner' && safeMonthly < 1000000) return 'member';
           return rawTier;
         })(),
-        crm_spend_alltime:   allTimeSpent,
-        crm_spend_weekly:    weekly,
-        crm_spend_monthly:   monthly,
-        crm_spend_quarterly: quarterly,
-        crm_spend_yearly:    yearly,
-        crm_spend_custom:    custom,
+        crm_spend_alltime:   safeAlltime,
+        crm_spend_weekly:    safeWeekly,
+        crm_spend_monthly:   safeMonthly,
+        crm_spend_quarterly: safeQuarter,
+        crm_spend_yearly:    safeYearly,
+        crm_spend_custom:    safeCustom,
         crm_orders_alltime:  allTimeOrders,
         crm_synced_at:       new Date().toISOString(), // UTC — Supabase chuẩn
         member_activated:    allTimeOrders > 0 ? true : undefined,
