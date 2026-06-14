@@ -302,7 +302,8 @@ async function checkAndNotifyTop1Changes(io) {
     const notifications = [];
 
     // Check BXH tiêu dùng tuần
-    if (lbCfg.spending?.weekly?.enabled) {
+    // Lưu ý: enabled trong config chỉ dùng cho phần thưởng, không được chặn thông báo Top 1.
+    {
       const { data } = await supabase.from('players')
         .select('user_id, display_name, zalo_name').gt('crm_spend_weekly', 0)
         .order('crm_spend_weekly', { ascending: false }).limit(1).single();
@@ -313,7 +314,8 @@ async function checkAndNotifyTop1Changes(io) {
     }
 
     // Check BXH tiêu dùng tháng
-    if (lbCfg.spending?.monthly?.enabled) {
+    // Lưu ý: enabled trong config chỉ dùng cho phần thưởng, không được chặn thông báo Top 1.
+    {
       const { data } = await supabase.from('players')
         .select('user_id, display_name, zalo_name').gt('crm_spend_monthly', 0)
         .order('crm_spend_monthly', { ascending: false }).limit(1).single();
