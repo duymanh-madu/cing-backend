@@ -136,7 +136,20 @@ router.post("/callback", async (req, res) => {
         updatedAt:     Date.now(),
       };
 
-      // 3. Lưu Redis cache mới
+      // 3. Đồng bộ total_points từ CRM → DB (CRM là nguồn truth)
+      // Chỉ ghi nhận điểm đã tồn tại ở CRM, KHÔNG cộng thêm
+      // Logic: total_points = d.point (CRM), baseline = d.point → ledger = 0 → integrity diff = 0
+      try {
+        const crmPoints = Math.floor(d.point || 0);
+        await supabase.from("players")
+          .update({ total_points: crmPoints })
+          .eq("user_id", p0);
+        await supabase.from("point_balance_baselines")
+          .update({ baseline_points: crmPoints, baseline_at: new Date().toISOString() })
+          .eq("user_id", p0);
+      } catch(e) { console.warn("[IPOS WEBHOOK] total_points sync failed:", e.message); }
+
+      // 3b. Lưu Redis cache mới
       await redisClient.setex(`membership:${p0}`, 600, JSON.stringify(memberData));
 
       // 4. Push realtime Socket.IO

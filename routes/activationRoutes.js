@@ -84,6 +84,24 @@ router.post("/bootstrap", async (req, res) => {
           };
           // Chỉ update name nếu user chưa custom
           if (!customName) updateData.name = d.name || zaloName;
+
+          // Ghi nhận điểm CRM → total_points nếu hiện tại = 0
+          // KHÔNG cộng thêm — chỉ công nhận điểm đã tồn tại ở CRM
+          try {
+            const crmPoints = Math.floor(d.point || 0);
+            const { data: currentPlayer } = await supabase.from("players")
+              .select("total_points,user_id").eq("zalo_user_id", zaloUserId).maybeSingle();
+            const currentPts = Number(currentPlayer?.total_points || 0);
+            if (currentPts === 0 && crmPoints > 0) {
+              updateData.total_points = crmPoints;
+              if (currentPlayer?.user_id) {
+                await supabase.from("point_balance_baselines")
+                  .update({ baseline_points: crmPoints, baseline_at: new Date().toISOString() })
+                  .eq("user_id", currentPlayer.user_id);
+              }
+            }
+          } catch(e) {}
+
           await supabase.from("players").update(updateData).eq("zalo_user_id", zaloUserId);
         }
       }
