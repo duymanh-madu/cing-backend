@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../supabase");
+const { addPoints } = require("../services/loyaltyPointService");
 
 // GET pending rewards
 router.get("/pending/:userId", async (req, res) => {
@@ -54,20 +55,12 @@ router.post("/claim/:rewardId", async (req, res) => {
       });
     }
 
-    const { data: player } = await supabase
-      .from("players")
-      .select("total_points")
-      .eq("user_id", reward.user_id)
-      .single();
-
-    await supabase
-      .from("players")
-      .update({
-        total_points:
-          Number(player?.total_points || 0) +
-          Number(reward.points || 0)
-      })
-      .eq("user_id", reward.user_id);
+    await addPoints({
+  user_id: reward.user_id,
+  phone: reward.user_id,
+  points: Number(reward.points || 0),
+  reason: reward.reason || "Nhận thưởng bảng xếp hạng",
+   });
 
     await supabase
       .from("pending_rewards")
