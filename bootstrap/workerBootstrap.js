@@ -19,11 +19,6 @@ const voucherSchedulerWorker =
     "../workers/voucherSchedulerWorker"
   );
 
-const loyaltyBaselineWorker =
-  require(
-    "../workers/loyaltyBaselineWorker"
-  );
-
 /**
  * =====================================================
  * INITIALIZE WORKERS
@@ -79,11 +74,6 @@ async function initializeWorkers() {
 
     await voucherSchedulerWorker();
 
-  }
-
-  // LOYALTY BASELINE SYNC
-  if (typeof loyaltyBaselineWorker === "function") {
-    await loyaltyBaselineWorker();
   }
 
   console.log(
