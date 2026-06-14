@@ -150,12 +150,13 @@ async function doWeeklyReset(io) {
       if (!gameCfg.enabled || !gameCfg.weekly_reset) continue;
 
       // Lấy top 3 tuần này
-      const monday = getLastMonday();
+      const { startUtc, endUtc } = getPreviousVietnamWeekWindow();
       const { data: scores } = await supabase
         .from('game_scores')
         .select('user_id, player_name, score')
         .eq('game_key', gameKey)
-        .gte('played_at', monday)
+        .gte('played_at', startUtc)
+        .lt('played_at', endUtc)
         .order('score', { ascending: false })
         .limit(500);
 
@@ -259,6 +260,26 @@ function getLastMonday() {
   mondayVN.setDate(vnNow.getDate() - daysBack);
   mondayVN.setHours(0, 0, 0, 0);
   return new Date(mondayVN.getTime() - 7 * 60 * 60 * 1000).toISOString();
+}
+
+function getPreviousVietnamWeekWindow() {
+  const vnNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })
+  );
+
+  const daysBack = (vnNow.getDay() + 6) % 7;
+
+  const currentMondayVN = new Date(vnNow);
+  currentMondayVN.setDate(vnNow.getDate() - daysBack);
+  currentMondayVN.setHours(0, 0, 0, 0);
+
+  const previousMondayVN = new Date(currentMondayVN);
+  previousMondayVN.setDate(currentMondayVN.getDate() - 7);
+
+  return {
+    startUtc: new Date(previousMondayVN.getTime() - 7 * 60 * 60 * 1000).toISOString(),
+    endUtc: new Date(currentMondayVN.getTime() - 7 * 60 * 60 * 1000).toISOString(),
+  };
 }
 
 // Manual trigger cho admin
