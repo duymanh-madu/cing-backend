@@ -348,3 +348,35 @@ router.post(
 
 module.exports =
   router;
+// POST /admin/system/loyalty-integrity/accept — chấp nhận diff, update baseline
+router.post("/loyalty-integrity/accept", requireAdmin, async (req, res) => {
+  try {
+    const { user_id, current_points } = req.body;
+    if (!user_id || current_points === undefined) return res.status(400).json({ success:false, message:"Thiếu thông tin" });
+    const supabase = require("../supabase");
+    const now = new Date().toISOString();
+    await supabase.from("point_balance_baselines")
+      .update({ baseline_points: Number(current_points), baseline_at: now })
+      .eq("user_id", user_id);
+    console.log(`[INTEGRITY] ACCEPT: ${user_id} baseline → ${current_points}`);
+    res.json({ success:true });
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+// POST /admin/system/loyalty-integrity/revoke — thu hồi, rollback về expected
+router.post("/loyalty-integrity/revoke", requireAdmin, async (req, res) => {
+  try {
+    const { user_id, expected_points } = req.body;
+    if (!user_id || expected_points === undefined) return res.status(400).json({ success:false, message:"Thiếu thông tin" });
+    const supabase = require("../supabase");
+    const now = new Date().toISOString();
+    await supabase.from("players")
+      .update({ total_points: Number(expected_points) })
+      .eq("user_id", user_id);
+    await supabase.from("point_balance_baselines")
+      .update({ baseline_points: Number(expected_points), baseline_at: now })
+      .eq("user_id", user_id);
+    console.log(`[INTEGRITY] REVOKE: ${user_id} total_points → ${expected_points}`);
+    res.json({ success:true });
+  } catch(e) { res.status(500).json({ success:false, error:e.message }); }
+});
