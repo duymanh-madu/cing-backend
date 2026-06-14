@@ -177,6 +177,18 @@ async function addPoints({ phone, user_id, points, reason = "Nhận điểm thư
   // Log analytics
   await logAnalytics('points_added', user_id, { amount: points, reason, new_total: currentPoints + points });
 
+  // Invalidate membership cache after adding points
+  try {
+    const phoneKey = String(user_id).replace(/\D/g, "");
+    const p84 = phoneKey.startsWith("84") ? phoneKey : "84" + phoneKey.slice(1);
+    const p0 = phoneKey.startsWith("84") ? "0" + phoneKey.slice(2) : phoneKey;
+
+    await redis.del("membership:" + p84);
+    await redis.del("membership:" + p0);
+    await redis.del("membership:" + phoneKey);
+    await redis.del("membership:" + user_id);
+  } catch(e) {}
+
   try {
     realtimeEventBus.publish({
       event: "user.updated",
