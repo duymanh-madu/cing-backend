@@ -338,7 +338,9 @@ async function checkAndNotifyTop1Changes(io) {
     }
 
     // Check BXH game scores
-    const games = Object.entries(lbCfg.games||{}).filter(([,v])=>v.enabled);
+    // Thông báo Top 1 áp dụng cho mọi BXH game đang có trong config.
+    // enabled chỉ dùng cho phần thưởng/reset, không chặn thông báo Top 1.
+    const games = Object.entries(lbCfg.games||{});
     for (const [gameKey, gameCfg] of games) {
       const { data: scores } = await supabase.from('game_scores')
         .select('user_id, player_name, score').eq('game_key', gameKey)
