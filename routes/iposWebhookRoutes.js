@@ -136,37 +136,7 @@ router.post("/callback", async (req, res) => {
         updatedAt:     Date.now(),
       };
 
-      // 3. Sync total_points từ CRM → players table (nguồn truth là iPOS)
-      // Dùng addPoints nếu điểm tăng (để ghi ledger đúng), hoặc update trực tiếp nếu giảm/reset
-      try {
-        const { data: currentPlayer } = await supabase.from("players")
-          .select("total_points").eq("user_id", p0).maybeSingle();
-        const currentPts = Number(currentPlayer?.total_points || 0);
-        const newPts = Math.floor(d.point || 0);
-        if (newPts !== currentPts) {
-          const diff = newPts - currentPts;
-          if (diff > 0) {
-            // Dùng addPoints để ghi point_transactions + update baseline
-            const { addPoints } = require("../services/loyaltyPointService");
-            await addPoints({
-              phone: p0, user_id: p0,
-              points: diff,
-              reason: "Tích điểm từ giao dịch tại quán (iPOS sync)",
-            });
-          } else {
-            // Giảm điểm (đổi điểm, hủy đơn...) — update trực tiếp + update baseline
-            await supabase.from("players")
-              .update({ total_points: newPts })
-              .eq("user_id", p0);
-            await supabase.from("point_balance_baselines")
-              .update({ baseline_points: newPts, baseline_at: new Date().toISOString() })
-              .eq("user_id", p0);
-          }
-          console.log("[IPOS WEBHOOK] total_points synced for " + p0 + ": " + currentPts + " → " + newPts + " (diff: " + diff + ")");
-        }
-      } catch(e) { console.warn("[IPOS WEBHOOK] total_points sync failed:", e.message); }
-
-      // 3b. Lưu Redis cache mới
+      // 3. Lưu Redis cache mới
       await redisClient.setex(`membership:${p0}`, 600, JSON.stringify(memberData));
 
       // 4. Push realtime Socket.IO
