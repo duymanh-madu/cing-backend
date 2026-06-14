@@ -63,17 +63,24 @@ async function recordIssue({ order, issue_type, severity = "warning", last_error
 }
 
 async function resolveIssue({ order_id, issue_type }) {
-  await supabase
-    .from("transaction_integrity_events")
-    .update({
-      issue_status: "resolved",
-      resolved_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("order_id", order_id)
-    .eq("issue_type", issue_type)
-    .eq("issue_status", "open")
-    .catch(() => {});
+  try {
+    const { error } = await supabase
+      .from("transaction_integrity_events")
+      .update({
+        issue_status: "resolved",
+        resolved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("order_id", order_id)
+      .eq("issue_type", issue_type)
+      .eq("issue_status", "open");
+
+    if (error) {
+      console.warn("[TX INTEGRITY] resolve issue failed:", error.message);
+    }
+  } catch(e) {
+    console.warn("[TX INTEGRITY] resolve issue failed:", e.message);
+  }
 }
 
 async function getTransactionIntegritySnapshot({ autoRecover = false, graceMinutes = 10 } = {}) {
