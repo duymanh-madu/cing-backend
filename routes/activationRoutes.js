@@ -81,7 +81,17 @@ router.post("/bootstrap", async (req, res) => {
             total_spent_all_time: d.payment_amount || 0,
             total_orders: d.eat_times || 0,
             member_activated: true,
+            // Sync điểm CRM → total_points khi activate lần đầu
+            // Chỉ set nếu total_points hiện tại = 0 (tránh overwrite điểm đã có từ app)
           };
+          // Lấy total_points hiện tại để tránh overwrite điểm đã có
+          try {
+            const { data: currentPlayer } = await supabase.from("players")
+              .select("total_points").eq("zalo_user_id", zaloUserId).maybeSingle();
+            if (!currentPlayer?.total_points || Number(currentPlayer.total_points) === 0) {
+              updateData.total_points = Math.floor(d.point || 0);
+            }
+          } catch(e) {}
           // Chỉ update name nếu user chưa custom
           if (!customName) updateData.name = d.name || zaloName;
           await supabase.from("players").update(updateData).eq("zalo_user_id", zaloUserId);
