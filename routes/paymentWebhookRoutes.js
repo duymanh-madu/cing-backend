@@ -326,6 +326,16 @@ try {
         }).catch(e => console.warn("[CRM RECOVERY] enqueue from MoMo failed:", e.message));
 
         console.log(`[MOMO IPN] Instant spending +${amount} for ${phone} | week:${newWeekly} month:${newMonthly} alltime:${newAlltime} plays:${updated?.[0]?.game_plays}`);
+
+        try {
+          const io = req.app.get("io") || global._ioInstance || global.io;
+          if (io) {
+            const { checkAndNotifyTop1Changes } = require("../services/leaderboardResetService");
+            await checkAndNotifyTop1Changes(io);
+          }
+        } catch(e) {
+          console.warn("[MOMO IPN] Top1 check failed:", e.message);
+        }
       }
     } catch (e) {
       console.warn("[MOMO IPN] Instant spending failed:", e.message);
