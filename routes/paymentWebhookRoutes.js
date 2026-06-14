@@ -244,8 +244,12 @@ router.post("/momo", async (req, res) => {
 
         // Tính lượt chơi mới từ spending
         const oldPlaysFromSpend = Number(player.plays_from_spend || 0);
-        const newPlaysFromSpend = Math.floor(newAlltime / spendPerPlay);
-        const bonusPlays = newPlaysFromSpend - oldPlaysFromSpend;
+
+        // Tính lượt chơi theo đơn hiện tại
+        const bonusPlays = Math.floor(amount / spendPerPlay);
+
+        // Tổng số lượt đã được cấp từ chi tiêu
+        const newPlaysFromSpend = oldPlaysFromSpend + bonusPlays;
 
 // Custom leaderboard realtime
 let customSpendIncrement = 0;
