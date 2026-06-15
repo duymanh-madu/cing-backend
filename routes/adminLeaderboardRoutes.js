@@ -70,10 +70,28 @@ router.post("/distribute-rewards", requireAdmin, async (req, res) => {
       if (!gameConfig?.enabled) return res.status(400).json({ success: false, error: "Game không được bật" });
       rewards = gameConfig.rewards || [];
 
-      const { data } = await supabase.from("game_scores")
-        .select("user_id, player_name, score").eq("game_key", game_key)
-        .order("score", { ascending: false }).limit(3);
-      topPlayers = data || [];
+      if (game_key === "chess-wins") {
+        const { data } = await supabase.from("chess_stats")
+          .select("user_id, wins, losses, draws, total_games")
+          .gt("wins", 0)
+          .order("wins", { ascending: false })
+          .order("total_games", { ascending: false })
+          .limit(3);
+        topPlayers = data || [];
+      } else if (game_key === "chess-streak") {
+        const { data } = await supabase.from("chess_stats")
+          .select("user_id, best_streak, current_streak, wins, total_games")
+          .gt("best_streak", 0)
+          .order("best_streak", { ascending: false })
+          .order("wins", { ascending: false })
+          .limit(3);
+        topPlayers = data || [];
+      } else {
+        const { data } = await supabase.from("game_scores")
+          .select("user_id, player_name, score").eq("game_key", game_key)
+          .order("score", { ascending: false }).limit(3);
+        topPlayers = data || [];
+      }
     }
 
     // Phát thưởng
@@ -115,6 +133,13 @@ router.post("/distribute-rewards", requireAdmin, async (req, res) => {
 router.post("/reset-game-scores", requireAdmin, async (req, res) => {
   try {
     const { game_key } = req.body;
+
+    if (game_key === "chess-wins" || game_key === "chess-streak") {
+      return res.status(400).json({
+        success: false,
+        error: "BXH cờ vua là all-time theo thống kê thắng/chuỗi thắng, không reset bằng game_scores.",
+      });
+    }
 
     // Backup top 100 trước khi reset
     const { data: top100 } = await supabase.from("game_scores")
@@ -202,6 +227,49 @@ router.get("/alltime-games", requireAdmin, async (req, res) => {
       .map(([k,v]) => ({ key:k, ...v }));
 
     const results = await Promise.all(enabledGames.map(async (game) => {
+      if (game.key === "chess-wins" || game.key === "chess-streak") {
+        const orderCol = game.key === "chess-wins" ? "wins" : "best_streak";
+        const { data: stats } = await supabase
+          .from("chess_stats")
+          .select("user_id,wins,losses,draws,total_games,best_streak,current_streak")
+          .gt(orderCol, 0)
+          .order(orderCol, { ascending:false })
+          .order("wins", { ascending:false })
+          .limit(100);
+
+        const userIds = (stats || []).map(s => String(s.user_id));
+        const { data: players } = userIds.length
+          ? await supabase.from("players").select("user_id,display_name,zalo_name,avatar").in("user_id", userIds)
+          : { data: [] };
+        const pMap = new Map((players||[]).map(p=>[String(p.user_id),p]));
+
+        const top100 = (stats || []).map((s, i) => {
+          const p = pMap.get(String(s.user_id));
+          const winRate = Number(s.total_games || 0) > 0
+            ? Number(((Number(s.wins || 0) / Number(s.total_games || 0)) * 100).toFixed(1))
+            : 0;
+
+          return {
+            rank: i + 1,
+            user_id: s.user_id,
+            player_name: p?.display_name || p?.zalo_name || "Cing iu",
+            avatar: p?.avatar || "",
+            score: game.key === "chess-wins" ? Number(s.wins || 0) : Number(s.best_streak || 0),
+            score_label: game.key === "chess-wins" ? "trận thắng" : "chuỗi thắng",
+            wins: Number(s.wins || 0),
+            losses: Number(s.losses || 0),
+            draws: Number(s.draws || 0),
+            total_games: Number(s.total_games || 0),
+            win_rate: winRate,
+            best_streak: Number(s.best_streak || 0),
+            current_streak: Number(s.current_streak || 0),
+          };
+        });
+
+        return { game_key:game.key, display_name:game.display_name,
+          icon:game.icon, rewards:game.rewards, data:top100 };
+      }
+
       const { data: scores } = await supabase
         .from("game_scores")
         .select("user_id, player_name, avatar, score, kills, played_at")
@@ -209,14 +277,12 @@ router.get("/alltime-games", requireAdmin, async (req, res) => {
         .order("score", { ascending:false })
         .limit(2000);
 
-      // Best score per user
       const bestMap = new Map();
       for (const s of (scores||[])) {
         const uid = String(s.user_id);
         if (!bestMap.has(uid) || s.score > bestMap.get(uid).score) bestMap.set(uid, s);
       }
 
-      // Lấy tên mới nhất
       const userIds = [...bestMap.keys()].slice(0,200);
       const { data: players } = await supabase
         .from("players").select("user_id,display_name,zalo_name,avatar").in("user_id", userIds);
@@ -229,7 +295,7 @@ router.get("/alltime-games", requireAdmin, async (req, res) => {
           return { rank:i+1, user_id:s.user_id,
             player_name: p?.display_name||p?.zalo_name||s.player_name||"Cing iu",
             avatar: p?.avatar||s.avatar||"",
-            score: s.score, kills: s.kills||0 };
+            score: s.score, score_label:"điểm", kills: s.kills||0 };
         });
 
       return { game_key:game.key, display_name:game.display_name,
