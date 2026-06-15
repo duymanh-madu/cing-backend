@@ -394,22 +394,6 @@ async function getMenu() {
     console.log(
       "📦 RAW MENU RECEIVED"
     );
-    // Debug — xem store_item_id của PHÊ NÂU
-    const firstItems = Array.isArray(rawData) ? rawData : 
-      (rawData?.data || rawData?.items || rawData?.result || []);
-    const firstArr = Array.isArray(firstItems) ? firstItems : 
-      Object.values(firstItems || {}).flat();
-    const pheNau = firstArr.find(i => i.name && i.name.includes('PHÊ NÂU'));
-    if (pheNau) console.log('[MENU DEBUG] PHÊ NÂU raw:', JSON.stringify({
-      id: pheNau.id,
-      store_item_id: pheNau.store_item_id,
-      name: pheNau.name,
-    }));
-    else if (firstArr[0]) console.log('[MENU DEBUG] First item:', JSON.stringify({
-      id: firstArr[0].id,
-      store_item_id: firstArr[0].store_item_id,
-      name: firstArr[0].name,
-    }));
 
     /**
      * DETECT ITEMS
