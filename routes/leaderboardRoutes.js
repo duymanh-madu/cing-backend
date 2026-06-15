@@ -141,15 +141,65 @@ router.get(
       } = req.params;
 
       const supabase = require("../supabase");
-      const data = await getGameLeaderboard(gameKey, { weekly: true });
 
-      // Lấy rewards config
       let rewards = [];
       try {
         const { data: cfg } = await supabase.from("app_configs")
           .select("leaderboard_config").eq("id", 1).single();
         rewards = cfg?.leaderboard_config?.games?.[gameKey]?.rewards || [];
       } catch(e) {}
+
+      if (gameKey === "chess-wins" || gameKey === "chess-streak") {
+        const orderCol = gameKey === "chess-wins" ? "wins" : "best_streak";
+
+        const { data: stats, error } = await supabase
+          .from("chess_stats")
+          .select("user_id,wins,losses,draws,total_games,best_streak,current_streak")
+          .gt(orderCol, 0)
+          .order(orderCol, { ascending: false })
+          .order("wins", { ascending: false })
+          .limit(100);
+
+        if (error) throw error;
+
+        const userIds = (stats || []).map(s => String(s.user_id));
+        const { data: players } = userIds.length
+          ? await supabase
+              .from("players")
+              .select("user_id,display_name,zalo_name,name,avatar")
+              .in("user_id", userIds)
+          : { data: [] };
+
+        const pMap = new Map((players || []).map(p => [String(p.user_id), p]));
+
+        const data = (stats || []).map((s, i) => {
+          const p = pMap.get(String(s.user_id));
+          const wins = Number(s.wins || 0);
+          const total = Number(s.total_games || 0);
+          const best = Number(s.best_streak || 0);
+          const winRate = total > 0 ? Number(((wins / total) * 100).toFixed(1)) : 0;
+
+          return {
+            rank: i + 1,
+            user_id: s.user_id,
+            player_name: p?.display_name || p?.zalo_name || p?.name || "Cing iu",
+            avatar: p?.avatar || "",
+            score: gameKey === "chess-wins" ? wins : best,
+            score_label: gameKey === "chess-wins" ? "trận thắng" : "chuỗi thắng",
+            wins,
+            losses: Number(s.losses || 0),
+            draws: Number(s.draws || 0),
+            total_games: total,
+            winRate,
+            best_streak: best,
+            current_streak: Number(s.current_streak || 0),
+          };
+        });
+
+        return res.json({ success: true, data, rewards });
+      }
+
+      const data = await getGameLeaderboard(gameKey, { weekly: true });
 
       res.json({ success: true, data, rewards });
 
