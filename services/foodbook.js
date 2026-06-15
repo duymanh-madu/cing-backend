@@ -414,6 +414,32 @@ async function getMenu() {
       );
 
     /**
+     * PROTECT CACHE FROM ABNORMAL PARTIAL MENU RESPONSE
+     * iPOS can briefly return partial items right after item_changed/out_of_stock events.
+     * Do not overwrite a healthy cache with a suddenly much smaller menu.
+     */
+
+    const previousCount =
+      Array.isArray(menuCache.data)
+        ? menuCache.data.length
+        : 0;
+
+    const nextCount =
+      normalized.length;
+
+    if (
+      previousCount >= 80 &&
+      nextCount > 0 &&
+      nextCount < Math.floor(previousCount * 0.75)
+    ) {
+      console.warn(
+        `[MENU] Skip abnormal partial refresh: previous=${previousCount}, next=${nextCount}`
+      );
+
+      return menuCache.data;
+    }
+
+    /**
      * SAVE CACHE
      */
 
