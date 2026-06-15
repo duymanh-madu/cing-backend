@@ -270,47 +270,156 @@ router.get("/leaderboard/alltime-games", async (req, res) => {
       }
     });
 
-    // Chess dùng chess_stats thay vì game_scores
-    let chessData = [];
-    if (validGames.includes("chess")) {
-      const { data: chessStats } = await supabase
-        .from("chess_stats")
-        .select("user_id, wins, losses, draws, total_games")
-        .order("wins", { ascending: false })
-        .limit(100);
+    let chessWinsData = [];
+let chessStreakData = [];
 
-      const chessIds = (chessStats||[]).map(s => s.user_id);
-      const { data: chessPlayers } = chessIds.length > 0
-        ? await supabase.from("players").select("user_id, display_name, zalo_name, avatar").in("user_id", chessIds)
-        : { data: [] };
-      const cpMap = new Map((chessPlayers||[]).map(p => [p.user_id, p]));
+if (
+  validGames.includes("chess-wins") ||
+  validGames.includes("chess-streak")
+) {
 
-      chessData = (chessStats||[]).map((s, i) => {
-        const p = cpMap.get(s.user_id);
+  const { data: chessStats } = await supabase
+    .from("chess_stats")
+    .select(
+      "user_id,wins,losses,draws,total_games,best_streak,current_streak"
+    )
+    .limit(500);
+
+  const chessIds =
+    (chessStats || []).map(
+      s => s.user_id
+    );
+
+  const { data: chessPlayers } =
+    chessIds.length
+      ? await supabase
+          .from("players")
+          .select(
+            "user_id,display_name,zalo_name,avatar"
+          )
+          .in(
+            "user_id",
+            chessIds
+          )
+      : { data: [] };
+
+  const cpMap =
+    new Map(
+      (chessPlayers || [])
+        .map(
+          p => [p.user_id, p]
+        )
+    );
+
+  chessWinsData =
+    [...(chessStats || [])]
+      .sort(
+        (a,b) =>
+          (b.wins || 0) -
+          (a.wins || 0)
+      )
+      .map((s,i) => {
+
+        const p =
+          cpMap.get(
+            s.user_id
+          );
+
         return {
           rank: i + 1,
           user_id: s.user_id,
-          player_name: p?.display_name || p?.zalo_name || s.user_id,
-          avatar: p?.avatar || "",
-          score: s.wins, // dùng wins làm score để hiển thị
-          wins: s.wins,
-          losses: s.losses,
-          total_games: s.total_games,
-          winRate: s.total_games > 0 ? Math.round(s.wins / s.total_games * 100) : 0,
+          player_name:
+            p?.display_name ||
+            p?.zalo_name ||
+            "Cing iu",
+          avatar:
+            p?.avatar || "",
+          score:
+            s.wins || 0,
+          wins:
+            s.wins || 0,
+          total_games:
+            s.total_games || 0,
+          winRate:
+            s.total_games > 0
+              ? Number(
+                  (
+                    s.wins /
+                    s.total_games *
+                    100
+                  ).toFixed(1)
+                )
+              : 0,
         };
       });
-    }
+
+  chessStreakData =
+    [...(chessStats || [])]
+      .sort(
+        (a,b) =>
+          (b.best_streak || 0) -
+          (a.best_streak || 0)
+      )
+      .map((s,i) => {
+
+        const p =
+          cpMap.get(
+            s.user_id
+          );
+
+        return {
+          rank: i + 1,
+          user_id: s.user_id,
+          player_name:
+            p?.display_name ||
+            p?.zalo_name ||
+            "Cing iu",
+          avatar:
+            p?.avatar || "",
+          score:
+            s.best_streak || 0,
+          best_streak:
+            s.best_streak || 0,
+          current_streak:
+            s.current_streak || 0,
+          wins:
+            s.wins || 0,
+        };
+      });
+}
 
     const result = validGames.map(gameKey => {
-      if (gameKey === "chess") {
-        return {
-          game_key: "chess",
-          display_name: gamesConfig["chess"]?.display_name || "Kỳ thủ cờ vua",
-          icon: gamesConfig["chess"]?.icon || "♟️",
-          score_label: "Số trận thắng",
-          data: chessData,
-        };
-      }
+      if (gameKey === "chess-wins") {
+  return {
+    game_key: "chess-wins",
+    display_name:
+      gamesConfig["chess-wins"]?.display_name ||
+      "Kỳ thủ cờ vua",
+    icon:
+      gamesConfig["chess-wins"]?.icon ||
+      "♟️",
+    score_label:
+      "Số trận thắng",
+    data:
+      chessWinsData.slice(0,100),
+  };
+}
+
+if (gameKey === "chess-streak") {
+  return {
+    game_key: "chess-streak",
+    display_name:
+      gamesConfig["chess-streak"]?.display_name ||
+      "Chuỗi thắng dài nhất",
+    icon:
+      gamesConfig["chess-streak"]?.icon ||
+      "🔥",
+    score_label:
+      "Chuỗi thắng",
+    data:
+      chessStreakData.slice(0,100),
+  };
+}
       if (!byGame[gameKey]) return null;
       return {
         game_key:     gameKey,
