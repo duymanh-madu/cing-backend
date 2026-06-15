@@ -7,7 +7,7 @@ const router =
 const {
   getMenu,
 } = require(
-  "../services/menuService"
+  "../services/foodbook"
 );
 
 /**
