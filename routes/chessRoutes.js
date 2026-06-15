@@ -22,6 +22,7 @@ router.get("/leaderboard", async (req, res) => {
       .from("chess_stats")
       .select("user_id, wins, losses, draws, total_games")
       .order("wins", { ascending: false })
+      .order("total_games", { ascending: false })
       .limit(100);
 
     if (winsErr) throw winsErr;
@@ -30,6 +31,8 @@ router.get("/leaderboard", async (req, res) => {
       .from("chess_stats")
       .select("user_id, best_streak, current_streak, wins, total_games")
       .order("best_streak", { ascending: false })
+      .order("wins", { ascending: false })
+      .order("total_games", { ascending: false })
       .limit(100);
 
     if (streakErr) throw streakErr;
