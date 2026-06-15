@@ -164,6 +164,15 @@ const REALTIME_EVENTS = {
    * ===================================================
    */
 
+  MENU_UPDATED:
+    "menu.updated",
+
+  MENU_CREATED:
+    "menu.created",
+
+  MENU_DELETED:
+    "menu.deleted",
+
   ADMIN_BROADCAST:
     "admin.broadcast",
 
@@ -233,13 +242,4 @@ module.exports = {
 
   REDIS_CHANNELS,
 
-
-  MENU_UPDATED:
-    "menu.updated",
-
-  MENU_CREATED:
-    "menu.created",
-
-  MENU_DELETED:
-    "menu.deleted",
 };
