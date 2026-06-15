@@ -233,4 +233,13 @@ module.exports = {
 
   REDIS_CHANNELS,
 
+
+  MENU_UPDATED:
+    "menu.updated",
+
+  MENU_CREATED:
+    "menu.created",
+
+  MENU_DELETED:
+    "menu.deleted",
 };
