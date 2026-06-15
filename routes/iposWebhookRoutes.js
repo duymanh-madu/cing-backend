@@ -66,6 +66,50 @@ router.post("/callback", async (req, res) => {
     // Trả về 200 ngay — không để iPos timeout
     res.json({ success: true });
 
+    /**
+     * =====================================================
+     * MENU REALTIME EVENTS
+     * =====================================================
+     * Event 12: item_changed -> refresh full menu from iPOS
+     * Event 26: item_out_of_stock -> refresh menu/status immediately
+     */
+    if (event === "item_changed" || event === "item_out_of_stock") {
+      try {
+        const { refreshMenu, clearMenuCache } = require("../services/foodbook");
+
+        clearMenuCache();
+
+        const refreshed = await refreshMenu().catch((e) => {
+          console.warn("[MENU] refreshMenu failed:", e.message);
+          return [];
+        });
+
+        const payload = {
+          event,
+          source: "ipos",
+          total: Array.isArray(refreshed) ? refreshed.length : 0,
+          raw: body[event] || body.item_changed || body.item_status_changed || null,
+          timestamp: new Date().toISOString(),
+        };
+
+        realtimeEventBus.publish({
+          event: "menu.updated",
+          delivery_type: "BROADCAST",
+          payload,
+          channel: "menu",
+          timestamp: new Date().toISOString(),
+        });
+
+        redisPublisher.publish("menu.updated", JSON.stringify(payload)).catch(() => {});
+
+        console.log("[MENU] iPOS menu event handled:", event, "items:", payload.total);
+      } catch (e) {
+        console.warn("[MENU] iPOS menu event handler failed:", e.message);
+      }
+
+      return;
+    }
+
     // Idempotency check — dùng id riêng của từng giao dịch (object.id), không phải event_id cố định
     // event_id (10, 11, 3...) chỉ là LOẠI event, không phải định danh giao dịch
     const eventData = body[event] || {};

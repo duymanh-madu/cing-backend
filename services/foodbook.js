@@ -22,6 +22,9 @@ const POS_PARENT =
 const POS_ID =
   process.env.IPOS_POS_ID;
 
+const MENU_TYPE =
+  process.env.IPOS_MENU_TYPE || "DELI";
+
 /**
  * =====================================================
  * VALIDATE ENV
@@ -374,6 +377,9 @@ async function getMenu() {
             pos_id:
               POS_ID,
 
+            menu_type:
+              MENU_TYPE,
+
           },
         }
       );
@@ -717,21 +723,6 @@ async function getMembershipLog(userId, opts = {}) {
   }
 }
 
-module.exports = {
-  updateMemberPoint,
-
-  getMenu,
-
-  getMember,
-
-  getMemberVouchers,
-
-  getMemberTransactions,
-
-  getMembershipLog,
-  getEstimateShipFee,
-
-};
 async function getEstimateShipFee({ lat, lng, amount }) {
   try {
     const response = await client.get(
@@ -755,3 +746,33 @@ async function getEstimateShipFee({ lat, lng, amount }) {
     return { success: false, ship_fee: null, error: error.message };
   }
 }
+
+
+function clearMenuCache() {
+  menuCache.data = [];
+  menuCache.updatedAt = null;
+}
+
+async function refreshMenu() {
+  clearMenuCache();
+  return getMenu();
+}
+
+module.exports = {
+  updateMemberPoint,
+
+  getMenu,
+  refreshMenu,
+  clearMenuCache,
+
+  getMember,
+
+  getMemberVouchers,
+
+  getMemberTransactions,
+
+  getMembershipLog,
+  getEstimateShipFee,
+
+};
+

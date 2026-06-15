@@ -85,6 +85,50 @@ router.get(
   }
 );
 
+
+router.post(
+  "/refresh",
+
+  async (
+    req,
+    res
+  ) => {
+
+    try {
+
+      const {
+        refreshMenu,
+      } = require("../services/foodbook");
+
+      const items =
+        await refreshMenu();
+
+      return res.json({
+        success: true,
+        total: items.length,
+        items,
+        refreshedAt: new Date().toISOString(),
+      });
+
+    } catch (
+      error
+    ) {
+
+      console.error(
+        "MENU REFRESH ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+
+    }
+
+  }
+);
+
 /**
  * =====================================================
  * TEST ROUTE
