@@ -329,6 +329,7 @@ router.use("/admin/monitor", require("./adminMonitorRoutes"));
 router.use("/admin/payment-dashboard", require("./adminPaymentDashboardRoutes"));
 router.use("/admin/orders", require("./adminOrderRoutes"));
 router.use("/admin/delivery", require("./adminDeliveryRoutes"));
+router.use("/shipper", require("./shipperPortalRoutes"));
 
 module.exports =
   router;

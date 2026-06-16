@@ -128,7 +128,29 @@ router.post("/assign", requireAdmin, async (req, res) => {
       });
     } catch(e) {}
 
-    res.json({ success:true, message:`Đã gán shipper ${shipper_name}`, data });
+    const shipperToken = jwt.sign(
+      {
+        tracking_id: data.id,
+        shipper_name,
+      },
+      JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    const frontendUrl =
+      process.env.MINIAPP_URL ||
+      process.env.FRONTEND_URL ||
+      "https://cinghutangkinhbac.vercel.app";
+
+    const shipper_url =
+      `${frontendUrl}/#/shipper/${shipperToken}`;
+
+    res.json({
+      success:true,
+      message:`Đã gán shipper ${shipper_name}`,
+      data,
+      shipper_url,
+    });
   } catch(err) { console.error('[ASSIGN ERROR]', err.message); res.status(500).json({ success:false, error:err.message }); }
 });
 
