@@ -211,8 +211,13 @@ async function syncOnePlayer(player) {
       playsUpdate.game_plays       = currentPlays + newPlays;
       playsUpdate.plays_from_spend = playsEarned;
       console.log('[GAME] Spend bonus: +' + newPlays + ' plays for ' + userId + ' (total earned: ' + playsEarned + ')');
-      const orderAmountForPlayLog = Math.max(0, newPlays * SPEND_PER_PLAY);
-      await addPlays({ user_id: userId, amount: newPlays, reason: 'Thưởng ' + newPlays + ' lượt từ đơn hàng (' + Math.floor(orderAmountForPlayLog/1000) + 'k)', new_total: playsUpdate.game_plays }).catch(()=>{});
+      const previousSpendForPlays = playsFromSpend * SPEND_PER_PLAY;
+      const orderAmountForPlayLog = Math.max(
+        0,
+        Number(spendSinceLaunch || 0) - previousSpendForPlays
+      );
+      const orderAmountLabel = orderAmountForPlayLog.toLocaleString("vi-VN") + "đ";
+      await addPlays({ user_id: userId, amount: newPlays, reason: 'Thưởng ' + newPlays + ' lượt từ đơn hàng (' + orderAmountLabel + ')', new_total: playsUpdate.game_plays }).catch(()=>{});
     }
 
     if (Object.keys(playsUpdate).length > 0) {
