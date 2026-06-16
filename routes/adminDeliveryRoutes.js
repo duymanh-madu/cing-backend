@@ -208,20 +208,34 @@ router.put("/status/:id", requireAdmin, async (req, res) => {
 // GET /admin/delivery/orders-ready — đơn hàng sẵn sàng giao (chưa có shipper)
 router.get("/orders-ready", requireAdmin, async (req, res) => {
   try {
-    // Lấy đơn có địa chỉ giao, status confirmed/processing, chưa có delivery tracking active
+    // Chỉ lấy đơn mới còn khả năng cần giao.
+    // orders.status có thể bị kẹt confirmed sau khi đơn đã hoàn thành,
+    // nên giới hạn 24h để không kéo đơn cũ vào "chờ gán shipper".
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
     const { data: orders } = await supabase.from("orders")
-      .select("id,order_code,customer_name,customer_phone,total_amount,shipping_address,created_at")
+      .select("id,order_code,customer_name,customer_phone,total_amount,shipping_address,status,created_at")
       .in("status",["confirmed","processing","ready"])
       .not("shipping_address","is",null)
+      .gte("created_at", since)
       .order("created_at",{ascending:false})
       .limit(50);
 
-    // Lọc bỏ đơn đã có tracking active
+    // Lọc bỏ đơn đã có tracking hoặc đã hoàn tất/hủy.
+    // Đơn chỉ được coi là "chờ gán shipper" khi chưa có bất kỳ delivery_tracking nào.
+    // Tránh trường hợp đơn completed/cancelled vẫn hiện chờ gán do orders.status chưa sync đúng.
     const ids = (orders||[]).map(o=>o.id);
-    const { data: activeTracking } = await supabase.from("delivery_tracking")
-      .select("order_id").in("order_id",ids).not("status","in","(completed,cancelled)");
-    const activeIds = new Set((activeTracking||[]).map(t=>t.order_id));
-    const ready = (orders||[]).filter(o=>!activeIds.has(o.id));
+
+    const { data: allTracking } = ids.length
+      ? await supabase
+          .from("delivery_tracking")
+          .select("order_id,status,delivery_status")
+          .in("order_id", ids)
+      : { data: [] };
+
+    const trackedIds = new Set((allTracking||[]).map(t=>t.order_id));
+
+    const ready = (orders||[]).filter(o=>!trackedIds.has(o.id));
 
     res.json({ success:true, data:ready });
   } catch(err) { res.status(500).json({ success:false, error:err.message }); }
