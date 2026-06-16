@@ -221,6 +221,146 @@ router.get(
   }
 );
 
+
+/**
+ * ============================================
+ * ADMIN TOP 100 SPENDING
+ * ============================================
+ */
+
+router.get("/top100/spending", async (req, res) => {
+  try {
+    const supabase = require("../supabase");
+    const period = req.query.period || "weekly";
+
+    const colMap = {
+      weekly: "crm_spend_weekly",
+      monthly: "crm_spend_monthly",
+      yearly: "crm_spend_yearly",
+      alltime: "crm_spend_alltime",
+      custom: "crm_spend_custom",
+    };
+
+    const col = colMap[period] || "crm_spend_weekly";
+
+    const { data, error } = await supabase
+      .from("players")
+      .select("user_id,display_name,zalo_name,avatar,crm_spend_weekly,crm_spend_monthly,crm_spend_yearly,crm_spend_alltime,crm_spend_custom,total_points")
+      .gt(col, 0)
+      .order(col, { ascending:false })
+      .limit(100);
+
+    if (error) throw error;
+
+    const rows = (data || []).map((p, i) => ({
+      rank: i + 1,
+      user_id: p.user_id,
+      player_name: p.display_name || p.zalo_name || "Cing iu",
+      avatar: p.avatar || "",
+      value: Number(p[col] || 0),
+      value_label: "đ chi tiêu",
+      total_points: Number(p.total_points || 0),
+    }));
+
+    res.json({ success:true, data:rows });
+  } catch (e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+});
+
+/**
+ * ============================================
+ * ADMIN TOP 100 GAME
+ * ============================================
+ */
+
+router.get("/top100/game/:gameKey", async (req, res) => {
+  try {
+    const supabase = require("../supabase");
+    const gameKey = req.params.gameKey;
+
+    if (gameKey === "chess-wins" || gameKey === "chess-streak") {
+      const orderCol = gameKey === "chess-wins" ? "wins" : "best_streak";
+
+      const { data: stats, error } = await supabase
+        .from("chess_stats")
+        .select("user_id,wins,losses,draws,total_games,best_streak,current_streak")
+        .gt(orderCol, 0)
+        .order(orderCol, { ascending:false })
+        .order("wins", { ascending:false })
+        .limit(100);
+
+      if (error) throw error;
+
+      const ids = (stats || []).map(s => String(s.user_id));
+      const { data: players } = ids.length
+        ? await supabase.from("players")
+            .select("user_id,display_name,zalo_name,avatar")
+            .in("user_id", ids)
+        : { data: [] };
+
+      const pMap = new Map((players || []).map(p => [String(p.user_id), p]));
+
+      const rows = (stats || []).map((s, i) => {
+        const p = pMap.get(String(s.user_id));
+        const wins = Number(s.wins || 0);
+        const total = Number(s.total_games || 0);
+
+        return {
+          rank: i + 1,
+          user_id: s.user_id,
+          player_name: p?.display_name || p?.zalo_name || "Cing iu",
+          avatar: p?.avatar || "",
+          value: gameKey === "chess-wins" ? wins : Number(s.best_streak || 0),
+          value_label: gameKey === "chess-wins" ? "trận thắng" : "chuỗi thắng",
+          winRate: total > 0 ? Number(((wins / total) * 100).toFixed(1)) : 0,
+          wins,
+          total_games: total,
+          best_streak: Number(s.best_streak || 0),
+          current_streak: Number(s.current_streak || 0),
+        };
+      });
+
+      return res.json({ success:true, data:rows });
+    }
+
+    const { data: scores, error } = await supabase
+      .from("game_scores")
+      .select("user_id,player_name,avatar,score,kills,played_at")
+      .eq("game_key", gameKey)
+      .order("score", { ascending:false })
+      .limit(2000);
+
+    if (error) throw error;
+
+    const bestMap = new Map();
+    for (const row of scores || []) {
+      const uid = String(row.user_id);
+      if (!bestMap.has(uid) || Number(row.score || 0) > Number(bestMap.get(uid).score || 0)) {
+        bestMap.set(uid, row);
+      }
+    }
+
+    const rows = [...bestMap.values()]
+      .sort((a,b) => Number(b.score || 0) - Number(a.score || 0))
+      .slice(0, 100)
+      .map((s, i) => ({
+        rank: i + 1,
+        user_id: s.user_id,
+        player_name: s.player_name || "Cing iu",
+        avatar: s.avatar || "",
+        value: Number(s.score || 0),
+        value_label: "điểm",
+        kills: Number(s.kills || 0),
+      }));
+
+    res.json({ success:true, data:rows });
+  } catch (e) {
+    res.status(500).json({ success:false, error:e.message });
+  }
+});
+
+
 /**
  * ============================================
  * USER RANK
