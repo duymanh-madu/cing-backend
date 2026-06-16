@@ -26,7 +26,7 @@ router.get("/", requireAdmin, async (req, res) => {
       return q.ilike(cols[0], `%${search}%`);
     };
 
-    const [games, points, playsBought, playsGiven, profileChanges, rewards] = await Promise.all([
+    const [games, points, playsBought, playsGiven, rewards, profileChanges] = await Promise.all([
       // Game scores
       (needAll || filter==="games")
         ? supabase.from("game_scores")

@@ -159,6 +159,11 @@ router.post("/save/:userId", async (req, res) => {
         event_data: {
           field: display_name?.trim() ? (avatar_base64 ? 'name+avatar' : 'name') : 'avatar',
           points_used: (use_points && !status.can_change_free) ? POINT_COST : 0,
+          old_name: player?.display_name || player?.zalo_name || "",
+          new_name: newName || "",
+          old_avatar: player?.avatar || "",
+          new_avatar: avatarUrl || "",
+          avatar_changed: !!avatar_base64,
         },
         created_at: new Date().toISOString()
       });
