@@ -220,16 +220,26 @@ const momoIpnHandler = async (req, res) => {
     // ─── 1b. Thông báo đặc biệt nếu sau 23:00 ─────────────────────
     if (isAfterHours) {
       try {
-        const { broadcastNotification } = require("../services/notificationService");
+        const { sendNotification } = require("../services/notificationService");
         const playerPhone = normalizePhone(order.customer_phone);
-        await broadcastNotification({
-          template_key: "CAMPAIGN_BROADCAST",
-          target_user_ids: [playerPhone],
-          custom: {
-            title: "✅ Thanh toán thành công!",
-            message: "Đơn hàng của bạn đã được thanh toán thành công. Hiện nay cửa hàng đã đóng cửa, cửa hàng sẽ liên hệ lại với bạn để giao hàng vào 8:00 sáng hôm sau.",
-          },
-        });
+        const afterHoursMessage = "Đơn hàng đã thanh toán thành công. Hiện nay cửa hàng đang đóng cửa, chúng mình sẽ liên hệ với bạn vào 8 giờ sáng để trả hàng.";
+
+        if (playerPhone) {
+          await sendNotification({
+            user_id: playerPhone,
+            template_key: "CAMPAIGN_BROADCAST",
+            custom: {
+              title: "✅ Thanh toán thành công!",
+              message: afterHoursMessage,
+            },
+            data: {
+              order_id: order.id,
+              order_code: order.order_code,
+              reason: "after_hours_paid_order",
+            },
+          });
+        }
+
         console.log("[MOMO IPN] After-hours notification sent to", playerPhone);
       } catch (e) {
         console.warn("[MOMO IPN] After-hours notification failed:", e.message);

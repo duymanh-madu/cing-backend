@@ -115,8 +115,6 @@ async function createPayment({
 
   };
 
-  console.log("[MOMO] ipnUrl:", MOMO_CONFIG.ipnUrl);
-  console.log("[MOMO] endpoint:", MOMO_CONFIG.endpoint);
   const response =
     await axios.post(
       MOMO_CONFIG.endpoint,

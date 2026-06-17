@@ -208,7 +208,7 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
 
   // Debug log để verify payload trước khi gửi
   console.log("[IPOS] Pushing order:", order.order_code, "| payment_method:", order.payment_method);
-  console.log("[IPOS] Amount debug:", {
+  if (process.env.IPOS_DEBUG === "true") console.log("[IPOS] Amount debug:", {
     total_amount: order.total_amount,
     subtotal: order.subtotal,
     tier_discount: order.tier_discount,
@@ -218,7 +218,7 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
     payload_total: payload.total_amount,
     payment_amount: payload.PaymentInfo?.Amount,
   });
-  console.log("[IPOS] Payload preview:", JSON.stringify({
+  if (process.env.IPOS_DEBUG === "true") console.log("[IPOS] Payload preview:", JSON.stringify({
     foodbook_code: payload.foodbook_code,
     order_type:    payload.order_type,
     user_id:       payload.user_id,
