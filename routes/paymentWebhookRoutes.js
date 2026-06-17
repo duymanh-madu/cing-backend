@@ -240,7 +240,28 @@ const momoIpnHandler = async (req, res) => {
           });
         }
 
-        console.log("[MOMO IPN] After-hours notification sent to", playerPhone);
+        const { realtimeEventBus } = require("../services/realtime/realtimeEventBus");
+        realtimeEventBus.publish({
+          event: "notification.broadcast",
+          delivery_type: "ROOM",
+          room: `member:${playerPhone}`,
+          payload: {
+            notification: {
+              title: "🌙 Đơn hàng ngoài giờ",
+              message: afterHoursMessage,
+              type: "payment_after_hours",
+              created_at: new Date().toISOString(),
+            },
+            ticker: {
+              enabled: true,
+              message: afterHoursMessage,
+            },
+          },
+          channel: "notification",
+          timestamp: new Date().toISOString(),
+        });
+
+        console.log("[MOMO IPN] After-hours notification + ticker sent to", playerPhone);
       } catch (e) {
         console.warn("[MOMO IPN] After-hours notification failed:", e.message);
       }
