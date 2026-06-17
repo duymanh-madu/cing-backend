@@ -143,6 +143,11 @@ async function createPaymentSession(
     qrContent:
       providerResult.qrContent || null,
 
+    zaloOrder:
+      updated.payment_provider === "zalo_checkout"
+        ? providerResult.raw
+        : null,
+
     expired_at,
 
   };

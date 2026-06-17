@@ -4,6 +4,9 @@ const momoProvider =
 const bankingProvider =
   require("./providers/bankingProvider");
 
+const zaloCheckoutProvider =
+  require("./providers/zaloCheckoutProvider");
+
 const registry = {
 
   momo:
@@ -11,6 +14,9 @@ const registry = {
 
   banking:
     bankingProvider,
+
+  zalo_checkout:
+    zaloCheckoutProvider,
 
 };
 

@@ -7,7 +7,7 @@ const redisClient = require("../services/infrastructure/cache/redisClient");
 const { normalizePhone } = require("../utils/phoneIdentity");
 const { enqueueCrmSyncRecovery } = require("../services/crm/crmSyncRecoveryWorker");
 
-router.post("/momo", async (req, res) => {
+const momoIpnHandler = async (req, res) => {
   const { resultCode, orderId, transId, amount, message } = req.body;
   console.log("[MOMO IPN]", { resultCode, orderId, transId, amount });
 
@@ -420,6 +420,96 @@ try {
   } catch (err) {
     console.error("[MOMO IPN] Unhandled error:", err.message);
   }
-});
+};
+
+router.post("/momo", momoIpnHandler);
+
+/**
+ * =====================================================
+ * ZALO CHECKOUT SDK CALLBACK / CONFIRM
+ * =====================================================
+ * Zalo Checkout SDK đi qua MoMo nhưng không gọi MoMo direct từ Mini App.
+ * Endpoint này tái sử dụng 100% pipeline MoMo IPN hiện tại:
+ * - payment_transactions
+ * - orders
+ * - iPOS
+ * - CRM spending
+ * - loyalty points
+ * - game plays
+ * - leaderboard
+ * - notifications
+ * - realtime
+ */
+async function processZaloCheckoutAsPaid(req, res) {
+  try {
+    const body = req.body || {};
+
+    const orderId =
+      body.orderId ||
+      body.transaction_code ||
+      body.transactionCode ||
+      body.zmpOrderId ||
+      body.id;
+
+    const resultCode =
+      Number(body.resultCode ?? body.result_code ?? 0);
+
+    const transId =
+      body.transId ||
+      body.transactionId ||
+      body.zmpOrderId ||
+      body.id ||
+      orderId;
+
+    const amount =
+      Number(body.amount || 0);
+
+    const message =
+      body.msg ||
+      body.message ||
+      "Zalo Checkout result";
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing orderId / transaction_code",
+      });
+    }
+
+    const fakeReq = {
+      ...req,
+      body: {
+        resultCode,
+        orderId,
+        transId,
+        amount,
+        message,
+      },
+    };
+
+    const fakeRes = {
+      json: () => {},
+      status: () => fakeRes,
+    };
+
+    await momoIpnHandler(fakeReq, fakeRes);
+
+    return res.json({
+      success: true,
+      message: "Zalo Checkout processed through existing payment pipeline",
+      transaction_code: orderId,
+      resultCode,
+    });
+  } catch (err) {
+    console.error("[ZALO CHECKOUT] process failed:", err.message);
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+}
+
+router.post("/zalo/callback", processZaloCheckoutAsPaid);
+router.post("/zalo/confirm", processZaloCheckoutAsPaid);
 
 module.exports = router;
