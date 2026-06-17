@@ -144,11 +144,17 @@ router.post("/assign", requireAdmin, async (req, res) => {
 
     const shipper_url =
       `${frontendUrl}/#/shipper/${shipperToken}`;
+    const { data: updatedTracking } = await supabase
+      .from("delivery_tracking")
+      .update({ shipper_url })
+      .eq("id", data.id)
+      .select()
+      .single();
 
     res.json({
       success:true,
       message:`Đã gán shipper ${shipper_name}`,
-      data,
+      data: updatedTracking || { ...data, shipper_url },
       shipper_url,
     });
   } catch(err) { console.error('[ASSIGN ERROR]', err.message); res.status(500).json({ success:false, error:err.message }); }
