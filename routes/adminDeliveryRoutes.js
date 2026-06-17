@@ -142,7 +142,7 @@ router.post("/assign", requireAdmin, async (req, res) => {
       "https://cinghutangkinhbac.vercel.app";
 
     const shipper_url =
-      `${frontendUrl}/#/shipper/${shipperToken}`;
+      `${frontendUrl}/shipper/${shipperToken}`;
     const { data: updatedTracking } = await supabase
       .from("delivery_tracking")
       .update({ shipper_url })
