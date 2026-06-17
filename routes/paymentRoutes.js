@@ -205,5 +205,16 @@ router.post(
  * =====================================================
  */
 
+
+// POST /payments/zalo/debug — temporary checkout SDK debug log
+router.post("/zalo/debug", async (req, res) => {
+  try {
+    console.log("[ZALO CHECKOUT DEBUG]", JSON.stringify(req.body || {}, null, 2));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports =
   router;
