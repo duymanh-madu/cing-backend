@@ -139,7 +139,6 @@ router.post("/assign", requireAdmin, async (req, res) => {
 
     const frontendUrl =
       process.env.MINIAPP_URL ||
-      process.env.FRONTEND_URL ||
       "https://cinghutangkinhbac.vercel.app";
 
     const shipper_url =
