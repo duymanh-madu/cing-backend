@@ -533,9 +533,8 @@ async function processZaloCheckoutAsPaid(req, res) {
     await momoIpnHandler(fakeReq, fakeRes);
 
     return res.json({
-      success: true,
-      transaction_code: orderId,
-      resultCode,
+      returnCode: 1,
+      returnMessage: "success",
     });
   } catch (err) {
     console.error("[ZALO CHECKOUT] process failed:", err.message);
