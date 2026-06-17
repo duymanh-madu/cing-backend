@@ -69,6 +69,10 @@ async function enqueueIposRecovery({
     insertPayload.order_id = String(order_id);
   }
 
+  if (order_id && /^\d+$/.test(String(order_id))) {
+    insertPayload.order_numeric_id = Number(order_id);
+  }
+
   const { data, error } = await supabase
     .from("ipos_sync_queue")
     .insert(insertPayload)

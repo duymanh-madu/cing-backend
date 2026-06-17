@@ -213,6 +213,7 @@ const momoIpnHandler = async (req, res) => {
 
         const { enqueueIposRecovery } = require("../services/ipos/iposSyncRecoveryWorker");
         await enqueueIposRecovery({
+          order_id: order.id,
           transaction_code: orderId,
           reason: "after_hours_paid_order_wait_until_open",
           next_retry_at: nextRetryAt,
