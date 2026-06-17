@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 const router = express.Router();
 const supabase = require("../supabase");
 const { pushOrderToIPOS } = require("../services/iposOrderService");
@@ -6,6 +7,34 @@ const { calculateOrderPoints } = require("../services/membershipBenefitsService"
 const redisClient = require("../services/infrastructure/cache/redisClient");
 const { normalizePhone } = require("../utils/phoneIdentity");
 const { enqueueCrmSyncRecovery } = require("../services/crm/crmSyncRecoveryWorker");
+
+const ZALO_CHECKOUT_PRIVATE_KEY =
+  process.env.ZALO_CHECKOUT_PRIVATE_KEY ||
+  process.env.ZALO_PRIVATE_KEY ||
+  "";
+
+function verifyZaloCheckoutMac(data, mac) {
+  if (!ZALO_CHECKOUT_PRIVATE_KEY) {
+    throw new Error("Missing ZALO_CHECKOUT_PRIVATE_KEY");
+  }
+
+  const dataForMac =
+    `appId=${data.appId}` +
+    `&amount=${data.amount}` +
+    `&description=${data.description}` +
+    `&orderId=${data.orderId}` +
+    `&message=${data.message}` +
+    `&resultCode=${data.resultCode}` +
+    `&transId=${data.transId}`;
+
+  const expected = crypto
+    .createHmac("sha256", ZALO_CHECKOUT_PRIVATE_KEY)
+    .update(dataForMac)
+    .digest("hex");
+
+  return expected === mac;
+}
+
 
 const momoIpnHandler = async (req, res) => {
   const { resultCode, orderId, transId, amount, message } = req.body;
@@ -443,43 +472,52 @@ router.post("/momo", momoIpnHandler);
 async function processZaloCheckoutAsPaid(req, res) {
   try {
     const body = req.body || {};
+    const data = body.data || body;
 
-    const orderId =
-      body.orderId ||
-      body.transaction_code ||
-      body.transactionCode ||
-      body.zmpOrderId ||
-      body.id;
-
-    const resultCode =
-      Number(body.resultCode ?? body.result_code ?? 0);
-
-    const transId =
-      body.transId ||
-      body.transactionId ||
-      body.zmpOrderId ||
-      body.id ||
-      orderId;
-
-    const amount =
-      Number(body.amount || 0);
-
-    const message =
-      body.msg ||
-      body.message ||
-      "Zalo Checkout result";
+    const orderId = data.orderId || data.transaction_code || data.transactionCode;
+    const resultCode = Number(data.resultCode);
+    const transId = data.transId || data.transactionId || orderId;
+    const amount = Number(data.amount || 0);
+    const message = data.message || data.msg || "Zalo Checkout result";
 
     if (!orderId) {
       return res.status(400).json({
         success: false,
-        message: "Missing orderId / transaction_code",
+        message: "Missing orderId",
+      });
+    }
+
+    if (body.mac && !verifyZaloCheckoutMac(data, body.mac)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Zalo Checkout callback MAC",
+      });
+    }
+
+    const { data: payment } = await supabase
+      .from("payment_transactions")
+      .select("amount")
+      .eq("transaction_code", orderId)
+      .maybeSingle();
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment transaction not found",
+      });
+    }
+
+    if (Number(payment.amount) !== amount) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount mismatch",
       });
     }
 
     const fakeReq = {
       ...req,
       body: {
-        resultCode,
+        resultCode: resultCode === 1 ? 0 : -1,
         orderId,
         transId,
         amount,
@@ -496,7 +534,6 @@ async function processZaloCheckoutAsPaid(req, res) {
 
     return res.json({
       success: true,
-      message: "Zalo Checkout processed through existing payment pipeline",
       transaction_code: orderId,
       resultCode,
     });

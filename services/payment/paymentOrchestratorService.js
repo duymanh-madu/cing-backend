@@ -91,6 +91,9 @@ async function createPaymentSession(
       description:
         `Thanh toán đơn hàng ${transaction.transaction_code}`,
 
+      cartSnapshot:
+        payload.cart_snapshot,
+
     });
 
   const updated =
