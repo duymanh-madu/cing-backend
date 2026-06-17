@@ -510,6 +510,7 @@ async function processZaloCheckoutAsPaid(req, res) {
 }
 
 router.post("/zalo/callback", processZaloCheckoutAsPaid);
+router.post("/zalo/sandbox-callback", processZaloCheckoutAsPaid);
 router.post("/zalo/confirm", processZaloCheckoutAsPaid);
 
 module.exports = router;
