@@ -203,15 +203,39 @@ const momoIpnHandler = async (req, res) => {
         note: [snap.note || snap.customer_note || "", afterHoursNote].filter(Boolean).join(" | "),
         payment_method: "momo",
       };
-      const iposResult = await pushOrderToIPOS({
-        order: orderWithMeta,
-        transaction_code: orderId,
-        momo_trans_id: String(transId || ""),
-      });
-      if (iposResult.success) {
-        console.log("[MOMO IPN] Pushed to iPOS OK:", order.order_code, isAfterHours ? "(after-hours)" : "");
+
+      if (isAfterHours) {
+        const next8VN = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+        next8VN.setHours(8, 0, 0, 0);
+        if (hourVN >= 23) next8VN.setDate(next8VN.getDate() + 1);
+
+        const nextRetryAt = new Date(next8VN.getTime() - 7 * 60 * 60 * 1000).toISOString();
+
+        const { enqueueIposRecovery } = require("../services/ipos/iposSyncRecoveryWorker");
+        await enqueueIposRecovery({
+          transaction_code: orderId,
+          reason: "after_hours_paid_order_wait_until_open",
+          next_retry_at: nextRetryAt,
+        });
+
+        await supabase.from("orders").update({
+          pos_sync_status: "pending_after_hours",
+          updated_at: new Date().toISOString(),
+        }).eq("id", order.id).then(()=>{}).catch(()=>{});
+
+        console.log("[MOMO IPN] iPOS push delayed until 08:00 VN:", order.order_code);
       } else {
-        console.error("[MOMO IPN] iPOS push failed:", iposResult.error);
+        const iposResult = await pushOrderToIPOS({
+          order: orderWithMeta,
+          transaction_code: orderId,
+          momo_trans_id: String(transId || ""),
+        });
+
+        if (iposResult.success) {
+          console.log("[MOMO IPN] Pushed to iPOS OK:", order.order_code);
+        } else {
+          console.error("[MOMO IPN] iPOS push failed:", iposResult.error);
+        }
       }
     } catch (e) {
       console.error("[MOMO IPN] iPOS push exception:", e.message);

@@ -26,36 +26,52 @@ function nextRetryIso(retryCount) {
 }
 
 async function enqueueIposRecovery({
-  order_id,
+  order_id = null,
   transaction_code = null,
   reason = "ipos_push_failed",
+  next_retry_at = null,
 } = {}) {
-  if (!order_id) {
-    return { success:false, skipped:true, reason:"missing_order_id" };
+  if (!order_id && !transaction_code) {
+    return { success:false, skipped:true, reason:"missing_order_or_transaction" };
   }
 
-  const { data: existing } = await supabase
+  let existingQuery = supabase
     .from("ipos_sync_queue")
     .select("id")
-    .eq("order_id", order_id)
     .in("status", ["pending", "processing"])
     .limit(1);
+
+  if (transaction_code) {
+    existingQuery = existingQuery.eq("transaction_code", transaction_code);
+  } else {
+    existingQuery = existingQuery.eq("order_id", order_id);
+  }
+
+  const { data: existing } = await existingQuery;
 
   if (existing && existing.length > 0) {
     return { success:true, skipped:true, reason:"already_pending" };
   }
 
+  const insertPayload = {
+    transaction_code,
+    status: "pending",
+    retry_count: 0,
+    last_error: reason,
+    next_retry_at: next_retry_at || nowIso(),
+    updated_at: nowIso(),
+  };
+
+  if (
+    order_id &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(order_id))
+  ) {
+    insertPayload.order_id = String(order_id);
+  }
+
   const { data, error } = await supabase
     .from("ipos_sync_queue")
-    .insert({
-      order_id: String(order_id),
-      transaction_code,
-      status: "pending",
-      retry_count: 0,
-      last_error: reason,
-      next_retry_at: nowIso(),
-      updated_at: nowIso(),
-    })
+    .insert(insertPayload)
     .select()
     .maybeSingle();
 
