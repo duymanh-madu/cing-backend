@@ -103,14 +103,31 @@ const momoIpnHandler = async (req, res) => {
 
     const orderCode = "ORD-" + Date.now();
 
+    const normalizedSnapPhone =
+      normalizePhone(snap.customer_phone || snap.phone || snap.order_data?.customer_phone || "");
+
+    const normalizedPaymentPhone =
+      normalizePhone(payment.customer_phone || "");
+
+    const normalizedUserPhone =
+      String(payment.user_id || "").startsWith("guest-")
+        ? ""
+        : normalizePhone(payment.user_id || "");
+
+    const finalCustomerPhone =
+      normalizedSnapPhone ||
+      normalizedPaymentPhone ||
+      normalizedUserPhone ||
+      "";
+
     // FIX: include latitude, longitude, address_detail từ cart_snapshot
     const { data: order, error: orderErr } = await supabase
       .from("orders")
       .insert({
         order_code:             orderCode,
-        user_id:                payment.user_id,
+        user_id:                finalCustomerPhone || payment.user_id,
         customer_name:          snap.customer_name    || payment.customer_name    || "Khách hàng",
-        customer_phone:         snap.customer_phone   || payment.customer_phone   || "",
+        customer_phone:         finalCustomerPhone,
         items,
         subtotal:               payment.amount,
         shipping_fee:           snap.shipping_fee     || 0,
@@ -242,6 +259,38 @@ const momoIpnHandler = async (req, res) => {
       const amount = order.total_amount || 0;
       const nowVNStr = new Date().toLocaleDateString("en-CA", { timeZone:"Asia/Ho_Chi_Minh" });
 
+      // Custom leaderboard realtime
+      let customSpendIncrement = 0;
+
+      try {
+        const { data: cfg } = await supabase
+          .from("app_configs")
+          .select("custom_leaderboard_from, custom_leaderboard_to")
+          .eq("id", 1)
+          .single();
+
+        const now = new Date();
+
+        const from = cfg?.custom_leaderboard_from
+          ? new Date(cfg.custom_leaderboard_from + "T00:00:00")
+          : null;
+
+        const to = cfg?.custom_leaderboard_to
+          ? new Date(cfg.custom_leaderboard_to + "T23:59:59")
+          : null;
+
+        const inRange =
+          from &&
+          now >= from &&
+          (!to || now <= to);
+
+        if (inRange) {
+          customSpendIncrement = amount;
+        }
+      } catch (e) {
+        console.warn("[MOMO IPN] Custom leaderboard check failed:", e.message);
+      }
+
       // Lấy spending hiện tại
       const { data: player } = await supabase.from("players")
         .select("crm_spend_weekly, crm_spend_monthly, crm_spend_yearly, crm_spend_alltime, crm_spend_custom, game_plays, plays_from_spend")
@@ -279,38 +328,6 @@ const momoIpnHandler = async (req, res) => {
 
         // Tổng số lượt đã được cấp từ chi tiêu
         const newPlaysFromSpend = oldPlaysFromSpend + bonusPlays;
-
-// Custom leaderboard realtime
-let customSpendIncrement = 0;
-
-try {
-  const { data: cfg } = await supabase
-    .from("app_configs")
-    .select("custom_leaderboard_from, custom_leaderboard_to")
-    .eq("id", 1)
-    .single();
-
-  const now = new Date();
-
-  const from = cfg?.custom_leaderboard_from
-    ? new Date(cfg.custom_leaderboard_from + "T00:00:00")
-    : null;
-
-  const to = cfg?.custom_leaderboard_to
-    ? new Date(cfg.custom_leaderboard_to + "T23:59:59")
-    : null;
-
-  const inRange =
-    from &&
-    now >= from &&
-    (!to || now <= to);
-
-  if (inRange) {
-    customSpendIncrement = amount;
-  }
-} catch (e) {
-  console.warn("[MOMO IPN] Custom leaderboard check failed:", e.message);
-}
 
         const updateData = {
           crm_spend_weekly:  newWeekly,
