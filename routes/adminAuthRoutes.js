@@ -103,7 +103,15 @@ router.post("/create", verifyAdmin, async (req, res) => {
     const { username, password, role } = req.body;
     if (!username || !password || !role)
       return res.status(400).json({ success: false, message: "Thiếu thông tin" });
-    const validRoles = ["super_admin", "manager", "cashier", "kitchen", "shipper", "marketing"];
+    const validRoles = [
+  "super_admin",
+  "manager",
+  "cashier",
+  "kitchen",
+  "shipper",
+  "marketing",
+  "delivery_admin"
+];
     if (!validRoles.includes(role))
       return res.status(400).json({ success: false, message: "Role không hợp lệ" });
     const { data: existing } = await supabase
