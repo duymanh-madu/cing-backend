@@ -190,14 +190,22 @@ async function processIposSyncQueue({ batchSize = DEFAULT_BATCH_SIZE } = {}) {
 
     for (const job of jobs) {
       try {
+        const lookupOrderId = job.order_numeric_id || job.order_id;
+
+        if (!lookupOrderId) {
+          await failJob(job, "missing_order_lookup_id");
+          stats.failed++;
+          continue;
+        }
+
         const { data: order, error } = await supabase
           .from("orders")
           .select("*")
-          .eq("id", job.order_id)
-          .single();
+          .eq("id", lookupOrderId)
+          .maybeSingle();
 
         if (error || !order) {
-          await failJob(job, "order_not_found");
+          await failJob(job, `order_not_found:${lookupOrderId}`);
           stats.failed++;
           continue;
         }
