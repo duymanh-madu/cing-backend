@@ -356,8 +356,12 @@ router.post("/loyalty-integrity/accept", requireAdmin, async (req, res) => {
     const supabase = require("../supabase");
     const now = new Date().toISOString();
     await supabase.from("point_balance_baselines")
-      .update({ baseline_points: Number(current_points), baseline_at: now })
-      .eq("user_id", user_id);
+      .upsert({
+        user_id,
+        baseline_points: Number(current_points),
+        baseline_at: now,
+        updated_at: now,
+      }, { onConflict: "user_id" });
     console.log(`[INTEGRITY] ACCEPT: ${user_id} baseline → ${current_points}`);
     res.json({ success:true });
   } catch(e) { res.status(500).json({ success:false, error:e.message }); }
