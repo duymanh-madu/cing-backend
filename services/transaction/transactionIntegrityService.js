@@ -17,7 +17,7 @@ function isCrmMissing(order) {
 }
 
 function isIposMissing(order) {
-  return order.payment_status === "paid" && order.pos_sync_status !== "success";
+  return order.payment_status === "paid" && !["success", "ignored_manual"].includes(order.pos_sync_status);
 }
 
 async function fetchPaidOrdersToday() {

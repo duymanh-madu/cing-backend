@@ -399,7 +399,7 @@ router.post("/ipos-recovery/:id/accept", requireAdmin, async (req, res) => {
       await supabase
         .from("orders")
         .update({
-          pos_sync_status: "accepted_manual",
+          pos_sync_status: "success",
           updated_at: now,
         })
         .eq("id", job.order_numeric_id);
