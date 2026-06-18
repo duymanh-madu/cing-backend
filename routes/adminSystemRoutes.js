@@ -367,6 +367,85 @@ router.post("/loyalty-integrity/accept", requireAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
+
+// POST /admin/system/ipos-recovery/:id/accept — chấp nhận job iPOS lỗi và mark done
+router.post("/ipos-recovery/:id/accept", requireAdmin, async (req, res) => {
+  try {
+    const supabase = require("../supabase");
+    const id = req.params.id;
+    const now = new Date().toISOString();
+
+    const { data: job, error: jobErr } = await supabase
+      .from("ipos_sync_queue")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (jobErr || !job) {
+      return res.status(404).json({ success:false, message:"Không tìm thấy iPOS recovery job" });
+    }
+
+    await supabase
+      .from("ipos_sync_queue")
+      .update({
+        status: "done",
+        last_error: null,
+        processed_at: now,
+        updated_at: now,
+      })
+      .eq("id", id);
+
+    if (job.order_numeric_id) {
+      await supabase
+        .from("orders")
+        .update({
+          pos_sync_status: "accepted_manual",
+          updated_at: now,
+        })
+        .eq("id", job.order_numeric_id);
+    }
+
+    console.log(`[IPOS RECOVERY] ACCEPT job ${id}`);
+    return res.json({ success:true, message:"Đã chấp nhận và đóng job iPOS" });
+  } catch(e) {
+    return res.status(500).json({ success:false, error:e.message });
+  }
+});
+
+// POST /admin/system/ipos-recovery/:id/remove — loại bỏ job iPOS khỏi dashboard
+router.post("/ipos-recovery/:id/remove", requireAdmin, async (req, res) => {
+  try {
+    const supabase = require("../supabase");
+    const id = req.params.id;
+    const now = new Date().toISOString();
+
+    const { data: job, error: jobErr } = await supabase
+      .from("ipos_sync_queue")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (jobErr || !job) {
+      return res.status(404).json({ success:false, message:"Không tìm thấy iPOS recovery job" });
+    }
+
+    await supabase
+      .from("ipos_sync_queue")
+      .update({
+        status: "cancelled",
+        last_error: "cancelled_by_admin",
+        processed_at: now,
+        updated_at: now,
+      })
+      .eq("id", id);
+
+    console.log(`[IPOS RECOVERY] REMOVE job ${id}`);
+    return res.json({ success:true, message:"Đã loại bỏ job iPOS khỏi danh sách chờ" });
+  } catch(e) {
+    return res.status(500).json({ success:false, error:e.message });
+  }
+});
+
 // POST /admin/system/loyalty-integrity/revoke — thu hồi, rollback về expected
 router.post("/loyalty-integrity/revoke", requireAdmin, async (req, res) => {
   try {
