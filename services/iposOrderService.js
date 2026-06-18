@@ -344,6 +344,20 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
       console.warn("[IPOS RECOVERY] enqueue failed:", e.message)
     );
 
+    if (
+      String(errDetail || "")
+        .toLowerCase()
+        .includes("đơn hàng đã được chuyển xuống pos")
+    ) {
+      await supabase.from("orders").update({
+        pos_sync_status: "success",
+        pos_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", order.id).then(()=>{}).catch(()=>{});
+
+      return { success: true, already_synced: true, message: errDetail };
+    }
+
     return { success: false, error: errDetail };
   }
 }

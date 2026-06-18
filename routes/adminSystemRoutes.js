@@ -378,8 +378,11 @@ router.post("/loyalty-integrity/revoke", requireAdmin, async (req, res) => {
       .update({ total_points: Number(expected_points) })
       .eq("user_id", user_id);
     await supabase.from("point_balance_baselines")
-      .update({ baseline_points: Number(expected_points), baseline_at: now })
-      .eq("user_id", user_id);
+      .upsert({
+        user_id,
+        baseline_points: Number(expected_points),
+        baseline_at: now,
+      }, { onConflict: "user_id" });
     console.log(`[INTEGRITY] REVOKE: ${user_id} total_points → ${expected_points}`);
     res.json({ success:true });
   } catch(e) { res.status(500).json({ success:false, error:e.message }); }
