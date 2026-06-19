@@ -115,6 +115,37 @@ function buildPayload(order, momo_trans_id = "") {
  * CREATE IPOS LOG
  * ============================================
  */
+function isIposAfterHoursError(message = "") {
+  const text = String(message || "").toLowerCase();
+
+  return (
+    text.includes("ngừng phục vụ") ||
+    text.includes("ngung phuc vu") ||
+    text.includes("ngoài giờ") ||
+    text.includes("ngoai gio") ||
+    text.includes("sau giờ mở cửa") ||
+    text.includes("sau gio mo cua") ||
+    text.includes("giờ mở cửa") ||
+    text.includes("gio mo cua") ||
+    text.includes("closed") ||
+    text.includes("outside business hours")
+  );
+}
+
+function getNext8amVietnamIso() {
+  const nowVN = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+  const hourVN = nowVN.getHours();
+
+  const next8VN = new Date(nowVN);
+  next8VN.setHours(8, 0, 0, 0);
+
+  if (hourVN >= 8) {
+    next8VN.setDate(next8VN.getDate() + 1);
+  }
+
+  return new Date(next8VN.getTime() - 7 * 60 * 60 * 1000).toISOString();
+}
+
 async function createIposLog({ order_id, transaction_code, request_payload }) {
   try {
     const { data, error } = await supabase
@@ -309,14 +340,29 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
     });
 
     try {
+      const afterHours = isIposAfterHoursError(errDetail);
+
       await supabase
         .from("orders")
         .update({
-          pos_sync_status: "failed",
+          pos_sync_status: afterHours ? "pending_after_hours" : "failed",
+          ipos_sync_status: afterHours ? "pending" : "failed",
           pos_error:       errDetail,
           updated_at:      new Date(),
         })
         .eq("id", order.id);
+
+      if (afterHours) {
+        const { enqueueIposRecovery } = require("./ipos/iposSyncRecoveryWorker");
+        await enqueueIposRecovery({
+          order_id: order.id,
+          transaction_code: transaction_code || order.order_code || String(order.id),
+          reason: "ipos_after_hours_retry_at_opening",
+          next_retry_at: getNext8amVietnamIso(),
+        }).catch(e => console.warn("[IPOS] enqueue after-hours retry failed:", e.message));
+
+        console.log("[IPOS] After-hours rejection deferred until 08:00 VN:", order.order_code);
+      }
     } catch (orderError) {
       console.error("order update error:", orderError.message);
     }
