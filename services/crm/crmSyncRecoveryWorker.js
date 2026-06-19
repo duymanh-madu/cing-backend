@@ -170,26 +170,6 @@ async function releaseStuckJobs() {
   if (error) console.warn("[CRM RECOVERY] release stuck failed:", error.message);
 }
 
-async function shouldSkipRecoveredMomoJob(job, uid) {
-  if (job.source !== "momo_paid") return false;
-  if (!job.created_at) return false;
-
-  const { data, error } = await supabase
-    .from("players")
-    .select("crm_synced_at")
-    .eq("user_id", uid)
-    .maybeSingle();
-
-  if (error || !data?.crm_synced_at) return false;
-
-  const syncedAt = new Date(data.crm_synced_at).getTime();
-  const jobCreatedAt = new Date(job.created_at).getTime();
-
-  return Number.isFinite(syncedAt) &&
-    Number.isFinite(jobCreatedAt) &&
-    syncedAt >= jobCreatedAt;
-}
-
 async function enqueueStalePlayers(limit = DEFAULT_STALE_LIMIT) {
   const threshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
 
@@ -242,7 +222,7 @@ async function processCrmSyncQueue({ batchSize = DEFAULT_BATCH_SIZE, staleLimit 
     await enqueueStalePlayers(staleLimit);
 
     const jobs = await claimPendingJobs(batchSize);
-    const stats = { total: jobs.length, success: 0, failed: 0, skipped: 0 };
+    const stats = { total: jobs.length, success: 0, failed: 0 };
 
     for (const job of jobs) {
       try {
@@ -250,17 +230,6 @@ async function processCrmSyncQueue({ batchSize = DEFAULT_BATCH_SIZE, staleLimit 
         if (!isValidVietnamPhone(uid)) {
           await failJob(job, "invalid_phone");
           stats.failed++;
-          continue;
-        }
-
-        if (await shouldSkipRecoveredMomoJob(job, uid)) {
-          await completeJob(job);
-          stats.skipped++;
-          console.log("[CRM RECOVERY] skipped already synced momo job", {
-            phone: uid,
-            order_id: job.order_id,
-            source: job.source,
-          });
           continue;
         }
 
