@@ -1,5 +1,5 @@
-const express =
-  require("express");
+const express = require("express");
+const router = express.Router();
 
 function normalizeOrderType(value, shippingAddress = "") {
   const raw = String(value || "").trim().toLowerCase();
