@@ -63,6 +63,9 @@ async function createPayment({
   const item = normalizeItems(cartSnapshot, numericAmount);
 
   const extradata = JSON.stringify({
+    storeName: process.env.ZALO_CHECKOUT_STORE_NAME || "Cing Hu Tang Kinh Bắc",
+    storeId: process.env.ZALO_CHECKOUT_STORE_ID || "cing-kinh-bac",
+    orderGroupId: transactionCode,
     transaction_code: transactionCode,
   });
 
