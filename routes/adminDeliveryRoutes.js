@@ -241,9 +241,10 @@ router.get("/orders-ready", requireAdmin, async (req, res) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const { data: orders } = await supabase.from("orders")
-      .select("id,order_code,customer_name,customer_phone,total_amount,shipping_address,status,created_at")
+      .select("id,order_code,customer_name,customer_phone,total_amount,shipping_address,status,created_at,items")
       .in("status",["confirmed","processing","ready"])
       .not("shipping_address","is",null)
+      .neq("shipping_address","")
       .gte("created_at", since)
       .order("created_at",{ascending:false})
       .limit(50);
