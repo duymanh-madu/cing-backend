@@ -277,6 +277,15 @@ async function createPaymentSession({
 
   shipping_address,
 
+  order_type,
+
+  orderType,
+
+  fulfillment_type,
+
+  fulfillmentType,
+
+
   shipping_distance,
 
 }) {
@@ -373,13 +382,9 @@ async function createPaymentSession({
         shipping_fee,
 
         shipping_address,
-        order_type: resolveOrderType({
-          order_type,
-          orderType,
-          fulfillment_type,
-          fulfillmentType,
-          shipping_address,
-          order_type: resolveOrderType({
+
+        order_type:
+          resolveOrderType({
             order_type,
             orderType,
             fulfillment_type,
@@ -387,8 +392,6 @@ async function createPaymentSession({
             shipping_address,
             cart_snapshot,
           }),
-          cart_snapshot,
-        }),
 
         shipping_distance,
 
