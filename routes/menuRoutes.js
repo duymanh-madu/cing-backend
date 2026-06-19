@@ -10,6 +10,89 @@ const {
   "../services/foodbook"
 );
 
+const supabase =
+  require("../supabase");
+
+
+function normalizeDbMenuItem(row) {
+  const raw =
+    row.raw_data || {};
+
+  return {
+    id:
+      row.foodbook_id ||
+      row.store_item_id ||
+      String(row.id),
+
+    foodbook_id:
+      row.foodbook_id,
+
+    store_item_id:
+      row.store_item_id,
+
+    name:
+      row.name ||
+      raw.name ||
+      "Món",
+
+    category:
+      row.category ||
+      raw.type_id ||
+      "Khác",
+
+    price:
+      Number(
+        row.price ??
+        raw.ta_price ??
+        raw.ots_price ??
+        0
+      ),
+
+    image:
+      row.image ||
+      raw.image_url ||
+      "",
+
+    description:
+      row.description ||
+      raw.description ||
+      "",
+
+    active:
+      row.active !== false,
+
+    featured:
+      !!row.featured,
+
+    customizations:
+      Array.isArray(raw.customizations)
+        ? raw.customizations
+        : [],
+
+    raw_data:
+      raw,
+
+    updated_at:
+      row.updated_at,
+  };
+}
+
+async function getMenuFromDbFallback() {
+  const { data, error } =
+    await supabase
+      .from("menu_items")
+      .select("id,foodbook_id,store_item_id,name,category,price,image,description,active,featured,raw_data,updated_at")
+      .eq("active", true)
+      .order("category", { ascending: true })
+      .order("name", { ascending: true });
+
+  if (error) {
+    throw new Error(`DB menu fallback failed: ${error.message}`);
+  }
+
+  return (data || []).map(normalizeDbMenuItem);
+}
+
 /**
  * =====================================================
  * GET MENU
@@ -32,8 +115,29 @@ router.get(
        * ===============================================
        */
 
-      const items =
-        await getMenu();
+      let items = [];
+
+      try {
+        items =
+          await getMenu();
+      } catch (menuError) {
+        console.warn(
+          "[MENU] Foodbook/iPOS menu failed, fallback DB:",
+          menuError.message
+        );
+      }
+
+      if (
+        !Array.isArray(items) ||
+        items.length === 0
+      ) {
+        console.warn(
+          "[MENU] Foodbook/iPOS returned empty menu, fallback to menu_items table"
+        );
+
+        items =
+          await getMenuFromDbFallback();
+      }
 
       /**
        * ===============================================
@@ -44,6 +148,9 @@ router.get(
       return res.json({
 
         success: true,
+
+        source:
+          "menu",
 
         total:
           items.length,
