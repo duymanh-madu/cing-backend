@@ -33,24 +33,17 @@ function createMac(params) {
 }
 
 function normalizeItems(cartSnapshot, amount) {
-  const rawItems = Array.isArray(cartSnapshot?.items)
-    ? cartSnapshot.items
-    : [];
+  // Checkout SDK yêu cầu item là bắt buộc.
+  // Đơn thật có thể có phí ship/giảm giá/điểm/tier discount, nên item gửi Zalo
+  // phải khớp tổng thanh toán cuối cùng, không chỉ tổng giá món.
+  const total = Math.max(0, Math.round(Number(amount || 0)));
 
-  const items = rawItems
-    .map((i, idx) => {
-      const qty = Number(i.qty || i.quantity || 1);
-      const price = Number(i.price || 0);
-      return {
-        id: String(i.item_id || i.id || i.code || `item-${idx + 1}`),
-        amount: Math.max(0, Math.round(price * qty)),
-      };
-    })
-    .filter(i => i.amount > 0);
-
-  if (items.length > 0) return items;
-
-  return [{ id: "order-total", amount: Number(amount || 0) }];
+  return [
+    {
+      id: "order-total",
+      amount: total,
+    },
+  ];
 }
 
 async function createPayment({
