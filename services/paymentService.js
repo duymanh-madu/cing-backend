@@ -124,6 +124,31 @@ function generateMomoSignature(
  * =====================================================
  */
 
+function normalizeOrderType(value, shippingAddress = "") {
+  const raw = String(value || "").trim().toLowerCase();
+
+  if (["delivery", "deli", "ship", "shipping"].includes(raw)) return "delivery";
+  if (["dine_in", "dinein", "dine-in", "dine", "store", "at_store", "table", "eat_in", "eat-in", "eat_here", "tai_quan", "tại quán", "tai quan", "an_tai_quan", "ăn tại quán", "an tai quan"].includes(raw)) return "dine_in";
+  if (["pickup", "takeaway", "take_away", "takeout", "mang_ve", "mang về", "mang ve"].includes(raw)) return "pickup";
+
+  return String(shippingAddress || "").trim() ? "delivery" : "pickup";
+}
+
+function resolveOrderType(payload = {}) {
+  return normalizeOrderType(
+    payload.order_type ||
+    payload.orderType ||
+    payload.fulfillment_type ||
+    payload.fulfillmentType ||
+    payload.cart_snapshot?.order_type ||
+    payload.cart_snapshot?.orderType ||
+    payload.cart_snapshot?.fulfillment_type ||
+    payload.cart_snapshot?.fulfillmentType,
+    payload.shipping_address || payload.cart_snapshot?.shipping_address || ""
+  );
+}
+
+
 async function createMomoPayment({
 
   transaction_code,
@@ -348,6 +373,22 @@ async function createPaymentSession({
         shipping_fee,
 
         shipping_address,
+        order_type: resolveOrderType({
+          order_type,
+          orderType,
+          fulfillment_type,
+          fulfillmentType,
+          shipping_address,
+          order_type: resolveOrderType({
+            order_type,
+            orderType,
+            fulfillment_type,
+            fulfillmentType,
+            shipping_address,
+            cart_snapshot,
+          }),
+          cart_snapshot,
+        }),
 
         shipping_distance,
 
