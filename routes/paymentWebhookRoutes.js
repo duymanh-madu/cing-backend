@@ -6,7 +6,6 @@ const { pushOrderToIPOS } = require("../services/iposOrderService");
 const { calculateOrderPoints } = require("../services/membershipBenefitsService");
 const redisClient = require("../services/infrastructure/cache/redisClient");
 const { normalizePhone } = require("../utils/phoneIdentity");
-const { enqueueCrmSyncRecovery } = require("../services/crm/crmSyncRecoveryWorker");
 
 const ZALO_CHECKOUT_PRIVATE_KEY =
   process.env.ZALO_CHECKOUT_PRIVATE_KEY ||
