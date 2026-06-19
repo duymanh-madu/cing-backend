@@ -67,11 +67,17 @@ async function createPayment({
     redirectPath: "/order-success",
   });
 
+  const method = JSON.stringify({
+    id: process.env.ZALO_CHECKOUT_METHOD_ID || "MOMO",
+    isCustom: false,
+  });
+
   const paramsForMac = {
     amount: numericAmount,
     desc: description || `Thanh toán đơn hàng ${transactionCode}`,
     extradata,
     item: JSON.stringify(item),
+    method,
   };
 
   const dataMac = buildDataMac(paramsForMac);
@@ -89,6 +95,7 @@ async function createPayment({
       desc: paramsForMac.desc,
       item,
       extradata,
+      method,
       mac,
       dataMac,
       redirectPath: "/order-success",
