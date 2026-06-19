@@ -141,12 +141,13 @@ const momoIpnHandler = async (req, res) => {
         status:                 "confirmed",
         status_code:            "confirmed",
         status_text:            "Đã xác nhận",
-        // Địa chỉ giao hàng
+        // Địa chỉ giao hàng + loại đơn
         shipping_address:       snap.shipping_address || "",
+        order_type:             snap.order_type || (snap.shipping_address ? "delivery" : "pickup"),
+        note:                   snap.note || snap.customer_note || "",
         // FIX: toạ độ và chi tiết địa chỉ để iPOS build đúng payload DELI
         // latitude/longitude: removed - columns không tồn tại trong orders table
         // address_detail: removed - column không tồn tại trong orders table
-        // order_type và note không có trong schema orders table
       })
       .select()
       .single();
