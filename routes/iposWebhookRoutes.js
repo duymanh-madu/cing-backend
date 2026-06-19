@@ -52,6 +52,39 @@ function mapTierKey(name) {
  * POST /webhook/ipos/callback
  * Unified endpoint - iPos push về khi có giao dịch mới
  */
+async function clearMomoPaidCrmRecoveryJob(phone, event) {
+  if (event !== "membership_log") return;
+
+  const uid = String(phone || "").trim();
+  if (!uid) return;
+
+  const { data, error } = await supabase
+    .from("crm_sync_queue")
+    .update({
+      status: "done",
+      processed_at: new Date().toISOString(),
+      locked_until: null,
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("source", "momo_paid")
+    .in("status", ["pending", "processing"])
+    .or(`phone.eq.${uid},user_id.eq.${uid}`)
+    .select("id");
+
+  if (error) {
+    console.warn("[CRM RECOVERY] clear momo_paid job failed:", error.message);
+    return;
+  }
+
+  if (data && data.length > 0) {
+    console.log("[CRM RECOVERY] cleared momo_paid job after membership_log sync", {
+      phone: uid,
+      cleared: data.length,
+    });
+  }
+}
+
 router.post("/callback", async (req, res) => {
   try {
     const body  = req.body || {};
@@ -228,6 +261,10 @@ router.post("/callback", async (req, res) => {
           await syncSingleUserSpending(p0);
           console.log(`[FOODBOOK] Spending synced for ${p0} - event: ${event}`);
         }
+        // Nếu iPOS membership_log đã sync hoặc xác nhận đơn app đã sync,
+        // dọn job CRM recovery dự phòng từ MoMo để tránh recovery tick sync lại cùng dữ liệu.
+        await clearMomoPaidCrmRecoveryJob(p0, event);
+
         // Đánh dấu log đã sync (kể cả skip vì đã sync từ MoMo)
         if (_logId) {
           await supabase.from("ipos_webhook_log").update({ synced: true }).eq("id", _logId).then(()=>{}).catch(()=>{});
