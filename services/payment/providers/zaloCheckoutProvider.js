@@ -12,18 +12,22 @@ const ZALO_CHECKOUT_CONFIG = {
     "",
 };
 
+function buildDataMac(params) {
+  return Object.keys(params)
+    .sort()
+    .map((key) => `${key}=${params[key]}`)
+    .join("&");
+}
+
 function createMac(params) {
   if (!ZALO_CHECKOUT_CONFIG.privateKey) {
     throw new Error("Missing ZALO_CHECKOUT_PRIVATE_KEY");
   }
 
-  const dataMac = Object.keys(params)
-    .sort()
-    .map((key) => `${key}=${params[key]}`)
-    .join("&");
+  const dataMac = buildDataMac(params);
 
   return crypto
-    .createHmac("sha256", ZALO_CHECKOUT_CONFIG.privateKey)
+    .createHmac("sha256", ZALO_CHECKOUT_CONFIG.privateKey.trim())
     .update(dataMac)
     .digest("hex");
 }
@@ -70,6 +74,7 @@ async function createPayment({
     item: JSON.stringify(item),
   };
 
+  const dataMac = buildDataMac(paramsForMac);
   const mac = createMac(paramsForMac);
 
   return {
@@ -85,6 +90,7 @@ async function createPayment({
       item,
       extradata,
       mac,
+      dataMac,
       redirectPath: "/order-success",
     },
   };
