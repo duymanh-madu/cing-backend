@@ -64,7 +64,6 @@ async function createPayment({
 
   const extradata = JSON.stringify({
     transaction_code: transactionCode,
-    redirectPath: "/order-success",
   });
 
   const method = JSON.stringify({
@@ -98,7 +97,7 @@ async function createPayment({
       method,
       mac,
       dataMac,
-      redirectPath: "/order-success",
+      // redirectPath dùng cấu hình trên Zalo Portal; không gửi trong order payload.
     },
   };
 }
