@@ -10,10 +10,6 @@ const ZALO_CHECKOUT_CONFIG = {
     process.env.ZALO_CHECKOUT_PRIVATE_KEY ||
     process.env.ZALO_PRIVATE_KEY ||
     "",
-
-  methodId:
-    process.env.ZALO_CHECKOUT_METHOD_ID ||
-    "MOMO",
 };
 
 function createMac(params) {
@@ -67,19 +63,11 @@ async function createPayment({
     redirectPath: "/order-success",
   });
 
-  // Zalo Checkout yêu cầu method là JSON String khi tạo MAC và khi truyền SDK.
-  // Production: MOMO | Sandbox/test: MOMO_SANDBOX
-  const method = JSON.stringify({
-    id: ZALO_CHECKOUT_CONFIG.methodId,
-    isCustom: false,
-  });
-
   const paramsForMac = {
     amount: numericAmount,
     desc: description || `Thanh toán đơn hàng ${transactionCode}`,
     extradata,
     item: JSON.stringify(item),
-    method,
   };
 
   const mac = createMac(paramsForMac);
@@ -96,7 +84,6 @@ async function createPayment({
       desc: paramsForMac.desc,
       item,
       extradata,
-      method,
       mac,
       redirectPath: "/order-success",
     },
