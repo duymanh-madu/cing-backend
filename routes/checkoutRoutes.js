@@ -159,9 +159,7 @@ router.post(
         customer_phone,
 
         shipping_address,
-        order_type: normalizeOrderType(order_type, shipping_address),
       order_type,
-        order_type,
 
         destination_latitude,
 
@@ -248,9 +246,7 @@ router.post(
             customer_phone,
 
             shipping_address,
-        order_type: normalizeOrderType(order_type, shipping_address),
       order_type,
-        order_type,
 
             destination_latitude,
 
