@@ -226,7 +226,6 @@ router.post(
 
             shipping_address,
             order_type: getIncomingOrderType(req, shipping_address),
-            order_type: normalizeOrderType(order_type, shipping_address),
 
             destination_latitude,
 
