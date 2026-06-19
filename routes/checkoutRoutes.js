@@ -151,30 +151,18 @@ router.post(
     try {
 
       const {
-
         user_id,
-
         customer_name,
-
         customer_phone,
-
         shipping_address,
-      order_type,
-
+        order_type,
         destination_latitude,
-
         destination_longitude,
-
         items,
-
         submitted_shipping_fee,
-
         submitted_total_amount,
-
         payment_method,
-
         payment_provider,
-
       } = req.body;
 
       /**
@@ -246,7 +234,7 @@ router.post(
             customer_phone,
 
             shipping_address,
-      order_type,
+            order_type: normalizeOrderType(order_type, shipping_address),
 
             destination_latitude,
 
