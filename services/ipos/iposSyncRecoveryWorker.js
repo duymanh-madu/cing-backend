@@ -194,7 +194,12 @@ function getNext8amVietnamIso() {
 
 function shouldHoldAfterHoursOrder(order) {
   if (order?.pos_sync_status !== "pending_after_hours") return false;
-  return getVietnamMinutesNow() < 8 * 60;
+
+  const minutesNow = getVietnamMinutesNow();
+
+  // Giữ đơn ngoài giờ từ 23:00 đến trước 08:00 VN.
+  // Từ 08:00 trở đi worker được phép push iPOS.
+  return minutesNow >= 23 * 60 || minutesNow < 8 * 60;
 }
 
 async function rescheduleAfterHoursJob(job) {
