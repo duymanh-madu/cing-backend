@@ -629,15 +629,13 @@ async function processZaloCheckoutAsPaid(req, res) {
       });
     }
 
-    const fakeReq = {
-      ...req,
-      body: {
-        resultCode: resultCode === 1 ? 0 : -1,
-        orderId,
-        transId,
-        amount,
-        message,
-      },
+    const fakeReq = Object.create(req);
+    fakeReq.body = {
+      resultCode: resultCode === 1 ? 0 : -1,
+      orderId,
+      transId,
+      amount,
+      message,
     };
 
     const fakeRes = {
