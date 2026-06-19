@@ -419,14 +419,6 @@ const momoIpnHandler = async (req, res) => {
         // Đánh dấu đơn đã sync spending
         await supabase.from("orders").update({ spending_synced: true }).eq("id", order.id);
 
-        // Enqueue CRM recovery để phòng trường hợp deploy/restart làm miss iPOS CRM event
-        await enqueueCrmSyncRecovery({
-          user_id: phone,
-          phone,
-          order_id: order.id,
-          source: "momo_paid",
-        }).catch(e => console.warn("[CRM RECOVERY] enqueue from MoMo failed:", e.message));
-
         console.log(`[MOMO IPN] Instant spending +${amount} for ${phone} | week:${newWeekly} month:${newMonthly} alltime:${newAlltime} plays:${updated?.[0]?.game_plays}`);
 
         try {
