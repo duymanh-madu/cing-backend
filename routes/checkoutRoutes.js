@@ -5,30 +5,21 @@ function normalizeOrderType(value, shippingAddress = "") {
   const raw = String(value || "").trim().toLowerCase();
 
   if (["delivery", "deli", "ship", "shipping"].includes(raw)) return "delivery";
-  if (["dine_in", "dinein", "store", "table", "eat_in"].includes(raw)) return "dine_in";
-  if (["pickup", "takeaway", "take_away", "takeout", "mang_ve"].includes(raw)) return "pickup";
+  if (["dine_in", "dinein", "dine-in", "store", "table", "eat_in", "eat-in", "tai_quan", "tại quán", "tai quan"].includes(raw)) return "dine_in";
+  if (["pickup", "takeaway", "take_away", "takeout", "mang_ve", "mang về", "mang ve"].includes(raw)) return "pickup";
 
   return String(shippingAddress || "").trim() ? "delivery" : "pickup";
 }
 
-const router =
-  express.Router();
-
-const {
-
-  validateCheckout,
-
-} = require(
-  "../services/checkoutValidationService"
-);
-
-const {
-
-  createPaymentSession,
-
-} = require(
-  "../services/paymentService"
-);
+function getIncomingOrderType(req, shippingAddress = "") {
+  return normalizeOrderType(
+    req.body?.order_type ||
+    req.body?.orderType ||
+    req.body?.fulfillment_type ||
+    req.body?.fulfillmentType,
+    shippingAddress
+  );
+}
 
 /**
  * ============================================
@@ -234,6 +225,7 @@ router.post(
             customer_phone,
 
             shipping_address,
+            order_type: getIncomingOrderType(req, shipping_address),
             order_type: normalizeOrderType(order_type, shipping_address),
 
             destination_latitude,
