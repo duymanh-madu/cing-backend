@@ -1,3 +1,4 @@
+console.log("[BOOT] cing-backend server.js starting", new Date().toISOString());
 require("dotenv").config();
 
 const http =
