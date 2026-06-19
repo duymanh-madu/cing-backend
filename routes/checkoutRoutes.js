@@ -1,6 +1,16 @@
 const express =
   require("express");
 
+function normalizeOrderType(value, shippingAddress = "") {
+  const raw = String(value || "").trim().toLowerCase();
+
+  if (["delivery", "deli", "ship", "shipping"].includes(raw)) return "delivery";
+  if (["dine_in", "dinein", "store", "table", "eat_in"].includes(raw)) return "dine_in";
+  if (["pickup", "takeaway", "take_away", "takeout", "mang_ve"].includes(raw)) return "pickup";
+
+  return String(shippingAddress || "").trim() ? "delivery" : "pickup";
+}
+
 const router =
   express.Router();
 
@@ -149,6 +159,9 @@ router.post(
         customer_phone,
 
         shipping_address,
+        order_type: normalizeOrderType(order_type, shipping_address),
+      order_type,
+        order_type,
 
         destination_latitude,
 
@@ -235,6 +248,9 @@ router.post(
             customer_phone,
 
             shipping_address,
+        order_type: normalizeOrderType(order_type, shipping_address),
+      order_type,
+        order_type,
 
             destination_latitude,
 
