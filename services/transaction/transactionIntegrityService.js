@@ -1,4 +1,36 @@
 const supabase = require("../../supabase");
+function getVietnamNowParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+
+  const map = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+    hour: Number(map.hour),
+    minute: Number(map.minute),
+  };
+}
+
+function isAfterHoursDeferralStillValid(order, now = new Date()) {
+  if (order.pos_sync_status !== "pending_after_hours") return false;
+
+  const vn = getVietnamNowParts(now);
+  const minutesNow = vn.hour * 60 + vn.minute;
+
+  // Từ 23:00 đến 08:15 sáng hôm sau: đây là trạng thái hợp lệ, không cảnh báo mismatch.
+  // Sau 08:15 nếu vẫn pending_after_hours thì integrity checker được phép cảnh báo.
+  return minutesNow >= 23 * 60 || minutesNow < 8 * 60 + 15;
+}
+
 const { normalizePhone } = require("../../utils/phoneIdentity");
 const { enqueueCrmSyncRecovery } = require("../crm/crmSyncRecoveryWorker");
 const { enqueueIposRecovery } = require("../ipos/iposSyncRecoveryWorker");
@@ -17,7 +49,17 @@ function isCrmMissing(order) {
 }
 
 function isIposMissing(order) {
-  return order.payment_status === "paid" && !["success", "ignored_manual"].includes(order.pos_sync_status);
+  if (order.payment_status !== "paid") return false;
+
+  if (["success", "ignored_manual"].includes(order.pos_sync_status)) {
+    return false;
+  }
+
+  if (isAfterHoursDeferralStillValid(order)) {
+    return false;
+  }
+
+  return true;
 }
 
 async function fetchPaidOrdersToday() {
