@@ -542,16 +542,48 @@ router.post("/momo", momoIpnHandler);
  * - notifications
  * - realtime
  */
+function parseZaloCheckoutExtraData(extradata) {
+  if (!extradata) return {};
+
+  try {
+    const raw =
+      typeof extradata === "string"
+        ? extradata
+        : JSON.stringify(extradata);
+
+    const decoded = raw.includes("%")
+      ? decodeURIComponent(raw)
+      : raw;
+
+    const parsed = JSON.parse(decoded);
+
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (err) {
+    console.warn("[ZALO CHECKOUT] Failed to parse extradata:", err.message);
+    return {};
+  }
+}
+
 async function processZaloCheckoutAsPaid(req, res) {
   try {
     const body = req.body || {};
     const data = body.data || body;
+    const extraData = parseZaloCheckoutExtraData(data.extradata || body.extradata);
 
-    const orderId = data.orderId || data.transaction_code || data.transactionCode;
+    // Zalo/MoMo orderId is provider order id.
+    // Internal transaction_code is stored inside extradata and must be used for payment_transactions lookup.
+    const orderId =
+      extraData.transaction_code ||
+      extraData.transactionCode ||
+      data.transaction_code ||
+      data.transactionCode ||
+      data.orderId;
+
+    const providerOrderId = data.orderId || body.orderId;
     const resultCode = Number(data.resultCode);
-    const transId = data.transId || data.transactionId || orderId;
+    const transId = data.transId || data.transactionId || providerOrderId || orderId;
     const amount = Number(data.amount || 0);
-    const message = data.message || data.msg || "Zalo Checkout result";
+    const message = data.message || body.message || data.msg || "Zalo Checkout result";
 
     if (!orderId) {
       return res.status(400).json({
@@ -559,6 +591,16 @@ async function processZaloCheckoutAsPaid(req, res) {
         message: "Missing orderId",
       });
     }
+
+    console.log("[ZALO CHECKOUT] normalized callback", {
+      internalOrderId: orderId,
+      providerOrderId,
+      transId,
+      amount,
+      resultCode,
+      paymentChannel: body.paymentChannel || data.paymentChannel || data.method,
+      hasExtraData: !!data.extradata,
+    });
 
     if (body.mac && !verifyZaloCheckoutMac(data, body.mac)) {
       return res.status(400).json({

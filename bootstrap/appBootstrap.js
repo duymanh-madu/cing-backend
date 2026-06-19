@@ -148,22 +148,6 @@ function createApp() {
     traceContextMiddleware
   );
 
-  // Debug marker for Zalo Checkout callback routing.
-  app.use("/api/payment/webhook/zalo/callback", (req, res, next) => {
-    res.setHeader("X-Cing-Zalo-Webhook-Mount", "appBootstrap-v2");
-    console.log("[ZALO_WEBHOOK_MARKER] hit", {
-      method: req.method,
-      path: req.originalUrl,
-      body: req.body,
-      query: req.query,
-      headers: {
-        "content-type": req.headers["content-type"],
-        "user-agent": req.headers["user-agent"],
-      },
-    });
-    next();
-  });
-
   /**
    * =================================================
    * API ROUTES
