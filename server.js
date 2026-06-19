@@ -44,7 +44,6 @@ const logger =
     "./services/loggerService"
   );
 
-const paymentWebhookRoutes = require("./routes/paymentWebhookRoutes");
 
 const {
   validateEnv,
@@ -67,8 +66,6 @@ const {
 
 const app = createApp();
 
-// Direct Zalo Checkout webhook mount — required for Portal callback URL.
-app.use("/api/payment/webhook", paymentWebhookRoutes);
 
 // Zalo OA domain verification — file phải accessible ở ROOT path
 app.get("/zalo_verifierIDxcEwgkGZ9UWiaqjOWJ5sBsjpMEW69YCZOt.html", (req, res) => {

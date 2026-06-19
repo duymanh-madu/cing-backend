@@ -43,6 +43,9 @@ const traceContextMiddleware =
 const routes =
   require("../routes");
 
+const paymentWebhookRoutes =
+  require("../routes/paymentWebhookRoutes");
+
 /**
  * =====================================================
  * CREATE APP
@@ -162,6 +165,12 @@ function createApp() {
     res.setHeader("Content-Type", "text/html");
     res.send("zalo-platform-site-verification=U8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu");
   });
+
+  // Zalo Checkout callback must be mounted directly before general /api routes.
+  app.use(
+    "/api/payment/webhook",
+    paymentWebhookRoutes
+  );
 
   app.use(
     "/api",
