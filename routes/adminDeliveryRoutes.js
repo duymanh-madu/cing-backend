@@ -271,4 +271,57 @@ router.get("/orders-ready", requireAdmin, async (req, res) => {
   } catch(err) { res.status(500).json({ success:false, error:err.message }); }
 });
 
+
+// GET /admin/delivery/fulfillment-orders — đơn không cần shipper: khách đến lấy / tại quán
+router.get("/fulfillment-orders", requireAdmin, async (req, res) => {
+  try {
+    const {
+      type = "pickup",
+      status,
+      search,
+      page = 1,
+      limit = 100,
+    } = req.query;
+
+    const off = (Number(page) - 1) * Number(limit);
+    const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
+    let query = supabase
+      .from("orders")
+      .select(
+        "id,order_code,customer_name,customer_phone,total_amount,subtotal,shipping_fee,shipping_address,status,payment_status,order_type,items,note,created_at,updated_at",
+        { count: "exact" }
+      )
+      .eq("payment_status", "paid")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .range(off, off + Number(limit) - 1);
+
+    if (type && type !== "all") {
+      query = query.eq("order_type", type);
+    } else {
+      query = query.in("order_type", ["pickup", "dine_in"]);
+    }
+
+    if (status) query = query.eq("status", status);
+
+    if (search) {
+      query = query.or(
+        `order_code.ilike.%${search}%,customer_name.ilike.%${search}%,customer_phone.ilike.%${search}%`
+      );
+    }
+
+    const { data, count, error } = await query;
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      data: data || [],
+      total: count || 0,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
