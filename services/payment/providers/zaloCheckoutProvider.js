@@ -63,10 +63,10 @@ async function createPayment({
     redirectPath: "/order-success",
   });
 
-  const method = JSON.stringify({
-    id: "MOMO",
-    isCustom: false,
-  });
+  // Zalo Checkout SDK gửi method dạng string thành:
+  // method=MOMO&isCustom=false
+  // Vì vậy MAC phải ký đúng method string này, không ký JSON object.
+  const method = "MOMO";
 
   const paramsForMac = {
     amount: numericAmount,
