@@ -3,6 +3,9 @@ const axios = require("axios");
 const menuCache =
   require("../cache/menuCache");
 
+const supabase =
+  require("../supabase");
+
 /**
  * =====================================================
  * ENV
@@ -144,6 +147,10 @@ function normalizeMenu(
       foodbook_id:
         item.id,
 
+      store_item_id:
+        item.store_item_id ||
+        "",
+
       name:
 
         item.name ||
@@ -196,6 +203,9 @@ function normalizeMenu(
         [],
 
       raw:
+        item,
+
+      raw_data:
         item,
 
     })
@@ -313,6 +323,195 @@ function detectMenuItems(
 
 }
 
+
+function buildMenuTypeCandidates() {
+  return Array.from(
+    new Set(
+      [
+        MENU_TYPE,
+        "DELI",
+        "",
+        "STORE",
+      ].filter((value) => value !== undefined && value !== null)
+    )
+  );
+}
+
+async function fetchMenuRawByType(menuType) {
+  const params = {
+    access_token:
+      ACCESS_TOKEN,
+
+    pos_parent:
+      POS_PARENT,
+
+    pos_id:
+      POS_ID,
+  };
+
+  if (menuType) {
+    params.menu_type =
+      menuType;
+  }
+
+  const response =
+    await client.get(
+      "/ipos/ws/xpartner/v2/items",
+      {
+        params,
+      }
+    );
+
+  return response.data;
+}
+
+async function syncMenuItemsToDb(items) {
+  if (
+    !Array.isArray(items) ||
+    items.length === 0
+  ) {
+    return {
+      synced: 0,
+      inserted: 0,
+      updated: 0,
+    };
+  }
+
+  let inserted = 0;
+  let updated = 0;
+
+  for (const item of items) {
+    const foodbookId =
+      item.foodbook_id != null
+        ? String(item.foodbook_id)
+        : null;
+
+    const storeItemId =
+      item.store_item_id ||
+      item.id ||
+      "";
+
+    const row = {
+      foodbook_id:
+        foodbookId,
+
+      store_item_id:
+        storeItemId,
+
+      name:
+        item.name ||
+        "Unknown",
+
+      category:
+        item.category ||
+        "MENU",
+
+      price:
+        Number(item.price || 0),
+
+      image:
+        item.image ||
+        "",
+
+      description:
+        item.description ||
+        "",
+
+      active:
+        item.active !== false,
+
+      featured:
+        !!item.featured,
+
+      raw_data:
+        item.raw_data ||
+        item.raw ||
+        item,
+
+      updated_at:
+        new Date().toISOString(),
+    };
+
+    let existing = null;
+
+    if (foodbookId) {
+      const { data, error } =
+        await supabase
+          .from("menu_items")
+          .select("id")
+          .eq("foodbook_id", foodbookId)
+          .maybeSingle();
+
+      if (error) {
+        console.warn(
+          "[MENU DB] lookup by foodbook_id failed:",
+          error.message
+        );
+      } else {
+        existing = data;
+      }
+    }
+
+    if (!existing && storeItemId) {
+      const { data, error } =
+        await supabase
+          .from("menu_items")
+          .select("id")
+          .eq("store_item_id", storeItemId)
+          .maybeSingle();
+
+      if (error) {
+        console.warn(
+          "[MENU DB] lookup by store_item_id failed:",
+          error.message
+        );
+      } else {
+        existing = data;
+      }
+    }
+
+    if (existing?.id) {
+      const { error } =
+        await supabase
+          .from("menu_items")
+          .update(row)
+          .eq("id", existing.id);
+
+      if (error) {
+        console.warn(
+          "[MENU DB] update failed:",
+          error.message
+        );
+      } else {
+        updated += 1;
+      }
+    } else {
+      const { error } =
+        await supabase
+          .from("menu_items")
+          .insert(row);
+
+      if (error) {
+        console.warn(
+          "[MENU DB] insert failed:",
+          error.message
+        );
+      } else {
+        inserted += 1;
+      }
+    }
+  }
+
+  return {
+    synced:
+      inserted + updated,
+
+    inserted,
+
+    updated,
+  };
+}
+
 /**
  * =====================================================
  * GET MENU
@@ -362,47 +561,44 @@ async function getMenu() {
      * API REQUEST
      */
 
-    const response =
-      await client.get(
-        "/ipos/ws/xpartner/v2/items",
-        {
-          params: {
+    let rawData =
+      null;
 
-            access_token:
-              ACCESS_TOKEN,
+    let items =
+      [];
 
-            pos_parent:
-              POS_PARENT,
+    let selectedMenuType =
+      null;
 
-            pos_id:
-              POS_ID,
+    for (
+      const menuType of buildMenuTypeCandidates()
+    ) {
+      rawData =
+        await fetchMenuRawByType(
+          menuType
+        );
 
-            menu_type:
-              MENU_TYPE,
-
-          },
-        }
+      console.log(
+        `📦 RAW MENU RECEIVED menu_type=${menuType || "(none)"}`
       );
 
-    /**
-     * RAW DATA
-     */
+      items =
+        detectMenuItems(
+          rawData
+        );
 
-    const rawData =
-      response.data;
-
-    console.log(
-      "📦 RAW MENU RECEIVED"
-    );
-
-    /**
-     * DETECT ITEMS
-     */
-
-    const items =
-      detectMenuItems(
-        rawData
+      console.log(
+        `[MENU] detected items=${items.length} menu_type=${menuType || "(none)"}`
       );
+
+      if (
+        items.length > 0
+      ) {
+        selectedMenuType =
+          menuType || "(none)";
+        break;
+      }
+    }
 
     /**
      * NORMALIZE
@@ -454,8 +650,22 @@ async function getMenu() {
      */
 
     console.log(
-      `✅ MENU ITEMS: ${normalized.length}`
+      `✅ MENU ITEMS: ${normalized.length} menu_type=${selectedMenuType || "(none)"}`
     );
+
+    if (
+      normalized.length > 0
+    ) {
+      const syncResult =
+        await syncMenuItemsToDb(
+          normalized
+        );
+
+      console.log(
+        "[MENU DB] sync result:",
+        syncResult
+      );
+    }
 
     return normalized;
 
