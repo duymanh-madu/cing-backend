@@ -146,6 +146,21 @@ function buildPayload(order, momo_trans_id = "") {
  * CREATE IPOS LOG
  * ============================================
  */
+function isIposTemporaryRetryError(message = "") {
+  const text = String(message || "").toLowerCase();
+
+  return (
+    text.includes("thao tác này liên tiếp") ||
+    text.includes("thao tac nay lien tiep") ||
+    text.includes("vui lòng chờ") ||
+    text.includes("vui long cho") ||
+    text.includes("try again later") ||
+    text.includes("rate limit") ||
+    text.includes('"code":301') ||
+    text.includes("code:301")
+  );
+}
+
 function isIposAfterHoursError(message = "") {
   const text = String(message || "").toLowerCase();
 
@@ -374,12 +389,15 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
 
     try {
       const afterHours = isIposAfterHoursError(errDetail);
+      const temporaryRetry = isIposTemporaryRetryError(errDetail);
 
       await supabase
         .from("orders")
         .update({
-          pos_sync_status: afterHours ? "pending_after_hours" : "failed",
-          ipos_sync_status: afterHours ? "pending" : "failed",
+          pos_sync_status: afterHours
+            ? "pending_after_hours"
+            : (temporaryRetry ? "pending" : "failed"),
+          ipos_sync_status: afterHours || temporaryRetry ? "pending" : "failed",
           pos_error:       errDetail,
           updated_at:      new Date(),
         })
@@ -402,6 +420,8 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
 
     const afterHours =
       isIposAfterHoursError(errDetail);
+    const temporaryRetry =
+      isIposTemporaryRetryError(errDetail);
 
     emitRealtime({
       event:   "ipos_order_failed",
