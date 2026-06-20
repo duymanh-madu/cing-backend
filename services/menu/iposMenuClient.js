@@ -121,6 +121,16 @@ async function diagnoseIPOSMenu() {
         detectedCount: rawItems.length,
         trackid: rawData?.trackid || null,
         ip: rawData?.ip || null,
+        error: rawData?.error || null,
+        env: {
+          baseUrl: BASE_URL,
+          posParent: POS_PARENT,
+          posId: POS_ID,
+          menuTypeDefault: MENU_TYPE,
+          hasAccessToken: !!ACCESS_TOKEN,
+          accessTokenLength: ACCESS_TOKEN ? ACCESS_TOKEN.length : 0,
+          accessTokenTail: ACCESS_TOKEN ? ACCESS_TOKEN.slice(-6) : null,
+        },
         firstItemKeys: rawItems[0] && typeof rawItems[0] === "object"
           ? Object.keys(rawItems[0]).slice(0, 30)
           : [],
