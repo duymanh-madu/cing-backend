@@ -98,6 +98,47 @@ async function fetchIPOSMenu() {
   };
 }
 
+async function diagnoseIPOSMenu() {
+  const results = [];
+
+  for (const menuType of menuTypeCandidates()) {
+    try {
+      const rawData = await fetchRawMenu(menuType);
+      const rawItems = detectMenuItems(rawData);
+
+      results.push({
+        menuType: menuType || "(none)",
+        rootType: Array.isArray(rawData) ? "array" : typeof rawData,
+        rootKeys: rawData && typeof rawData === "object" && !Array.isArray(rawData)
+          ? Object.keys(rawData).slice(0, 30)
+          : [],
+        dataKeys: rawData?.data && typeof rawData.data === "object"
+          ? Object.keys(rawData.data).slice(0, 30)
+          : [],
+        dataItemsLength: Array.isArray(rawData?.data?.items)
+          ? rawData.data.items.length
+          : null,
+        detectedCount: rawItems.length,
+        trackid: rawData?.trackid || null,
+        ip: rawData?.ip || null,
+        firstItemKeys: rawItems[0] && typeof rawItems[0] === "object"
+          ? Object.keys(rawItems[0]).slice(0, 30)
+          : [],
+      });
+    } catch (error) {
+      results.push({
+        menuType: menuType || "(none)",
+        error: error.response?.data || error.message,
+        status: error.response?.status || null,
+      });
+    }
+  }
+
+  return results;
+}
+
+
 module.exports = {
   fetchIPOSMenu,
+  diagnoseIPOSMenu,
 };

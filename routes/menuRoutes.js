@@ -7,6 +7,10 @@ const {
   refreshMenuFromIPOS,
 } = require("../services/menu/menuSyncService");
 
+const {
+  diagnoseIPOSMenu,
+} = require("../services/menu/iposMenuClient");
+
 /**
  * App menu: read stable DB source.
  */
@@ -56,6 +60,23 @@ router.post("/refresh", async (req, res) => {
   } catch (error) {
     console.error("MENU REFRESH ERROR:", error);
 
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+router.get("/diagnose-ipos", async (req, res) => {
+  try {
+    const result = await diagnoseIPOSMenu();
+
+    return res.json({
+      success: true,
+      result,
+      checkedAt: new Date().toISOString(),
+    });
+  } catch (error) {
     return res.status(500).json({
       success: false,
       message: error.message,
