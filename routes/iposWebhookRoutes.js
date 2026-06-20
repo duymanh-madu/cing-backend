@@ -108,39 +108,29 @@ router.post("/callback", async (req, res) => {
      */
     if (event === "item_changed" || event === "item_out_of_stock") {
       try {
-        const { refreshMenu, clearMenuCache } = require("../services/foodbook");
+        const {
+          refreshMenuFromIPOS,
+        } = require("../services/menu/menuSyncService");
 
-        clearMenuCache();
+        const result =
+          await refreshMenuFromIPOS({
+            reason: `ipos_webhook:${event}`,
+            eventPayload: body,
+          });
 
-        const refreshed = await refreshMenu().catch((e) => {
-          console.warn("[MENU] refreshMenu failed:", e.message);
-          return [];
-        });
-
-        const payload = {
+        console.log("[MENU] iPOS webhook sync result:", {
           event,
-          source: "ipos",
-          total: Array.isArray(refreshed) ? refreshed.length : 0,
-          raw: body[event] || body.item_changed || body.item_status_changed || null,
-          timestamp: new Date().toISOString(),
-        };
-
-        realtimeEventBus.publish({
-          event: "menu.updated",
-          delivery_type: "BROADCAST",
-          payload,
-          channel: "menu",
-          timestamp: new Date().toISOString(),
+          success: result.success,
+          count: result.count,
+          menuType: result.menuType,
+          reason: result.reason || null,
         });
-
-        redisPublisher.publish("menu.updated", JSON.stringify(payload)).catch(() => {});
-
-        console.log("[MENU] iPOS menu event handled:", event, "items:", payload.total);
       } catch (e) {
-        console.warn("[MENU] iPOS menu event handler failed:", e.message);
+        console.warn(
+          "[MENU] iPOS webhook sync failed:",
+          e.message
+        );
       }
-
-      return;
     }
 
     // Idempotency check — dùng id riêng của từng giao dịch (object.id), không phải event_id cố định
