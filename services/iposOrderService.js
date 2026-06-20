@@ -6,10 +6,36 @@ const supabase = require("../supabase");
  * ENV
  * ============================================
  */
-const IPOS_BASE_URL     = process.env.IPOS_BASE_URL || "https://api.foodbook.vn";
-const IPOS_ACCESS_TOKEN = process.env.IPOS_ACCESS_TOKEN;
-const IPOS_POS_PARENT   = process.env.IPOS_POS_PARENT;
-const IPOS_POS_ID       = process.env.IPOS_POS_ID;
+function getIposConfig() {
+  return {
+    baseUrl:
+      process.env.IPOS_BASE_URL || "https://api.foodbook.vn",
+
+    accessToken:
+      process.env.IPOS_ACCESS_TOKEN,
+
+    posParent:
+      process.env.IPOS_POS_PARENT,
+
+    posId:
+      process.env.IPOS_POS_ID,
+  };
+}
+
+function normalizeIposOrderType(order = {}) {
+  const raw =
+    String(order.order_type || "").trim().toLowerCase();
+
+  if (
+    raw === "delivery" ||
+    raw === "deli" ||
+    String(order.shipping_address || "").trim()
+  ) {
+    return "DELI";
+  }
+
+  return "STORE";
+}
 
 /**
  * ============================================
@@ -18,6 +44,12 @@ const IPOS_POS_ID       = process.env.IPOS_POS_ID;
  * ============================================
  */
 function buildPayload(order, momo_trans_id = "") {
+  const config = getIposConfig();
+
+  if (!config.accessToken || !config.posParent || !config.posId) {
+    throw new Error("missing_ipos_config");
+  }
+
   const rawPhone = (order.customer_phone || order.user_id || "").replace(/\D/g, "");
 
   // iPOS yêu cầu user_id dạng số 84xxxxxxxxx
@@ -29,12 +61,11 @@ function buildPayload(order, momo_trans_id = "") {
   const rawCode = (order.order_code || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
   const foodbook_code = rawCode.length > 10 ? rawCode.slice(-10) : rawCode;
 
-  // Tự detect order_type: DELI nếu có địa chỉ giao, STORE nếu tại quán
-  const order_type = order.order_type || (order.shipping_address ? "DELI" : "STORE");
+  const order_type = normalizeIposOrderType(order);
 
   const payload = {
-    pos_id:          Number(IPOS_POS_ID),
-    pos_parent:      IPOS_POS_PARENT,
+    pos_id:          Number(config.posId),
+    pos_parent:      config.posParent,
     foodbook_code,
     order_type,
     user_id:         iposUserId,
@@ -268,12 +299,14 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
   try {
     // ✅ FIX CHÍNH: access_token đặt trong params (query string)
     // iPOS docs: ?access_token=XXXX — KHÔNG phải Authorization: Bearer
+    const config = getIposConfig();
+
     const response = await axios.post(
-      `${IPOS_BASE_URL}/ipos/ws/xpartner/order_online`,
+      `${config.baseUrl}/ipos/ws/xpartner/order_online`,
       payload,
       {
         params: {
-          access_token: IPOS_ACCESS_TOKEN,
+          access_token: config.accessToken,
         },
         headers: {
           "Content-Type": "application/json",
@@ -356,7 +389,7 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
         const { enqueueIposRecovery } = require("./ipos/iposSyncRecoveryWorker");
         await enqueueIposRecovery({
           order_id: order.id,
-          transaction_code: transaction_code || order.order_code || String(order.id),
+          transaction_code: order.order_code || String(order.id),
           reason: "ipos_after_hours_retry_at_opening",
           next_retry_at: getNext8amVietnamIso(),
         }).catch(e => console.warn("[IPOS] enqueue after-hours retry failed:", e.message));
@@ -367,28 +400,31 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
       console.error("order update error:", orderError.message);
     }
 
+    const afterHours =
+      isIposAfterHoursError(errDetail);
+
     emitRealtime({
       event:   "ipos_order_failed",
       payload: {
         order_id:        order.id,
         transaction_code,
-        sync_status:     "failed",
+        sync_status:     afterHours ? "pending_after_hours" : "failed",
         error:           errDetail,
       },
     });
 
-    // Enqueue lightweight recovery job.
-    // Chỉ retry đúng đơn iPOS bị fail, không quét toàn bộ orders.
-    const { enqueueIposRecovery } =
-      require("./ipos/iposSyncRecoveryWorker");
+    if (!afterHours) {
+      const { enqueueIposRecovery } =
+        require("./ipos/iposSyncRecoveryWorker");
 
-    await enqueueIposRecovery({
-      order_id: order.id,
-      transaction_code,
-      reason: errDetail,
-    }).catch(e =>
-      console.warn("[IPOS RECOVERY] enqueue failed:", e.message)
-    );
+      await enqueueIposRecovery({
+        order_id: order.id,
+        transaction_code: order.order_code || transaction_code || String(order.id),
+        reason: errDetail,
+      }).catch(e =>
+        console.warn("[IPOS RECOVERY] enqueue failed:", e.message)
+      );
+    }
 
     if (
       String(errDetail || "")

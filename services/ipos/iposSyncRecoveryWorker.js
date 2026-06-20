@@ -35,6 +35,19 @@ async function enqueueIposRecovery({
     return { success:false, skipped:true, reason:"missing_order_or_transaction" };
   }
 
+  if (order_id && /^\d+$/.test(String(order_id))) {
+    const { data: existingByNumericId } = await supabase
+      .from("ipos_sync_queue")
+      .select("id")
+      .in("status", ["pending", "processing"])
+      .eq("order_numeric_id", Number(order_id))
+      .limit(1);
+
+    if (existingByNumericId && existingByNumericId.length > 0) {
+      return { success:true, skipped:true, reason:"already_pending_for_order" };
+    }
+  }
+
   let existingQuery = supabase
     .from("ipos_sync_queue")
     .select("id")
