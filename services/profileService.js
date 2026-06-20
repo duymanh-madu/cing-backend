@@ -99,6 +99,42 @@ async function createOrUpdateMember({
 
   if (existing) {
 
+    const updatePayload = {
+
+      phone_number:
+        phone_number ||
+        existing.phone_number,
+
+      oa_followed,
+
+      member_activated,
+
+      last_login_at:
+        new Date(),
+
+      metadata: {
+
+        ...(existing.metadata || {}),
+
+        ...metadata,
+
+      },
+
+      updated_at:
+        new Date(),
+
+    };
+
+    // Preserve user-customized profile.
+    // If profile_changed_at exists, Zalo sync must never overwrite name/avatar fields.
+    if (!existing.profile_changed_at) {
+
+      updatePayload.zalo_name = zalo_name;
+
+      updatePayload.zalo_avatar = zalo_avatar;
+
+    }
+
     const {
 
       data: updated,
@@ -109,35 +145,7 @@ async function createOrUpdateMember({
 
       .from("players")
 
-      .update({
-
-        zalo_name,
-
-        zalo_avatar,
-
-        phone_number:
-          phone_number ||
-          existing.phone_number,
-
-        oa_followed,
-
-        member_activated,
-
-        last_login_at:
-          new Date(),
-
-        metadata: {
-
-          ...(existing.metadata || {}),
-
-          ...metadata,
-
-        },
-
-        updated_at:
-          new Date(),
-
-      })
+      .update(updatePayload)
 
       .eq(
         "id",
