@@ -203,17 +203,43 @@ router.post("/callback", async (req, res) => {
         updatedAt:     Date.now(),
       };
 
-      // 3. Đồng bộ total_points từ CRM → DB (CRM là nguồn truth)
-      // Chỉ ghi nhận điểm đã tồn tại ở CRM, KHÔNG cộng thêm
-      // Logic: total_points = d.point (CRM), baseline = d.point → ledger = 0 → integrity diff = 0
+      // 3. Đồng bộ total_points từ CRM → DB
+      // Trước 23h: CRM/iPOS là nguồn chính → sync CRM về App.
+      // Sau 23h: nếu đơn app đã spending_synced=true, app đã ghi nhận tức thì
+      // → không overwrite điểm local bằng webhook của chính đơn đó.
       try {
-        const crmPoints = Math.floor(d.point || 0);
-        await supabase.from("players")
-          .update({ total_points: crmPoints })
-          .eq("user_id", p0);
-        await supabase.from("point_balance_baselines")
-          .update({ baseline_points: crmPoints, baseline_at: new Date().toISOString() })
-          .eq("user_id", p0);
+        const orderDataForPointSource = body.notify_order_online || body.sale_manager || body.membership_log;
+        const foodbookCodeForPointSource = orderDataForPointSource?.foodbook_code;
+        let skipPointOverwrite = false;
+
+        if (foodbookCodeForPointSource) {
+          const { data: existingOrder } = await supabase
+            .from("orders")
+            .select("spending_synced")
+            .eq("order_code", "ORD-" + foodbookCodeForPointSource)
+            .maybeSingle();
+
+          skipPointOverwrite = existingOrder?.spending_synced === true;
+        }
+
+        if (skipPointOverwrite) {
+          const { data: localPlayer } = await supabase
+            .from("players")
+            .select("total_points")
+            .eq("user_id", p0)
+            .maybeSingle();
+
+          memberData.points = Number(localPlayer?.total_points || 0);
+          console.log(`[IPOS WEBHOOK] Skip point overwrite for after-hours app order ${foodbookCodeForPointSource} / ${p0}`);
+        } else {
+          const crmPoints = Math.floor(d.point || 0);
+          await supabase.from("players")
+            .update({ total_points: crmPoints })
+            .eq("user_id", p0);
+          await supabase.from("point_balance_baselines")
+            .update({ baseline_points: crmPoints, baseline_at: new Date().toISOString() })
+            .eq("user_id", p0);
+        }
       } catch(e) { console.warn("[IPOS WEBHOOK] total_points sync failed:", e.message); }
 
       // 3b. Lưu Redis cache mới

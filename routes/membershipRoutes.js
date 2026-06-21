@@ -2,6 +2,9 @@ const express = require("express");
 const router = express.Router();
 const redisClient = require("../services/infrastructure/cache/redisClient");
 const { getMember, getMemberVouchers } = require("../services/foodbook");
+const {
+  getPartnerProgress,
+} = require("../services/partnerProgressService");
 
 const CACHE_TTL = 300; // 5 phut fallback TTL
 
@@ -75,6 +78,34 @@ router.get("/:phone", async (req, res) => {
       tags: d.tags || [],
       updatedAt: Date.now(),
     };
+
+    // Partner governance display:
+    // CRM remains the only source for actual tierKey/display_tier.
+    // App only exposes progress/review flags for upgrade/maintenance tracking.
+    try {
+      const partnerProgress = await getPartnerProgress(phone);
+      const crmTierKey = memberData.tierKey;
+
+      memberData.crmTierKey = crmTierKey;
+      memberData.display_tier = crmTierKey;
+      memberData.effectiveTierKey = crmTierKey;
+      memberData.partner_progress = partnerProgress;
+      memberData.partner_review = {
+        eligible_for_loyal_partner_review:
+          crmTierKey === "partner" &&
+          partnerProgress?.prev_qualified === true &&
+          partnerProgress?.current_qualified === true,
+        loyal_partner_maintenance_ok:
+          crmTierKey === "loyal_partner" &&
+          partnerProgress?.current_qualified === true,
+        needs_admin_review:
+          crmTierKey === "partner" &&
+          partnerProgress?.prev_qualified === true &&
+          partnerProgress?.current_qualified === true,
+      };
+    } catch(e) {
+      console.warn("[MEMBERSHIP] Partner progress failed:", e.message);
+    }
 
     // Override birthday từ Supabase (ưu tiên hơn iPOS)
     try {

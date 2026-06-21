@@ -278,16 +278,27 @@ const momoIpnHandler = async (req, res) => {
     }
 
     // ─── 3. Partner monthly spending ───────────────────────────────
-    try {
-      const { updatePartnerMonthlySpending } = require("../services/partnerProgressService");
-      await updatePartnerMonthlySpending({ user_id: resolvedPhone || order.customer_phone, amount: order.total_amount || 0 });
-    } catch (e) {
-      console.warn("[MOMO IPN] Partner spending failed:", e.message);
+    // Trước 23h và từ 8h trở đi: CRM sync cập nhật tiến độ đối tác.
+    // Từ 23h đến trước 8h: App cập nhật ngay để user thấy tiến độ realtime.
+    if (isAfterHours) {
+      try {
+        const { updatePartnerMonthlySpending } = require("../services/partnerProgressService");
+        await updatePartnerMonthlySpending({
+          user_id: resolvedPhone || order.customer_phone,
+          amount: order.total_amount || 0,
+        });
+      } catch (e) {
+        console.warn("[MOMO IPN] Partner spending failed:", e.message);
+      }
+    } else {
+      console.log("[MOMO IPN] Skip partner progress before 23h; CRM sync owns partner progress:", order.order_code);
     }
 
     // ─── 3b. Instant spending sync vào players table ───────────────
-    // Cộng ngay tiêu dùng vào players — không đợi iPos xác nhận
-    try {
+    // Trước 23h: CRM/iPOS là nguồn chính, app không tự ghi chi tiêu.
+    // Sau 23h: app chủ động ghi chi tiêu + lượt chơi ngay, rồi đánh dấu spending_synced.
+    if (isAfterHours) {
+      try {
       const phone = resolvedPhone || order.customer_phone;
       const amount = order.total_amount || 0;
       const nowVNStr = new Date().toLocaleDateString("en-CA", { timeZone:"Asia/Ho_Chi_Minh" });
@@ -408,8 +419,11 @@ const momoIpnHandler = async (req, res) => {
           console.warn("[MOMO IPN] Top1 check failed:", e.message);
         }
       }
-    } catch (e) {
-      console.warn("[MOMO IPN] Instant spending failed:", e.message);
+      } catch (e) {
+        console.warn("[MOMO IPN] Instant spending failed:", e.message);
+      }
+    } else {
+      console.log("[MOMO IPN] Skip local spending before 23h; CRM/iPOS owns spending:", order.order_code);
     }
 
     // ─── 4. Trừ điểm nếu dùng điểm ────────────────────────────────
@@ -430,33 +444,46 @@ const momoIpnHandler = async (req, res) => {
     }
 
     // ─── 5. Cộng điểm theo tier ────────────────────────────────────
-    try {
-      const { addPoints } = require("../services/loyaltyPointService");
-      const playerPhone = normalizePhone(order.customer_phone);
-      const { data: player } = await supabase
-        .from("players")
-        .select("crm_tier")
-        .eq("user_id", playerPhone || order.customer_phone)
-        .single();
-      const tierKey     = player?.crm_tier || "member";
-      const finalAmount = order.total_amount || 0;
-      const pointsToAdd = calculateOrderPoints(finalAmount, tierKey);
-      if (pointsToAdd > 0) {
-        const pointPhone = normalizePhone(order.customer_phone);
-        await addPoints({
-          phone:   pointPhone || order.customer_phone,
-          user_id: pointPhone || order.customer_phone,
-          points:  pointsToAdd,
-          reason:  `Tích điểm đơn hàng ${order.order_code} (${tierKey})`,
-        });
-        console.log("[MOMO IPN] Added", pointsToAdd, "points for", order.user_id, "tier:", tierKey);
+    // Trước 23h: iPOS/CRM tự cộng điểm đơn online, app chỉ đọc lại.
+    // Sau 23h: app cộng local ngay để user thấy điểm tức thì,
+    // nhưng KHÔNG gọi update_point ADD riêng sang iPOS vì iPOS đã tự ghi điểm theo đơn online.
+    if (isAfterHours) {
+      try {
+        const { addPoints } = require("../services/loyaltyPointService");
+        const playerPhone = normalizePhone(order.customer_phone);
+        const { data: player } = await supabase
+          .from("players")
+          .select("crm_tier")
+          .eq("user_id", playerPhone || order.customer_phone)
+          .single();
+        const tierKey     = player?.crm_tier || "member";
+        const finalAmount = order.total_amount || 0;
+        const pointsToAdd = calculateOrderPoints(finalAmount, tierKey);
+        if (pointsToAdd > 0) {
+          const pointPhone = normalizePhone(order.customer_phone);
+          await addPoints({
+            phone:   pointPhone || order.customer_phone,
+            user_id: pointPhone || order.customer_phone,
+            points:  pointsToAdd,
+            reason:  `Tích điểm đơn hàng ${order.order_code} (${tierKey})`,
+            order_id: order.id,
+            syncIpos: false,
+            metadata: {
+              source: "after_hours_app_order",
+              order_code: order.order_code,
+              tier: tierKey,
+            },
+          });
+          console.log("[MOMO IPN] Added after-hours local points", pointsToAdd, "for", order.user_id, "tier:", tierKey);
+        }
+      } catch (e) {
+        console.warn("[MOMO IPN] Point addition failed:", e.message);
       }
-    } catch (e) {
-      console.warn("[MOMO IPN] Point addition failed:", e.message);
+    } else {
+      console.log("[MOMO IPN] Skip local order points before 23h; CRM/iPOS owns points:", order.order_code);
     }
 
-    // ─── 5b. Spending đã được sync tại section 3b (instant) ────────
-    // syncSingleUserSpending bị bỏ để tránh overwrite instant spending
+    // ─── 5b. Trước 23h sync từ CRM/iPOS; sau 23h app đã instant sync ────────
 
     // ─── 6. Thông báo ──────────────────────────────────────────────
     try {

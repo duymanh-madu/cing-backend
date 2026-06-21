@@ -134,8 +134,36 @@ async function deductPoints({ phone, user_id, points, reason = "Sử dụng đi�
 /**
  * Cong diem - goi ham nay bat cu khi nao can cong diem
  */
-async function addPoints({ phone, user_id, points, reason = "Nhận điểm thưởng" }) {
+async function addPoints({
+  phone,
+  user_id,
+  points,
+  reason = "Nhận điểm thưởng",
+  order_id = null,
+  syncIpos = true,
+  metadata = {},
+}) {
   if (!points || points <= 0) throw new Error("Số điểm không hợp lệ");
+
+  if (order_id) {
+    const { data: existingTx } = await supabase
+      .from("point_transactions")
+      .select("id,balance_after")
+      .eq("order_id", order_id)
+      .eq("transaction_type", "add")
+      .limit(1)
+      .maybeSingle();
+
+    if (existingTx) {
+      return {
+        success: true,
+        skipped: true,
+        reason: "duplicate_order_points",
+        order_id,
+        total: existingTx.balance_after,
+      };
+    }
+  }
 
   const { data: player } = await supabase
     .from("players")
@@ -150,16 +178,18 @@ async function addPoints({ phone, user_id, points, reason = "Nhận điểm thư
 
   await logPointTransaction({
     user_id,
+    order_id,
     transaction_type: "add",
     points: Math.abs(points),
     balance_before: currentPoints,
     balance_after: currentPoints + points,
     reason,
-    metadata: { phone: phone || user_id },
+    metadata: { phone: phone || user_id, ...metadata },
   });
 
-  // Sync ve iPOS neu co phone
-  if (phone) {
+  // Sync ve iPOS neu co phone va duoc phep.
+  // Don online iPOS tu ghi nhan diem thi khong day ADD rieng de tranh duplicate.
+  if (syncIpos && phone) {
     try {
       const iposPhone = phone.replace(/\D/g,"");
       await updateMemberPoint({

@@ -46,6 +46,25 @@ async function updatePartnerMonthlySpending({ user_id, amount }) {
 }
 
 /**
+ * Set chi tieu thang theo CRM/app source.
+ * Dung cho CRM sync: set exact total, khong cong don de tranh duplicate.
+ */
+async function setPartnerMonthlySpending({ user_id, year_month = getCurrentYearMonth(), total_spent = 0 }) {
+  const safeTotal = Number(total_spent || 0);
+  const qualified = safeTotal >= PARTNER_MONTHLY_TARGET;
+
+  await supabase.from("partner_monthly_spending").upsert({
+    user_id,
+    year_month,
+    total_spent: safeTotal,
+    qualified,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "user_id,year_month" });
+
+  return { year_month, total_spent: safeTotal, qualified };
+}
+
+/**
  * Lay tien do thang hien tai va thang truoc
  * De hien thi thanh tien do 2 nua tren card
  */
@@ -86,4 +105,9 @@ async function getPartnerProgress(user_id) {
   };
 }
 
-module.exports = { updatePartnerMonthlySpending, getPartnerProgress, PARTNER_MONTHLY_TARGET };
+module.exports = {
+  updatePartnerMonthlySpending,
+  setPartnerMonthlySpending,
+  getPartnerProgress,
+  PARTNER_MONTHLY_TARGET,
+};

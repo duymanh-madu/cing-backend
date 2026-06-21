@@ -18,6 +18,7 @@ async function fetchAllPlayerRows(columns, filterFn) {
 }
 const foodbook = require('../foodbook');
 const { addPlays } = require('../loyaltyPointService');
+const { setPartnerMonthlySpending } = require('../partnerProgressService');
 
 /**
  * Lấy thời điểm hiện tại theo giờ VN (UTC+7)
@@ -152,12 +153,9 @@ async function syncOnePlayer(player) {
         user_id: userId,
         zalo_name: player.profile_changed_at ? player.zalo_name : (memberData.name || player.zalo_name || null),
         name: memberData.name || player.name || null,
-        crm_tier:            (() => {
-          const rawTier = mapTierKey(memberData.membership_type_name || "");
-          if (rawTier === 'loyal_partner' && safeMonthly < 2000000) return 'member';
-          if (rawTier === 'partner' && safeMonthly < 1000000) return 'member';
-          return rawTier;
-        })(),
+        // CRM tier is the raw CRM membership tier.
+        // Do not demote partner/loyal_partner here; app display tier is resolved separately.
+        crm_tier:            mapTierKey(memberData.membership_type_name || ""),
         crm_spend_alltime:   safeAlltime,
         crm_spend_weekly:    safeWeekly,
         crm_spend_monthly:   safeMonthly,
@@ -172,6 +170,17 @@ async function syncOnePlayer(player) {
     if (error) {
       console.error('Supabase error:', userId, error.message);
       return { user_id: userId, success: false };
+    }
+
+    // CRM sync owns partner progress outside after-hours.
+    // Set exact monthly total, do not increment, to avoid duplicate progress.
+    try {
+      await setPartnerMonthlySpending({
+        user_id: userId,
+        total_spent: safeMonthly,
+      });
+    } catch(e) {
+      console.warn('[PARTNER PROGRESS] CRM sync failed:', userId, e.message);
     }
 
     // Lấy player hiện tại để tính lượt chơi
