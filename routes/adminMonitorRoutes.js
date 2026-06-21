@@ -183,6 +183,7 @@ router.get('/members-list', requireAdmin, async (req, res) => {
   avatar,
   zalo_avatar,
   crm_tier,
+  custom_badges,
   is_blocked,
   chat_locked_until,
   member_activated,
