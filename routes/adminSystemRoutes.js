@@ -7,6 +7,8 @@ const router =
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
 
+const { getLoyaltyIntegritySnapshot } = require("../services/loyalty/loyaltyIntegrityService");
+
 function requireAdmin(req, res, next) {
   const token = req.headers.authorization?.replace("Bearer ", "");
   if (!token) return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -340,30 +342,31 @@ router.post(
   runTransactionIntegrityNow
 );
 
-/**
- * =====================================================
- * EXPORTS
- * =====================================================
- */
-
-module.exports =
-  router;
 // POST /admin/system/loyalty-integrity/accept — chấp nhận diff, update baseline
 router.post("/loyalty-integrity/accept", requireAdmin, async (req, res) => {
   try {
     const { user_id, current_points } = req.body;
     if (!user_id || current_points === undefined) return res.status(400).json({ success:false, message:"Thiếu thông tin" });
+
     const supabase = require("../supabase");
     const now = new Date().toISOString();
-    await supabase.from("point_balance_baselines")
+
+    const { error } = await supabase.from("point_balance_baselines")
       .upsert({
         user_id,
         baseline_points: Number(current_points),
         baseline_at: now,
         updated_at: now,
       }, { onConflict: "user_id" });
+
+    if (error) {
+      return res.status(500).json({ success:false, message:"Không thể chấp nhận mismatch", error:error.message });
+    }
+
+    const snapshot = await getLoyaltyIntegritySnapshot({ sampleLimit: 20 });
+
     console.log(`[INTEGRITY] ACCEPT: ${user_id} baseline → ${current_points}`);
-    res.json({ success:true });
+    res.json({ success:true, data:snapshot });
   } catch(e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
@@ -451,18 +454,43 @@ router.post("/loyalty-integrity/revoke", requireAdmin, async (req, res) => {
   try {
     const { user_id, expected_points } = req.body;
     if (!user_id || expected_points === undefined) return res.status(400).json({ success:false, message:"Thiếu thông tin" });
+
     const supabase = require("../supabase");
     const now = new Date().toISOString();
-    await supabase.from("players")
+
+    const { error: playerError } = await supabase.from("players")
       .update({ total_points: Number(expected_points) })
       .eq("user_id", user_id);
-    await supabase.from("point_balance_baselines")
+
+    if (playerError) {
+      return res.status(500).json({ success:false, message:"Không thể thu hồi điểm", error:playerError.message });
+    }
+
+    const { error: baselineError } = await supabase.from("point_balance_baselines")
       .upsert({
         user_id,
         baseline_points: Number(expected_points),
         baseline_at: now,
+        updated_at: now,
       }, { onConflict: "user_id" });
+
+    if (baselineError) {
+      return res.status(500).json({ success:false, message:"Không thể cập nhật baseline", error:baselineError.message });
+    }
+
+    const snapshot = await getLoyaltyIntegritySnapshot({ sampleLimit: 20 });
+
     console.log(`[INTEGRITY] REVOKE: ${user_id} total_points → ${expected_points}`);
-    res.json({ success:true });
+    res.json({ success:true, data:snapshot });
   } catch(e) { res.status(500).json({ success:false, error:e.message }); }
 });
+
+
+/**
+ * =====================================================
+ * EXPORTS
+ * =====================================================
+ */
+
+module.exports =
+  router;
