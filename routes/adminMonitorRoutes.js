@@ -172,6 +172,68 @@ router.post('/update-player-badges', requireAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
+const normalizeAdminMemberTier = (value) => {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return "";
+
+  if (
+    raw === "loyal_partner" ||
+    raw === "loyal-partner" ||
+    raw.includes("loyal_partner") ||
+    raw.includes("đối tác thân thiết") ||
+    raw.includes("doi tac than thiet")
+  ) return "loyal_partner";
+
+  if (
+    raw === "partner" ||
+    raw.includes("partner") ||
+    raw.includes("đối tác") ||
+    raw.includes("doi tac")
+  ) return "partner";
+
+  if (raw === "diamond" || raw.includes("kim cương") || raw.includes("kim cuong")) return "diamond";
+  if (raw === "gold" || raw.includes("vàng") || raw.includes("vang")) return "gold";
+  if (raw === "silver" || raw.includes("bạc") || raw.includes("bac")) return "silver";
+  if (raw === "loyal" || raw.includes("thân thiết") || raw.includes("than thiet")) return "loyal";
+  if (raw === "member" || raw.includes("hội viên") || raw.includes("hoi vien")) return "member";
+
+  return raw;
+};
+
+const parseBadgeList = (value) => {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [value];
+    } catch {
+      return [value];
+    }
+  }
+
+  if (typeof value === "object") {
+    return Object.values(value);
+  }
+
+  return [value];
+};
+
+const resolveAdminMemberDisplayTier = (p) => {
+  const badges = [
+    ...parseBadgeList(p.custom_badges),
+    p.selected_badge,
+    p.chat_charm_badge,
+  ].map(normalizeAdminMemberTier);
+
+  if (badges.includes("loyal_partner")) return "loyal_partner";
+  if (badges.includes("partner")) return "partner";
+
+  return normalizeAdminMemberTier(p.crm_tier) || "member";
+};
+
+
 // GET /api/admin/monitor/members-list
 router.get('/members-list', requireAdmin, async (req, res) => {
   try {
@@ -184,6 +246,8 @@ router.get('/members-list', requireAdmin, async (req, res) => {
   zalo_avatar,
   crm_tier,
   custom_badges,
+  selected_badge,
+  chat_charm_badge,
   is_blocked,
   chat_locked_until,
   member_activated,
@@ -218,6 +282,9 @@ router.get('/members-list', requireAdmin, async (req, res) => {
     p.avatar ||
     p.zalo_avatar ||
     "",
+
+  display_tier:
+    resolveAdminMemberDisplayTier(p),
 }));
     res.json({ success: true, data: normalized });
   } catch(e) { res.status(500).json({ success: false, error: e.message }); }
