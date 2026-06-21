@@ -45,10 +45,29 @@ async function enqueueCrmSyncRecovery({
     return { success: false, skipped: true, reason: "invalid_user_id" };
   }
 
+  const normalizedOrderId = order_id ? String(order_id) : null;
+
+  if (normalizedOrderId) {
+    const { data: orderRow } = await supabase
+      .from("orders")
+      .select("id,spending_synced")
+      .eq("id", normalizedOrderId)
+      .maybeSingle();
+
+    if (orderRow?.spending_synced === true) {
+      return {
+        success: true,
+        skipped: true,
+        reason: "order_already_spending_synced",
+        order_id: normalizedOrderId,
+      };
+    }
+  }
+
   const row = {
     user_id: uid,
     phone: cleanPhone || uid,
-    order_id: order_id ? String(order_id) : null,
+    order_id: normalizedOrderId,
     source,
     status: "pending",
     retry_count: 0,
@@ -56,12 +75,17 @@ async function enqueueCrmSyncRecovery({
     updated_at: nowIso(),
   };
 
-  const { data: existing } = await supabase
+  let existingQuery = supabase
     .from("crm_sync_queue")
-    .select("id")
+    .select("id,status")
     .eq("user_id", uid)
-    .eq("status", "pending")
-    .limit(1);
+    .in("status", ["pending", "processing"]);
+
+  if (normalizedOrderId) {
+    existingQuery = existingQuery.eq("order_id", normalizedOrderId).eq("source", source);
+  }
+
+  const { data: existing } = await existingQuery.limit(1);
 
   if (existing && existing.length > 0) {
     return {
@@ -118,16 +142,39 @@ async function claimPendingJobs(limit = DEFAULT_BATCH_SIZE) {
 }
 
 async function completeJob(job) {
+  const doneAt = nowIso();
+
   await supabase
     .from("crm_sync_queue")
     .update({
       status: "done",
-      processed_at: nowIso(),
+      processed_at: doneAt,
       locked_until: null,
       last_error: null,
-      updated_at: nowIso(),
+      updated_at: doneAt,
     })
     .eq("id", job.id);
+
+  if (job.order_id) {
+    await supabase
+      .from("orders")
+      .update({
+        spending_synced: true,
+        updated_at: doneAt,
+      })
+      .eq("id", job.order_id);
+
+    await supabase
+      .from("transaction_integrity_events")
+      .update({
+        issue_status: "resolved",
+        resolved_at: doneAt,
+        updated_at: doneAt,
+      })
+      .eq("order_id", job.order_id)
+      .eq("issue_type", "missing_crm_sync")
+      .eq("issue_status", "open");
+  }
 }
 
 async function failJob(job, errorMessage) {
