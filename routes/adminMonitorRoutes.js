@@ -221,6 +221,13 @@ const parseBadgeList = (value) => {
 };
 
 const resolveAdminMemberDisplayTier = (p) => {
+  const crmTier = normalizeAdminMemberTier(p.crm_tier);
+
+  // CRM tier is the authoritative member tier.
+  // A lower custom badge like "partner" must not downgrade "loyal_partner".
+  if (crmTier === "loyal_partner") return "loyal_partner";
+  if (crmTier === "partner") return "partner";
+
   const badges = [
     ...parseBadgeList(p.custom_badges),
     p.selected_badge,
@@ -230,7 +237,7 @@ const resolveAdminMemberDisplayTier = (p) => {
   if (badges.includes("loyal_partner")) return "loyal_partner";
   if (badges.includes("partner")) return "partner";
 
-  return normalizeAdminMemberTier(p.crm_tier) || "member";
+  return crmTier || "member";
 };
 
 
