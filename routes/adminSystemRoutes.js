@@ -356,7 +356,6 @@ router.post("/loyalty-integrity/accept", requireAdmin, async (req, res) => {
         user_id,
         baseline_points: Number(current_points),
         baseline_at: now,
-        updated_at: now,
       }, { onConflict: "user_id" });
 
     if (error) {
@@ -471,7 +470,6 @@ router.post("/loyalty-integrity/revoke", requireAdmin, async (req, res) => {
         user_id,
         baseline_points: Number(expected_points),
         baseline_at: now,
-        updated_at: now,
       }, { onConflict: "user_id" });
 
     if (baselineError) {
