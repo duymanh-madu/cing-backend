@@ -187,13 +187,13 @@ const momoIpnHandler = async (req, res) => {
       console.log("[MOMO IPN] Emitted payment.success for", order.user_id);
     } catch(e) { console.warn("[MOMO IPN] Realtime emit failed:", e.message); }
 
-    // ─── 1. Push lên iPOS (kèm logic giờ) ───────────────────────
+    // ─── 1. Push lên iPOS ngay sau khi thanh toán thành công ───────
+    // iPOS sẽ được cấu hình mở cửa 24/24, nên không delay đơn ngoài giờ.
     const nowVN = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
     const hourVN = nowVN.getHours();
-    // 8:00–23:00: bình thường | 23:00–8:00: vẫn push, thêm note "đặt ngoài giờ"
     const isAfterHours = hourVN >= 23 || hourVN < 8;
     const afterHoursNote = isAfterHours
-      ? "[ĐẶT NGOÀI GIỜ] Khách đã thanh toán online. Giao hàng lúc 8:00 sáng hôm sau."
+      ? "[ĐẶT NGOÀI GIỜ] Khách đã thanh toán online. Vui lòng xử lý theo vận hành cửa hàng."
       : "";
 
     try {
@@ -204,39 +204,16 @@ const momoIpnHandler = async (req, res) => {
         payment_method: "momo",
       };
 
-      if (isAfterHours) {
-        const next8VN = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-        next8VN.setHours(8, 0, 0, 0);
-        if (hourVN >= 23) next8VN.setDate(next8VN.getDate() + 1);
+      const iposResult = await pushOrderToIPOS({
+        order: orderWithMeta,
+        transaction_code: orderId,
+        momo_trans_id: String(transId || ""),
+      });
 
-        const nextRetryAt = new Date(next8VN.getTime() - 7 * 60 * 60 * 1000).toISOString();
-
-        const { enqueueIposRecovery } = require("../services/ipos/iposSyncRecoveryWorker");
-        await enqueueIposRecovery({
-          order_id: order.id,
-          transaction_code: orderId,
-          reason: "after_hours_paid_order_wait_until_open",
-          next_retry_at: nextRetryAt,
-        });
-
-        await supabase.from("orders").update({
-          pos_sync_status: "pending_after_hours",
-          updated_at: new Date().toISOString(),
-        }).eq("id", order.id).then(()=>{}).catch(()=>{});
-
-        console.log("[MOMO IPN] iPOS push delayed until 08:00 VN:", order.order_code);
+      if (iposResult.success) {
+        console.log("[MOMO IPN] Pushed to iPOS OK:", order.order_code);
       } else {
-        const iposResult = await pushOrderToIPOS({
-          order: orderWithMeta,
-          transaction_code: orderId,
-          momo_trans_id: String(transId || ""),
-        });
-
-        if (iposResult.success) {
-          console.log("[MOMO IPN] Pushed to iPOS OK:", order.order_code);
-        } else {
-          console.error("[MOMO IPN] iPOS push failed:", iposResult.error);
-        }
+        console.error("[MOMO IPN] iPOS push failed:", iposResult.error);
       }
     } catch (e) {
       console.error("[MOMO IPN] iPOS push exception:", e.message);

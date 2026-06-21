@@ -193,42 +193,6 @@ function getVietnamMinutesNow(date = new Date()) {
   return Number(map.hour) * 60 + Number(map.minute);
 }
 
-function getNext8amVietnamIso() {
-  const nowVN = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-  const next8VN = new Date(nowVN);
-  next8VN.setHours(8, 0, 0, 0);
-
-  if (getVietnamMinutesNow() >= 8 * 60) {
-    next8VN.setDate(next8VN.getDate() + 1);
-  }
-
-  return new Date(next8VN.getTime() - 7 * 60 * 60 * 1000).toISOString();
-}
-
-function shouldHoldAfterHoursOrder(order) {
-  if (order?.pos_sync_status !== "pending_after_hours") return false;
-
-  const minutesNow = getVietnamMinutesNow();
-
-  // Giữ đơn ngoài giờ từ 23:00 đến trước 08:00 VN.
-  // Từ 08:00 trở đi worker được phép push iPOS.
-  return minutesNow >= 23 * 60 || minutesNow < 8 * 60;
-}
-
-async function rescheduleAfterHoursJob(job) {
-  await supabase
-    .from("ipos_sync_queue")
-    .update({
-      status: "pending",
-      next_retry_at: getNext8amVietnamIso(),
-      locked_until: null,
-      last_error: "after_hours_hold_until_opening",
-      updated_at: nowIso(),
-    })
-    .eq("id", job.id);
-}
-
-
 async function processIposSyncQueue({ batchSize = DEFAULT_BATCH_SIZE } = {}) {
   if (running) return { success:true, skipped:true, reason:"already_running" };
   running = true;
@@ -274,17 +238,6 @@ async function processIposSyncQueue({ batchSize = DEFAULT_BATCH_SIZE } = {}) {
         if (order.pos_sync_status === "success") {
           await completeJob(job);
           stats.success++;
-          continue;
-        }
-
-        if (shouldHoldAfterHoursOrder(order)) {
-          await rescheduleAfterHoursJob(job);
-          stats.deferred = (stats.deferred || 0) + 1;
-          console.log("[IPOS RECOVERY] hold after-hours order until 08:00 VN", {
-            order_id: order.id,
-            order_code: order.order_code,
-            job_id: job.id,
-          });
           continue;
         }
 
