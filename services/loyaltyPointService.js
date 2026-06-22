@@ -122,7 +122,7 @@ async function deductPoints({ phone, user_id, points, reason = "Sử dụng đi�
     realtimeEventBus.publish({
       event: "membership.points",
       delivery_type: "BROADCAST",
-      payload: { user_id, points: updated2?.total_points || 0 },
+      payload: { user_id, phone: user_id, points: updated2?.total_points || 0, points_changed: true },
       channel: "membership",
       timestamp: new Date().toISOString(),
     });
