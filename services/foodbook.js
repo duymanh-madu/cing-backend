@@ -686,6 +686,25 @@ async function getMenu() {
  * =====================================================
  */
 
+async function addMember({ phone, name, birthday, gender = -1 }) {
+  try {
+    const raw = phone.replace(/\D/g, "");
+    const phone84 = raw.startsWith("84") ? raw : "84" + raw.slice(1);
+
+    const response = await axios.post(
+      `${BASE_URL}/ipos/ws/xpartner/add_membership`,
+      { phone: parseInt(phone84), name: name || "Khách hàng", birthday: birthday || "", gender },
+      { params: { access_token: ACCESS_TOKEN, pos_parent: POS_PARENT }, timeout: 10000 }
+    );
+
+    console.log("[iPOS] addMember result:", JSON.stringify(response.data));
+    return { success: true, data: response.data };
+  } catch (e) {
+    console.warn("[iPOS] addMember error:", e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 async function getMember(
   userId
 ) {
@@ -985,6 +1004,7 @@ module.exports = {
   refreshMenu,
   clearMenuCache,
 
+  addMember,
   getMember,
 
   getMemberVouchers,

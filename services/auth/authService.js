@@ -57,6 +57,25 @@ async function loginWithZalo({
       zaloUser,
     });
 
+  // Tạo member trong iPOS nếu chưa có
+  if (customer.phone) {
+    try {
+      const { getMember, addMember } = require("../foodbook");
+      const existing = await getMember(customer.phone).catch(() => null);
+      if (!existing?.success || !existing?.data?.data) {
+        // Chưa có trong CRM → tạo mới
+        await addMember({
+          phone: customer.phone,
+          name: zaloUser.name || customer.name || "Khách hàng",
+          birthday: zaloUser.birthday || "",
+        });
+        console.log("[AUTH] iPOS member created for:", customer.phone);
+      } else {
+        console.log("[AUTH] iPOS member already exists:", customer.phone);
+      }
+    } catch(e) { console.warn("[AUTH] addMember failed:", e.message); }
+  }
+
   // Lấy birthday từ iPOS nếu chưa có
   if (!zaloUser.birthday) {
     try {
