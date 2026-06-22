@@ -91,6 +91,32 @@ async function loginWithZalo({
     } catch(e) {}
   }
 
+  // Lấy tên từ Zalo OA API nếu chưa có name thật
+  if ((!zaloUser.name || zaloUser.name === "Khách hàng") && (zaloUser.zalo_id || zaloUser.id)) {
+    try {
+      const { data: cfg } = await require("../../supabase")
+        .from("app_configs").select("zalo_oa_access_token").eq("id", 1).single();
+      const oaToken = cfg?.zalo_oa_access_token;
+      const zaloId = zaloUser.zalo_id || zaloUser.id;
+      if (oaToken && zaloId) {
+        const profileRes = await fetch(
+          `https://openapi.zalo.me/v2.0/oa/getprofile?user_id=${zaloId}`,
+          { headers: { access_token: oaToken } }
+        );
+        const profileData = await profileRes.json();
+        if (profileData?.data?.display_name) {
+          zaloUser.name = profileData.data.display_name;
+          zaloUser.avatar = profileData.data.avatar || zaloUser.avatar || "";
+          // Update customer name
+          await require("../../supabase").from("customers")
+            .update({ name: zaloUser.name, avatar: zaloUser.avatar || null })
+            .eq("zalo_id", zaloId);
+          console.log("[AUTH] Zalo OA profile fetched:", zaloUser.name);
+        }
+      }
+    } catch(e) { console.warn("[AUTH] fetch Zalo OA profile failed:", e.message); }
+  }
+
   // Đọc avatar từ players table (custom avatar user đã upload)
   try {
     const zaloId = zaloUser.zalo_id || zaloUser.id || "";
