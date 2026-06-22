@@ -116,6 +116,60 @@ router.post("/pay-with-points", async (req, res) => {
       }
     }
 
+    // 4. Gửi thông báo cho khách
+    try {
+      const { sendNotification } = require("../services/notificationService");
+      const { realtimeEventBus } = require("../services/realtime/realtimeEventBus");
+      const supabase = require("../supabase");
+
+      const { data: notifOrder } = await supabase
+        .from("orders").select("id, order_code, customer_phone")
+        .eq("id", order_id).single();
+
+      const playerPhone = normalizePhone(notifOrder?.customer_phone || finalPhone);
+      const orderCode = notifOrder?.order_code || "";
+
+      // Check after-hours (23h - 8h VN)
+      const hourVN = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })).getHours();
+      const isAfterHours = hourVN >= 23 || hourVN < 8;
+
+      const message = isAfterHours
+        ? `Đơn hàng ${orderCode} đã được thanh toán thành công. Hiện nay cửa hàng đang đóng cửa, chúng mình sẽ liên hệ bạn vào 8h sáng để trả hàng.`
+        : `Đơn hàng ${orderCode} đã được thanh toán bằng điểm tích lũy thành công!`;
+
+      const title = isAfterHours ? "✅ Đặt hàng thành công!" : "💎 Thanh toán điểm thành công!";
+
+      if (playerPhone) {
+        await sendNotification({
+          user_id: playerPhone,
+          template_key: "CAMPAIGN_BROADCAST",
+          custom: { title, message },
+          data: { order_id: notifOrder?.id, order_code: orderCode, reason: "points_payment" },
+        });
+
+        realtimeEventBus.publish({
+          event: "notification.broadcast",
+          delivery_type: "ROOM",
+          room: `member:${playerPhone}`,
+          payload: {
+            notification: {
+              title,
+              message,
+              type: "points_payment",
+              created_at: new Date().toISOString(),
+            },
+            ticker: { enabled: true, message },
+          },
+          channel: "notification",
+          timestamp: new Date().toISOString(),
+        });
+
+        console.log("[POINTS PAY] Notification sent to", playerPhone, "| after_hours:", isAfterHours);
+      }
+    } catch(e) {
+      console.warn("[POINTS PAY] Notification failed:", e.message);
+    }
+
     res.json({ success: true, ...result });
   } catch(err) {
     console.error("[POINTS PAY] Error:", err.message, "| body:", JSON.stringify(req.body));
