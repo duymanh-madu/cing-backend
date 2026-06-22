@@ -365,6 +365,14 @@ async function startServer() {
       });
       
       // Tự động track user:online từ heartbeat
+      // Join room member:phone để nhận notification cá nhân
+      socket.on('member:connect', ({ member_id }) => {
+        if (!member_id) return;
+        const room = `member:${member_id}`;
+        socket.join(room);
+        console.log(`[SOCKET] ${socket.id} joined room ${room}`);
+      });
+
       socket.on('runtime:heartbeat', ({ userId, timestamp }) => {
         if (!userId) return;
         const existing = global.onlineUsers.get(String(userId));
