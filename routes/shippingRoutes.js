@@ -193,16 +193,16 @@ router.post("/decode-location", async (req, res) => {
       return res.status(500).json({ success: false, error: "Missing ZMP config" });
     }
 
-    const zaloRes = await axios.post("https://graph.zalo.me/v2.0/me/location",
-      { code: token },
-      {
-        headers: {
-          access_token: miniAccessToken || "",
-          secret_key:   zmpToken,
-          "Content-Type": "application/json",
-        },
-      }
-    ).catch(e => ({ data: e.response?.data || { error: e.message } }));
+    const zaloRes = await axios.get("https://graph.zalo.me/v2.0/me/info", {
+      headers: {
+        access_token: miniAccessToken || "",
+        secret_key:   zmpToken,
+      },
+      params: {
+        code: token,
+        fields: "location",
+      },
+    }).catch(e => ({ data: e.response?.data || { error: e.message } }));
 
     const lat = zaloRes.data?.latitude  || zaloRes.data?.data?.latitude;
     const lng = zaloRes.data?.longitude || zaloRes.data?.data?.longitude;
