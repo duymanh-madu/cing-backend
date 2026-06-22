@@ -356,8 +356,8 @@ async function checkAndNotifyTop1Changes(io) {
       }
     }
 
-    // Update cache
-    if (Object.keys(newCache).length) {
+    // Update cache chỉ khi có thay đổi thật sự
+    if (notifications.length > 0) {
       await supabase.from('app_configs').update({ top1_cache: newCache }).eq('id', 1);
     }
 
@@ -373,7 +373,11 @@ async function checkAndNotifyTop1Changes(io) {
             message: msg,
             type: 'leaderboard',
             created_at: new Date().toISOString(),
-          }
+          },
+          ticker: {
+            enabled: true,
+            message: msg,
+          },
         });
         console.log('[TOP1] Broadcasted via socket.io');
       } else {
