@@ -79,6 +79,37 @@ router.post("/pay-with-points", async (req, res) => {
 
     const finalPhone = normalizePhone(phone || user_id);
 
+    // 0. Tạo order trong DB nếu chưa có (thanh toán 100% điểm)
+    let resolvedOrderId = order_id;
+    if (order_data && !order_id) {
+      try {
+        const supabase = require("../supabase");
+        const { data: newOrder } = await supabase.from("orders").insert({
+          order_code:       order_data.order_id || ("ORD-" + Date.now()),
+          user_id:          finalPhone,
+          customer_name:    order_data.customer_name || "Khách hàng",
+          customer_phone:   finalPhone,
+          items:            order_data.items || [],
+          subtotal:         order_data.subtotal || 0,
+          total_amount:     order_data.subtotal || 0, // tổng thật trước khi trừ điểm
+          shipping_fee:     order_data.shipping_fee || 0,
+          shipping_address: order_data.shipping_address || "",
+          order_type:       order_data.order_type || order_data.orderType || "delivery",
+          note:             order_data.note || "",
+          points_used:      points,
+          points_discount:  points * 1000,
+          payment_method:   "points",
+          payment_status:   "paid",
+          status_code:      "confirmed",
+          order_created:    true,
+        }).select("id").single();
+        if (newOrder?.id) resolvedOrderId = newOrder.id;
+        console.log("[POINTS PAY] Order created:", resolvedOrderId);
+      } catch(e) {
+        console.warn("[POINTS PAY] Create order failed:", e.message);
+      }
+    }
+
     // 1. Deduct points
     const result = await deductPoints({
       phone: finalPhone, user_id: finalPhone,
@@ -86,25 +117,25 @@ router.post("/pay-with-points", async (req, res) => {
     });
 
     // 2. Update order payment_method = "points" TRƯỚC khi push iPOS
-    if (order_id) {
+    if (resolvedOrderId) {
       try {
         const supabase = require("../supabase");
         await supabase.from("orders").update({
           payment_status: "paid",
-          status_code: "confirmed",
-          order_created: true,
+          status_code:    "confirmed",
+          order_created:  true,
           payment_method: "points",
-        }).eq("id", order_id);
+        }).eq("id", resolvedOrderId);
       } catch(e) {}
     }
 
     // 3. Push order to iPOS — fetch order từ DB sau khi đã update payment_method
-    if (order_id) {
+    if (resolvedOrderId) {
       try {
         const supabase = require("../supabase");
         const { pushOrderToIPOS } = require("../services/iposOrderService");
         const { data: order } = await supabase
-          .from("orders").select("*").eq("id", order_id).single();
+          .from("orders").select("*").eq("id", resolvedOrderId).single();
         if (order) {
           // Override payment_method để buildPayload dùng đúng
           order.payment_method = "points";
@@ -118,6 +149,7 @@ router.post("/pay-with-points", async (req, res) => {
 
     res.json({ success: true, ...result });
   } catch(err) {
+    console.error("[POINTS PAY] Error:", err.message, "| body:", JSON.stringify(req.body));
     res.status(400).json({ success: false, message: err.message });
   }
 });
