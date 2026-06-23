@@ -274,6 +274,7 @@ router.get("/leaderboard/alltime-games", async (req, res) => {
 let chessStreakData = [];
 
 if (
+  validGames.includes("chess") ||
   validGames.includes("chess-wins") ||
   validGames.includes("chess-streak")
 ) {
@@ -389,7 +390,17 @@ if (
 }
 
     const result = validGames.map(gameKey => {
-      if (gameKey === "chess-wins") {
+      if (gameKey === "chess") {
+  return {
+    game_key: "chess",
+    display_name: gamesConfig["chess"]?.display_name || "Kỳ thủ cờ vua",
+    icon: gamesConfig["chess"]?.icon || "♟️",
+    score_label: "Số trận thắng",
+    data: chessWinsData.slice(0, 100),
+  };
+}
+
+if (gameKey === "chess-wins") {
   return {
     game_key: "chess-wins",
     display_name:
