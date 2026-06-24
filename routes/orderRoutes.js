@@ -539,7 +539,7 @@ router.get("/history/:phone", async (req, res) => {
     try {
       const { data: dbOrders } = await supabase
         .from("orders")
-        .select("id, order_code, created_at, total_amount, status, payment_method, items, type")
+        .select("id, order_code, created_at, total_amount, status, payment_method, items, shipping_address, order_type")
         .or(`customer_phone.eq.${phoneNorm},customer_phone.eq.84${phoneNorm.slice(1)}`)
         .order("created_at", { ascending: false })
         .limit(50);
