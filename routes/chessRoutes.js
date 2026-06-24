@@ -232,13 +232,25 @@ router.post("/tip", async (req, res) => {
       return;
     }
 
+    const { data: giftPlayers } = await supabase
+      .from("players")
+      .select("user_id, display_name, zalo_name, name")
+      .in("user_id", [fromId, toId]);
+
+    const playerMap = new Map((giftPlayers || []).map(p => [String(p.user_id), p]));
+    const fromPlayer = playerMap.get(fromId);
+    const toPlayer = playerMap.get(toId);
+
+    const fromName = resolvePlayerName(fromPlayer, "Cing iu");
+    const toName = resolvePlayerName(toPlayer, "Cing iu");
+
     const { deductPoints } = require("../services/loyaltyPointService");
 
     await deductPoints({
       phone: fromId,
       user_id: fromId,
       points: pointAmount,
-      reason: `Tặng ${giftName || "vật phẩm"} cho ${toId} trong ván cờ`,
+      reason: `Tặng ${giftName || "vật phẩm"} cho ${toName} trong ván cờ`,
     });
 
     const charmAmount = Number(charm || amount);
@@ -255,14 +267,6 @@ router.post("/tip", async (req, res) => {
       .from("players")
       .update({ charm_points: newCharm })
       .eq("user_id", toId);
-
-    const { data: fromPlayer } = await supabase
-      .from("players")
-      .select("display_name, zalo_name, name")
-      .eq("user_id", fromId)
-      .maybeSingle();
-
-    const fromName = resolvePlayerName(fromPlayer, fromId);
 
     const { error: notifErr } = await supabase.from("notifications").insert({
       user_id: toId,
