@@ -515,7 +515,6 @@ router.get("/history/:phone", async (req, res) => {
     try {
       const result = await foodbook.getMemberTransactions(phoneNorm, Number(page));
       const logs = result.data?.raw_response?.data?.sale_logs || [];
-      if (logs.length > 0) console.log("[HISTORY] Sample log keys:", Object.keys(logs[0]), "channels:", JSON.stringify(logs[0].channels));
       iposOrders = logs.map(t => ({
         id:       "ipos_" + t.tran_id,
         tran_no:  t.tran_no,
@@ -526,10 +525,11 @@ router.get("/history/:phone", async (req, res) => {
           quantity: d.Quantity,
           price:    d.Price_Sale,
         })) || [],
-        payment:  t.payment_info?.[0]?.name || "Tiền mặt",
-        type:     t.sale_type,
-        pos_name: t.pos_name,
-        note:     t.note || t.description || "",
+        payment:   t.payment_info?.[0]?.name || "Tiền mặt",
+        type:      t.sale_type,
+        pos_name:  t.pos_name,
+        note:      t.sale_note || "",
+        isAppOrder: (t.channels || []).some(c => c.name === "APP_CINGHUTANG"),
         source:   "ipos",
       }));
     } catch(e) { console.warn("[HISTORY] iPOS error:", e.message); }
@@ -576,7 +576,8 @@ router.get("/history/:phone", async (req, res) => {
     } catch(e) { console.warn("[HISTORY] App orders error:", e.message); }
 
     // 3. Lọc bỏ iPOS orders đặt qua app (có note chứa APP_CINGHUTANG)
-    const filteredIposOrders = iposOrders;
+    // Lọc bỏ đơn app (có channel APP_CINGHUTANG) — đã có trong appOrders
+    const filteredIposOrders = iposOrders.filter(o => !o.isAppOrder);
 
     // Merge + sort theo ngày
     const all = [...appOrders, ...filteredIposOrders].sort((a, b) => {
