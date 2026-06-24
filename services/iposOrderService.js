@@ -340,6 +340,7 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
         .update({
           pos_sync_status: "success",
           pos_synced_at:   new Date(),
+          ipos_order_id:   responseData?.order_id || responseData?.data?.order_id || null,
           updated_at:      new Date(),
         })
         .eq("id", order.id);

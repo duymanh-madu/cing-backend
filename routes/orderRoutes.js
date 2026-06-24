@@ -573,8 +573,23 @@ router.get("/history/:phone", async (req, res) => {
       }));
     } catch(e) { console.warn("[HISTORY] App orders error:", e.message); }
 
-    // 3. Merge + sort theo ngày
-    const all = [...appOrders, ...iposOrders].sort((a, b) => {
+    // 3. Lọc bỏ iPOS orders trùng với app orders
+    // Lấy ipos_order_id từ app orders đã sync
+    const { data: syncedOrders } = await supabase
+      .from("orders")
+      .select("ipos_order_id")
+      .eq("customer_phone", phoneNorm)
+      .not("ipos_order_id", "is", null);
+    const syncedIposIds = new Set((syncedOrders || []).map(o => o.ipos_order_id).filter(Boolean));
+
+    // Lọc iPOS orders — bỏ những đơn đã có trong app
+    const filteredIposOrders = iposOrders.filter(o => {
+      const tranId = o.tran_no || "";
+      return !syncedIposIds.has(tranId);
+    });
+
+    // Merge + sort theo ngày
+    const all = [...appOrders, ...filteredIposOrders].sort((a, b) => {
       const da = new Date(a.date || 0);
       const db = new Date(b.date || 0);
       return db - da;
