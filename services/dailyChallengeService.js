@@ -66,12 +66,21 @@ async function getTodayChallenges() {
 }
 
 // Kiem tra combo va claim reward
-async function claimChallengeReward({ user_id, player_name, avatar, combo, game_key = "black-pearl-rush" }) {
+async function claimChallengeReward({ user_id, player_name, avatar, combo, score, progress, game_key = "black-pearl-rush" }) {
   const challenge = await getTodayChallenge(game_key);
   
   if (!challenge) return { success: false, message: "Không tìm thấy thử thách" };
   if (challenge.completed) return { success: false, message: "Thử thách đã có người nhận thưởng", winner: challenge.winner_name };
-  if (combo < challenge.target_value) return { success: false, message: `Cần đạt combo ${challenge.target_value}` };
+  const progressValue = Number(
+    challenge.challenge_type === "combo"
+      ? combo
+      : (score ?? progress ?? combo)
+  );
+
+  const unitLabel = challenge.challenge_type === "wins" ? "ván thắng" : "combo";
+  if (!Number.isFinite(progressValue) || progressValue < Number(challenge.target_value || 0)) {
+    return { success: false, message: `Cần đạt ${challenge.target_value} ${unitLabel}` };
+  }
 
   // Cap nhat winner
   const { data: updated, error } = await supabase
@@ -129,7 +138,7 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, game_
     custom: { title: "🏆 Thử thách ngày đã có người nhận thưởng!", message: msg }
   });
 
-  console.log(`[CHALLENGE] Winner: ${player_name} - combo ${combo}`);
+  console.log(`[CHALLENGE] Winner: ${player_name} - progress ${progressValue}`);
   return { success: true, reward_points: challenge.reward_points, message: `Chúc mừng! Bạn nhận được +${challenge.reward_points} điểm!` };
 }
 
