@@ -76,7 +76,7 @@ router.post("/save/:userId", async (req, res) => {
       }
     }
 
-    if (!display_name?.trim() && !avatar_base64) {
+    if (!display_name?.trim() && !avatar_base64 && email === undefined) {
       return res.status(400).json({ success: false, error: "Không có thông tin nào để cập nhật" });
     }
 
