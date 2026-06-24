@@ -112,9 +112,10 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, game_
     event: "challenge.won",
     delivery_type: "BROADCAST",
     payload: {
-      winner_name: player_name,
-      winner_avatar: avatar,
-      reward_points: challenge.reward_points,
+      winner_user_id: user_id,
+      winner_name:    player_name,
+      winner_avatar:  avatar,
+      reward_points:  challenge.reward_points,
       message: msg,
       game_key,
     },
