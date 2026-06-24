@@ -110,12 +110,14 @@ router.post("/game-ended", async (req, res) => {
     try {
       const { data: stats } = await supabase
         .from("chess_stats")
-        .select("wins")
+        .select("wins, wins_today, wins_today_date")
         .eq("user_id", winnerId)
         .maybeSingle();
 
-      const wins = stats?.wins || 0;
-      console.log(`[CHESS] game-ended winner=${winnerId} wins=${wins}`);
+      const todayVN = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
+      const winsToday = stats?.wins_today_date === todayVN ? (stats?.wins_today || 0) : 0;
+      const wins = winsToday;
+      console.log(`[CHESS] game-ended winner=${winnerId} wins_today=${winsToday}`);
 
       const { awardPlays, getMissionConfigs } = require("../services/dailyMissionService");
       const configs = await getMissionConfigs();
@@ -161,13 +163,16 @@ router.post("/game-ended", async (req, res) => {
       const { data: playerInfo } = await supabase.from("players")
         .select("display_name, zalo_name, avatar").eq("user_id", winnerId).single();
       const { data: chessStats } = await supabase.from("chess_stats")
-        .select("wins").eq("user_id", winnerId).single();
+        .select("wins_today, wins_today_date").eq("user_id", winnerId).single();
+
+      const todayVN2 = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
+      const winsTodayChallenge = chessStats?.wins_today_date === todayVN2 ? (chessStats?.wins_today || 0) : 0;
 
       const result = await claimChallengeReward({
         user_id:     winnerId,
         player_name: playerInfo?.display_name || playerInfo?.zalo_name || "Cing iu",
         avatar:      playerInfo?.avatar || "",
-        score:       chessStats?.wins || 0,
+        score:       winsTodayChallenge,
         game_key:    "chess",
       });
       if (result.success) {
