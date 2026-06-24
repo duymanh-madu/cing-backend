@@ -435,7 +435,7 @@ const momoIpnHandler = async (req, res) => {
           phone:   resolvedPhone,
           user_id: resolvedPhone,
           points:  pointsUsed,
-          reason:  "Thanh toan don hang " + order.order_code,
+          reason:  "Thanh toán đơn hàng " + order.order_code,
         });
         console.log("[MOMO IPN] Deducted", pointsUsed, "points");
       } catch (e) {

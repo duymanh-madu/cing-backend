@@ -99,7 +99,7 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, game_
       phone: user_id,
       user_id,
       points: challenge.reward_points,
-      reason: "Phan thuong thu thach ngay",
+      reason: "Phần thưởng thử thách ngày",
     });
   } catch(e) {
     console.warn("[CHALLENGE] Points award failed:", e.message);
