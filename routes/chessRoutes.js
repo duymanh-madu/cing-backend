@@ -154,6 +154,28 @@ router.post("/game-ended", async (req, res) => {
     } catch (e) {
       console.warn("[CHESS] Win mission check failed:", e.message);
     }
+
+    // Check daily challenge — thắng N trận
+    try {
+      const { claimChallengeReward } = require("../services/dailyChallengeService");
+      const { data: playerInfo } = await supabase.from("players")
+        .select("display_name, zalo_name, avatar").eq("user_id", winnerId).single();
+      const { data: chessStats } = await supabase.from("chess_stats")
+        .select("wins").eq("user_id", winnerId).single();
+
+      const result = await claimChallengeReward({
+        user_id:     winnerId,
+        player_name: playerInfo?.display_name || playerInfo?.zalo_name || "Cing iu",
+        avatar:      playerInfo?.avatar || "",
+        score:       chessStats?.wins || 0,
+        game_key:    "chess",
+      });
+      if (result.success) {
+        console.log(`[CHESS] Daily challenge claimed by ${winnerId}: +${result.reward_points} pts`);
+      }
+    } catch(e) {
+      console.warn("[CHESS] Daily challenge check failed:", e.message);
+    }
   }
 
   try {
