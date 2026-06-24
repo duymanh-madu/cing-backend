@@ -51,7 +51,7 @@ router.get("/status/:userId", async (req, res) => {
 router.post("/save/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const { display_name, avatar_base64, use_points } = req.body;
+    const { display_name, avatar_base64, use_points, email } = req.body;
 
     // Validate userId phải là số điện thoại VN hợp lệ
     if (!/^(0|84)\d{8,10}$/.test(String(userId))) {
@@ -115,6 +115,7 @@ router.post("/save/:userId", async (req, res) => {
     }
 
     const updates = { profile_changed_at: new Date().toISOString() };
+    if (email !== undefined) updates.email = email ? email.trim() : null;
 
     let avatarUrl = player?.avatar || null;
     if (avatar_base64) {
@@ -194,6 +195,7 @@ router.post("/save/:userId", async (req, res) => {
     res.json({
       success:        true,
       display_name:   newName,
+      email:          email !== undefined ? (email.trim() || null) : undefined,
       avatar_url:     avatarUrl,
       points_used:    (use_points && !status.can_change_free) ? POINT_COST : 0,
       next_free_date: new Date(Date.now() + COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString(),
