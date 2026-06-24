@@ -132,6 +132,31 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, score
     timestamp: new Date().toISOString(),
   });
 
+  // Popup riêng cho người nhận thưởng.
+  // Frontend có thể delay hiển thị nếu user đang ở trong game, rồi show khi thoát game.
+  realtimeEventBus.publish({
+    event: "notification.broadcast",
+    delivery_type: "ROOM",
+    room: `member:${user_id}`,
+    payload: {
+      notification: {
+        title: "🏆 Nhận thưởng thử thách ngày!",
+        message: `Chúc mừng! Bạn nhận được +${challenge.reward_points} điểm tích lũy.`,
+        type: "daily_challenge_reward",
+        created_at: new Date().toISOString(),
+        delay_if_in_game: true,
+      },
+      popup: {
+        type: "daily_challenge_reward",
+        reward_points: challenge.reward_points,
+        game_key,
+        delay_if_in_game: true,
+      },
+    },
+    channel: "notification",
+    timestamp: new Date().toISOString(),
+  });
+
   // Push notification toan server
   await broadcastNotification({
     template_key: "CAMPAIGN_BROADCAST",

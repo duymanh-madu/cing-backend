@@ -115,7 +115,8 @@ router.post("/game-ended", async (req, res) => {
         .maybeSingle();
 
       const todayVN = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
-      const winsToday = stats?.wins_today_date === todayVN ? (stats?.wins_today || 0) : 0;
+      const winsTodayDate = stats?.wins_today_date ? String(stats.wins_today_date).slice(0, 10) : "";
+      const winsToday = winsTodayDate === todayVN ? Number(stats?.wins_today || 0) : 0;
       const wins = winsToday;
       console.log(`[CHESS] game-ended winner=${winnerId} wins_today=${winsToday}`);
 
@@ -123,7 +124,8 @@ router.post("/game-ended", async (req, res) => {
       const configs = await getMissionConfigs();
       const winCfg = configs.find(c => c.condition_type === "manual" && c.type === "win");
 
-      if (winCfg && wins >= 5) {
+      const winTarget = Number(winCfg?.target_value || winCfg?.target || 5);
+      if (winCfg && wins >= winTarget) {
         const today = new Date().toLocaleDateString("en-CA", {
           timeZone: "Asia/Ho_Chi_Minh",
         });
