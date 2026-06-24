@@ -515,6 +515,7 @@ router.get("/history/:phone", async (req, res) => {
     try {
       const result = await foodbook.getMemberTransactions(phoneNorm, Number(page));
       const logs = result.data?.raw_response?.data?.sale_logs || [];
+      if (logs.length > 0) console.log("[HISTORY] Sample log keys:", Object.keys(logs[0]), "channels:", JSON.stringify(logs[0].channels));
       iposOrders = logs.map(t => ({
         id:       "ipos_" + t.tran_id,
         tran_no:  t.tran_no,
