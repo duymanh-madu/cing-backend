@@ -88,7 +88,9 @@ router.post("/save/:userId", async (req, res) => {
 
     const status = getCooldownStatus(player?.profile_changed_at, player?.total_points);
 
-    if (!status.can_change_free && !use_points) {
+    // Cooldown chỉ áp dụng khi đổi tên hoặc avatar — email luôn được cập nhật tự do
+    const isNameOrAvatarChange = !!(display_name?.trim() || avatar_base64);
+    if (isNameOrAvatarChange && !status.can_change_free && !use_points) {
       return res.status(400).json({
         success:        false,
         error:          `Còn ${status.days_left} ngày nữa mới được đổi miễn phí`,
