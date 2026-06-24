@@ -568,7 +568,7 @@ router.get("/history/:phone", async (req, res) => {
           price:    i.price,
         })) : [],
         payment:  o.payment_method || "App",
-        type:     o.type || "APP",
+        type:     o.order_type || "APP",
         pos_name: null,
         status:   o.status,
         source:   "app",
