@@ -103,8 +103,8 @@ router.get("/leaderboard", async (req, res) => {
 router.post("/game-ended", async (req, res) => {
   res.json({ ok: true });
 
-  const { winner_id, winner } = req.body || {};
-  const winnerId = normalizeUserId(winner_id || winner);
+  const { winner_id, winner, winnerId: winnerIdRaw } = req.body || {};
+  const winnerId = normalizeUserId(winnerIdRaw || winner_id || winner);
 
   if (winnerId) {
     try {
