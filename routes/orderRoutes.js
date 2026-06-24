@@ -575,8 +575,7 @@ router.get("/history/:phone", async (req, res) => {
     } catch(e) { console.warn("[HISTORY] App orders error:", e.message); }
 
     // 3. Lọc bỏ iPOS orders đặt qua app (có note chứa APP_CINGHUTANG)
-    // FOODBOOK = đơn đặt qua app online, OTS/DELI = tại quán
-    const filteredIposOrders = iposOrders.filter(o => o.type !== "FOODBOOK");
+    const filteredIposOrders = iposOrders;
 
     // Merge + sort theo ngày
     const all = [...appOrders, ...filteredIposOrders].sort((a, b) => {
