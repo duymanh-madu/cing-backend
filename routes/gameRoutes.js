@@ -184,21 +184,8 @@ router.get("/plays/:userId", async (req, res) => {
 router.get("/daily-challenge", async (req, res) => {
   try {
     const supabase = require("../supabase");
-    const { getTodayChallenge } = require("../services/dailyChallengeService");
-
-    // Đọc config để biết có bao nhiêu game
-    const { data: cfgRow } = await supabase
-      .from("app_configs").select("daily_challenge_config").eq("id", 1).single();
-    const challenges = cfgRow?.daily_challenge_config?.challenges || [];
-    const enabledGames = challenges.filter(c => c.enabled !== false).map(c => c.game_key);
-
-    if (enabledGames.length === 0) {
-      const single = await getTodayChallenge("black-pearl-rush");
-      return res.json({ success: true, data: [single] });
-    }
-
-    // Lấy challenge cho từng game
-    const all = await Promise.all(enabledGames.map(k => getTodayChallenge(k)));
+    const { getTodayChallenges } = require("../services/dailyChallengeService");
+    const all = await getTodayChallenges();
     res.json({ success: true, data: all });
   } catch(err) {
     res.status(500).json({ success: false, message: err.message });

@@ -48,6 +48,23 @@ async function getTodayChallenge(game_key = "black-pearl-rush") {
   return created;
 }
 
+// Lấy tất cả challenges hôm nay cho tất cả game trong config
+async function getTodayChallenges() {
+  const today = todayVN();
+  const { data: cfgRow } = await supabase.from("app_configs")
+    .select("daily_challenge_config").eq("id", 1).single();
+  const challenges = cfgRow?.daily_challenge_config?.challenges || [];
+  const enabled = challenges.filter(c => c.enabled !== false);
+  if (enabled.length === 0) return [];
+
+  const results = [];
+  for (const cfg of enabled) {
+    let challenge = await getTodayChallenge(cfg.game_key);
+    if (challenge) results.push(challenge);
+  }
+  return results;
+}
+
 // Kiem tra combo va claim reward
 async function claimChallengeReward({ user_id, player_name, avatar, combo, game_key = "black-pearl-rush" }) {
   const challenge = await getTodayChallenge(game_key);
@@ -115,4 +132,4 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, game_
   return { success: true, reward_points: challenge.reward_points, message: `Chúc mừng! Bạn nhận được +${challenge.reward_points} điểm!` };
 }
 
-module.exports = { getTodayChallenge, claimChallengeReward };
+module.exports = { getTodayChallenge, getTodayChallenges, claimChallengeReward };
