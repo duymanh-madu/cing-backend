@@ -295,70 +295,255 @@ async function manualWeeklyReset(io) {
 async function checkAndNotifyTop1Changes(io) {
   try {
     const { data: cfg } = await supabase.from('app_configs')
-      .select('leaderboard_config, top1_cache').eq('id', 1).single();
+      .select('leaderboard_config, alltime_games_config, top1_cache')
+      .eq('id', 1)
+      .single();
+
     const lbCfg = cfg?.leaderboard_config || {};
+    const alltimeGamesCfg = cfg?.alltime_games_config || {};
     const cache = cfg?.top1_cache || {};
     const newCache = { ...cache };
     const notifications = [];
+    let cacheTouched = false;
 
-    // Check BXH tiêu dùng tuần
-    // Lưu ý: enabled trong config chỉ dùng cho phần thưởng, không được chặn thông báo Top 1.
-    {
-      const { data } = await supabase.from('players')
-        .select('user_id, display_name, zalo_name').gt('crm_spend_weekly', 0)
-        .order('crm_spend_weekly', { ascending: false }).limit(1).single();
-      if (data && cache.weekly_top1 !== data.user_id) {
-        newCache.weekly_top1 = data.user_id;
-        notifications.push({ name: resolvePlayerName(data), board: 'BXH Chi tiêu tuần' });
+    const hasCacheKey = (key) => Object.prototype.hasOwnProperty.call(cache, key);
+
+    const rememberTop1 = ({ cacheKey, userId, name, board }) => {
+      if (!cacheKey || !userId) return;
+
+      const nextUserId = String(userId);
+      const prevUserId = cache[cacheKey] == null ? null : String(cache[cacheKey]);
+
+      if (!hasCacheKey(cacheKey)) {
+        // Board mới hoặc cache key mới: baseline im lặng để tránh spam thông báo hàng loạt sau deploy.
+        newCache[cacheKey] = nextUserId;
+        cacheTouched = true;
+        console.log(`[TOP1] Baseline cache set for ${cacheKey}: ${nextUserId}`);
+        return;
       }
-    }
 
-    // Check BXH tiêu dùng tháng
-    // Lưu ý: enabled trong config chỉ dùng cho phần thưởng, không được chặn thông báo Top 1.
-    {
-      const { data } = await supabase.from('players')
-        .select('user_id, display_name, zalo_name').gt('crm_spend_monthly', 0)
-        .order('crm_spend_monthly', { ascending: false }).limit(1).single();
-      if (data && cache.monthly_top1 !== data.user_id) {
-        newCache.monthly_top1 = data.user_id;
-        notifications.push({ name: resolvePlayerName(data), board: 'BXH Chi tiêu tháng' });
+      if (prevUserId !== nextUserId) {
+        newCache[cacheKey] = nextUserId;
+        cacheTouched = true;
+        notifications.push({
+          cacheKey,
+          userId: nextUserId,
+          name: name || nextUserId,
+          board,
+        });
       }
-    }
+    };
 
-    // Check BXH chess - thắng nhiều nhất
-    const { data: chessTop } = await supabase.from('chess_stats')
-      .select('user_id').order('wins', { ascending: false }).limit(1).single();
-    if (chessTop) {
-      const { data: p } = await supabase.from('players')
-        .select('display_name, zalo_name').eq('user_id', chessTop.user_id).single();
-      if (cache.chess_top1 !== chessTop.user_id) {
-        newCache.chess_top1 = chessTop.user_id;
-        notifications.push({ name: resolvePlayerName(p || { user_id: chessTop.user_id }), board: 'BXH Kỳ thủ cờ vua' });
+    const resolveUserDisplayName = async (row) => {
+      if (!row?.user_id) return resolvePlayerName(row || {});
+      const { data: p } = await supabase
+        .from('players')
+        .select('display_name, zalo_name, name')
+        .eq('user_id', row.user_id)
+        .maybeSingle();
+
+      return resolvePlayerName(p || row);
+    };
+
+    const addSpendingBoard = async ({ period, col, board }) => {
+      const { data, error } = await supabase
+        .from('players')
+        .select(`user_id, display_name, zalo_name, name, ${col}`)
+        .gt(col, 0)
+        .order(col, { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.warn(`[TOP1] Spending board failed ${period}:`, error.message);
+        return;
       }
-    }
 
-    // Check BXH game scores
-    // Thông báo Top 1 áp dụng cho mọi BXH game đang có trong config.
-    // enabled chỉ dùng cho phần thưởng/reset, không chặn thông báo Top 1.
-    const games = Object.entries(lbCfg.games||{});
-    for (const [gameKey, gameCfg] of games) {
-      const { data: scores } = await supabase.from('game_scores')
-        .select('user_id, player_name, score').eq('game_key', gameKey)
-        .order('score', { ascending: false }).limit(1).single();
-      if (scores) {
-        const cacheKey = `game_${gameKey}_top1`;
-        if (cache[cacheKey] !== scores.user_id) {
-          newCache[cacheKey] = scores.user_id;
-          const { data: gp } = await supabase.from('players')
-            .select('display_name, zalo_name').eq('user_id', scores.user_id).maybeSingle();
-          notifications.push({ name: resolvePlayerName(gp || { player_name: scores.player_name, user_id: scores.user_id }), board: gameCfg.display_name||gameKey });
+      if (!data?.user_id) return;
+
+      rememberTop1({
+        cacheKey: `spending_${period}_top1`,
+        userId: data.user_id,
+        name: resolvePlayerName(data),
+        board,
+      });
+    };
+
+    const getGameTop1 = async ({ gameKey, weekly }) => {
+      let query = supabase
+        .from('game_scores')
+        .select('user_id, player_name, score, played_at')
+        .eq('game_key', gameKey)
+        .gt('score', 0)
+        .order('score', { ascending: false })
+        .order('played_at', { ascending: true })
+        .limit(2000);
+
+      if (weekly) {
+        query = query.gte('played_at', getLastMonday());
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.warn(`[TOP1] Game board failed ${gameKey}:`, error.message);
+        return null;
+      }
+
+      const bestMap = new Map();
+      for (const s of (data || [])) {
+        const uid = String(s.user_id);
+        const prev = bestMap.get(uid);
+
+        if (
+          !prev ||
+          Number(s.score || 0) > Number(prev.score || 0) ||
+          (
+            Number(s.score || 0) === Number(prev.score || 0) &&
+            new Date(s.played_at).getTime() < new Date(prev.played_at).getTime()
+          )
+        ) {
+          bestMap.set(uid, s);
         }
       }
+
+      return [...bestMap.values()].sort((a, b) => {
+        if (Number(b.score || 0) !== Number(a.score || 0)) {
+          return Number(b.score || 0) - Number(a.score || 0);
+        }
+        return new Date(a.played_at).getTime() - new Date(b.played_at).getTime();
+      })[0] || null;
+    };
+
+    const addGameBoard = async ({ gameKey, gameCfg = {}, weekly }) => {
+      if (
+        !gameKey ||
+        gameKey === 'chess' ||
+        gameKey === 'chess-wins' ||
+        gameKey === 'chess-streak'
+      ) return;
+
+      const top = await getGameTop1({ gameKey, weekly });
+      if (!top?.user_id) return;
+
+      const displayName = gameCfg.display_name || gameCfg.name || gameKey;
+      const name = await resolveUserDisplayName(top);
+
+      rememberTop1({
+        cacheKey: `game_${weekly ? 'weekly' : 'alltime'}_${gameKey}_top1`,
+        userId: top.user_id,
+        name,
+        board: weekly ? `BXH ${displayName} tuần` : `BXH ${displayName} mọi thời đại`,
+      });
+    };
+
+    const addChessBoard = async ({ mode, orderCol, board }) => {
+      const { data: top, error } = await supabase
+        .from('chess_stats')
+        .select('user_id, wins, best_streak')
+        .gt(orderCol, 0)
+        .order(orderCol, { ascending: false })
+        .order('wins', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.warn(`[TOP1] Chess board failed ${mode}:`, error.message);
+        return;
+      }
+
+      if (!top?.user_id) return;
+
+      const name = await resolveUserDisplayName(top);
+
+      rememberTop1({
+        cacheKey: `chess_${mode}_top1`,
+        userId: top.user_id,
+        name,
+        board,
+      });
+    };
+
+    // 1. BXH tiêu dùng
+    await addSpendingBoard({
+      period: 'weekly',
+      col: 'crm_spend_weekly',
+      board: 'BXH Chi tiêu tuần',
+    });
+
+    await addSpendingBoard({
+      period: 'monthly',
+      col: 'crm_spend_monthly',
+      board: 'BXH Chi tiêu tháng',
+    });
+
+    await addSpendingBoard({
+      period: 'yearly',
+      col: 'crm_spend_yearly',
+      board: 'BXH Chi tiêu năm',
+    });
+
+    await addSpendingBoard({
+      period: 'alltime',
+      col: 'crm_spend_alltime',
+      board: 'BXH Chi tiêu mọi thời đại',
+    });
+
+    await addSpendingBoard({
+      period: 'custom',
+      col: 'crm_spend_custom',
+      board: 'BXH Chi tiêu theo mốc thời gian',
+    });
+
+    // 2. BXH chess
+    await addChessBoard({
+      mode: 'wins',
+      orderCol: 'wins',
+      board: 'BXH Kỳ thủ cờ vua - số trận thắng',
+    });
+
+    await addChessBoard({
+      mode: 'streak',
+      orderCol: 'best_streak',
+      board: 'BXH Kỳ thủ cờ vua - chuỗi thắng',
+    });
+
+    // 3. BXH game tuần theo leaderboard_config.games
+    const weeklyGames = lbCfg.games || {};
+    for (const [gameKey, gameCfg] of Object.entries(weeklyGames)) {
+      if (gameCfg?.enabled === false) continue;
+      if (gameCfg?.weekly_reset === false) continue;
+
+      await addGameBoard({
+        gameKey,
+        gameCfg,
+        weekly: true,
+      });
     }
 
-    // Không update cache trước khi broadcast.
-    // Nếu socket/io chưa sẵn sàng mà update cache trước, sự kiện Top 1 sẽ bị mất vĩnh viễn.
-    if (notifications.length === 0) return;
+    // 4. BXH game alltime theo alltime_games_config.games.
+    // Nếu alltime_games_config chưa có games, fallback sang leaderboard_config.games.
+    const alltimeGames = Object.keys(alltimeGamesCfg.games || {}).length > 0
+      ? alltimeGamesCfg.games
+      : weeklyGames;
+
+    for (const [gameKey, gameCfg] of Object.entries(alltimeGames)) {
+      if (gameCfg?.enabled === false) continue;
+
+      await addGameBoard({
+        gameKey,
+        gameCfg,
+        weekly: false,
+      });
+    }
+
+    if (notifications.length === 0) {
+      if (cacheTouched) {
+        await supabase.from('app_configs').update({ top1_cache: newCache }).eq('id', 1);
+        console.log('[TOP1] Cache baseline updated with no broadcast');
+      }
+      return;
+    }
 
     const ioInstance = io || global._ioInstance || global.io;
     if (!ioInstance) {
@@ -384,6 +569,12 @@ async function checkAndNotifyTop1Changes(io) {
             enabled: true,
             message: msg,
           },
+          data: {
+            event: 'leaderboard.top1_changed',
+            cacheKey: notif.cacheKey,
+            userId: notif.userId,
+            board: notif.board,
+          },
         });
 
         broadcasted += 1;
@@ -393,8 +584,6 @@ async function checkAndNotifyTop1Changes(io) {
       }
     }
 
-    // Chỉ persist cache sau khi đã broadcast thành công ít nhất một thông báo.
-    // Giữ cache cũ nếu broadcast fail để lần check sau còn retry.
     if (broadcasted > 0) {
       await supabase.from('app_configs').update({ top1_cache: newCache }).eq('id', 1);
       console.log(`[TOP1] Cache updated after ${broadcasted} broadcast(s)`);
@@ -403,6 +592,7 @@ async function checkAndNotifyTop1Changes(io) {
     }
   } catch(e) { console.warn('[TOP1] Error:', e.message); }
 }
+
 
 async function manualMonthlyReset(io) {
   console.log('[RESET] Manual monthly trigger...');
