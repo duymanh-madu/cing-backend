@@ -274,6 +274,21 @@ async function syncAllPlayersCrmSpending({ batchSize=3, delayMs=2000 } = {}) {
     const io = global._ioInstance;
     await checkAndNotifyTop1Changes(io);
   } catch(e) { console.warn('[TOP1] CRM sync check failed:', e.message); }
+
+  // Realtime BXH tiêu dùng sau khi CRM batch sync thành công.
+  // Side effect only: không thay đổi logic CRM sync; lỗi realtime chỉ log warning.
+  try {
+    const { emitSpendingLeaderboardUpdates } = require("../spendingLeaderboardRealtimeService");
+
+    await emitSpendingLeaderboardUpdates({
+      periods: ["weekly", "monthly", "yearly", "alltime", "custom"],
+      updatedUser: null,
+      reason: "crm_batch_spending_changed",
+    });
+  } catch(e) {
+    console.warn("[CRM SYNC] Spending leaderboard realtime failed:", e.message);
+  }
+
   return { success: true, stats, elapsed_seconds: elapsed, total: filtered.length };
 }
 

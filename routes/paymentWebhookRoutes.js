@@ -469,6 +469,25 @@ const momoIpnHandler = async (req, res) => {
         } catch(e) {
           console.warn("[MOMO IPN] Top1 check failed:", e.message);
         }
+
+        // Realtime BXH tiêu dùng — append-only side effect.
+        // Tuyệt đối không thay đổi payment/order/spending flow.
+        // Nếu realtime lỗi thì chỉ log warning, không throw, không return, không ảnh hưởng payment.
+        try {
+          const { emitSpendingLeaderboardUpdates } = require("../services/spendingLeaderboardRealtimeService");
+
+          const realtimePeriods = ["weekly", "monthly", "yearly", "alltime"];
+          if (customSpendIncrement > 0) realtimePeriods.push("custom");
+
+          await emitSpendingLeaderboardUpdates({
+            periods: realtimePeriods,
+            updatedUser: { user_id: phone },
+            amountAdded: amount,
+            reason: "momo_after_hours_spending_changed",
+          });
+        } catch(e) {
+          console.warn("[MOMO IPN] Spending leaderboard realtime failed:", e.message);
+        }
       }
       } catch (e) {
         console.warn("[MOMO IPN] Instant spending failed:", e.message);

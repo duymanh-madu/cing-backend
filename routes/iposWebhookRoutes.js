@@ -414,7 +414,17 @@ router.post("/callback", async (req, res) => {
         console.warn('[FOODBOOK] checkAndNotifyTop1 failed:', e.message);
       }
 
-      realtimeEventBus.publish({ event: "leaderboard.updated", delivery_type: "BROADCAST", payload: { updated_user: p0 }, channel: "leaderboard", timestamp: new Date().toISOString() });
+      try {
+        const { emitSpendingLeaderboardUpdates } = require("../services/spendingLeaderboardRealtimeService");
+
+        await emitSpendingLeaderboardUpdates({
+          periods: ["weekly", "monthly", "yearly", "alltime", "custom"],
+          updatedUser: p0,
+          reason: "ipos_spending_changed",
+        });
+      } catch(e) {
+        console.warn("[IPOS WEBHOOK] Spending leaderboard realtime failed:", e.message);
+      }
       console.log(`[FOODBOOK] Full sync done for ${p0} - event: ${event}`);
     }
 
