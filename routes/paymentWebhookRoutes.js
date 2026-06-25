@@ -35,6 +35,76 @@ function verifyZaloCheckoutMac(data, mac) {
 }
 
 
+
+async function awardGamePlaysForPaidOrder({ phone, order }) {
+  const userId = normalizePhone(phone || order?.customer_phone || order?.user_id || "");
+  const orderCode = String(order?.order_code || "").trim();
+  const amount = Number(order?.total_amount || 0);
+
+  if (!userId || !orderCode || amount <= 0) {
+    return { success: false, skipped: true, reason: "invalid_order" };
+  }
+
+  const { data: existingLog } = await supabase
+    .from("analytics_events")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("event_name", "plays_added")
+    .contains("event_data", {
+      source: "order_spending",
+      order_code: orderCode,
+    })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingLog) {
+    return { success: true, skipped: true, reason: "already_awarded", order_code: orderCode };
+  }
+
+  const spendPerPlay = await supabase.from("app_configs")
+    .select("spend_per_play").eq("id", 1).single()
+    .then(r => Number(r.data?.spend_per_play || 20000))
+    .catch(() => 20000);
+
+  const playsToAdd = Math.floor(amount / (spendPerPlay || 20000));
+  if (playsToAdd <= 0) {
+    return { success: true, skipped: true, reason: "below_threshold", order_code: orderCode };
+  }
+
+  const { data: player } = await supabase
+    .from("players")
+    .select("game_plays, plays_from_spend")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const newTotal = Number(player?.game_plays || 0) + playsToAdd;
+
+  const { addPlays } = require("../services/loyaltyPointService");
+  await addPlays({
+    user_id: userId,
+    amount: playsToAdd,
+    reason: `Tiêu dùng ${amount.toLocaleString("vi-VN")}đ — đơn ${orderCode}`,
+    new_total: newTotal,
+    metadata: {
+      source: "order_spending",
+      order_code: orderCode,
+      order_amount: amount,
+      spend_per_play: spendPerPlay,
+    },
+  });
+
+  await supabase.from("players")
+    .update({
+      game_plays: newTotal,
+      plays_from_spend: Number(player?.plays_from_spend || 0) + playsToAdd,
+    })
+    .eq("user_id", userId);
+
+  console.log(`[GAME] Order spend bonus: +${playsToAdd} plays for ${userId} | ${orderCode} | amount=${amount}`);
+  return { success: true, plays: playsToAdd, order_code: orderCode };
+}
+
+
 const momoIpnHandler = async (req, res) => {
   const { resultCode, orderId, transId, amount, message } = req.body;
   console.log("[MOMO IPN]", { resultCode, orderId, transId, amount });
@@ -294,6 +364,16 @@ const momoIpnHandler = async (req, res) => {
       console.log("[MOMO IPN] Skip partner progress before 23h; CRM sync owns partner progress:", order.order_code);
     }
 
+    // ─── 3a. Game plays by order — chạy 24/7, không phụ thuộc CRM/after-hours ───
+    try {
+      await awardGamePlaysForPaidOrder({
+        phone: resolvedPhone || order.customer_phone,
+        order,
+      });
+    } catch (e) {
+      console.warn("[MOMO IPN] Order game plays failed:", e.message);
+    }
+
     // ─── 3b. Instant spending sync vào players table ───────────────
     // Trước 23h: CRM/iPOS là nguồn chính, app không tự ghi chi tiêu.
     // Sau 23h: app chủ động ghi chi tiêu + lượt chơi ngay, rồi đánh dấu spending_synced.
@@ -337,7 +417,7 @@ const momoIpnHandler = async (req, res) => {
 
       // Lấy spending hiện tại
       const { data: player } = await supabase.from("players")
-        .select("crm_spend_weekly, crm_spend_monthly, crm_spend_yearly, crm_spend_alltime, crm_spend_custom, game_plays, plays_from_spend")
+        .select("crm_spend_weekly, crm_spend_monthly, crm_spend_yearly, crm_spend_alltime, crm_spend_custom")
         .eq("user_id", phone).single();
 
       const spendPerPlay = await supabase.from("app_configs")
@@ -351,8 +431,6 @@ const momoIpnHandler = async (req, res) => {
           crm_spend_weekly: amount, crm_spend_monthly: amount,
           crm_spend_yearly: amount, crm_spend_alltime: amount,
           crm_spend_custom: customSpendIncrement,
-          plays_from_spend: Math.floor(amount / (spendPerPlay||20000)),
-          game_plays: Math.floor(amount / (spendPerPlay||20000)),
           crm_synced_at: new Date().toISOString(),
         }, { onConflict: "user_id" });
         console.log(`[MOMO IPN] New player instant spending +${amount} for ${phone}`);
@@ -364,15 +442,6 @@ const momoIpnHandler = async (req, res) => {
         const newYearly   = Number(player.crm_spend_yearly   || 0) + amount;
         const newAlltime  = Number(player.crm_spend_alltime  || 0) + amount;
 
-        // Tính lượt chơi mới từ spending
-        const oldPlaysFromSpend = Number(player.plays_from_spend || 0);
-
-        // Tính lượt chơi theo đơn hiện tại
-        const bonusPlays = Math.floor(amount / spendPerPlay);
-
-        // Tổng số lượt đã được cấp từ chi tiêu
-        const newPlaysFromSpend = oldPlaysFromSpend + bonusPlays;
-
         const updateData = {
           crm_spend_weekly:  newWeekly,
           crm_spend_monthly: newMonthly,
@@ -380,34 +449,16 @@ const momoIpnHandler = async (req, res) => {
           crm_spend_alltime: newAlltime,
           crm_spend_custom:
          Number(player.crm_spend_custom || 0) + customSpendIncrement,
-          plays_from_spend:  newPlaysFromSpend,
         };
 
-        if (bonusPlays > 0) {
-          updateData.game_plays = Number(player.game_plays || 0) + bonusPlays;
-          console.log(`[MOMO IPN] +${bonusPlays} plays from spending for ${phone}`);
-          // Ghi log vào analytics_events để hiển thị lịch sử
-          supabase.from("analytics_events").insert({
-            user_id: phone,
-            event_name: "plays_added",
-            event_data: {
-              amount: bonusPlays,
-              reason: `Tiêu dùng ${amount.toLocaleString("vi-VN")}đ — đơn ${order.order_code}`,
-              new_total: Number(player.game_plays || 0) + bonusPlays,
-              source: "spending",
-            },
-            created_at: new Date().toISOString(),
-          }).then(() => {}).catch(() => {});
-        }
-
         const { data: updated, error: updateErr } = await supabase.from("players")
-          .update(updateData).eq("user_id", phone).select("crm_spend_alltime,plays_from_spend,game_plays");
+          .update(updateData).eq("user_id", phone).select("crm_spend_alltime");
         if (updateErr) console.warn("[MOMO IPN] Player update error:", updateErr.message);
 
         // Đánh dấu đơn đã sync spending
         await supabase.from("orders").update({ spending_synced: true }).eq("id", order.id);
 
-        console.log(`[MOMO IPN] Instant spending +${amount} for ${phone} | week:${newWeekly} month:${newMonthly} alltime:${newAlltime} plays:${updated?.[0]?.game_plays}`);
+        console.log(`[MOMO IPN] Instant spending +${amount} for ${phone} | week:${newWeekly} month:${newMonthly} alltime:${newAlltime}`);
 
         try {
           const io = req.app.get("io") || global._ioInstance || global.io;

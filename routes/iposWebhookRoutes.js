@@ -141,6 +141,12 @@ async function awardOrderGamePlays({ user_id, order_code, amount }) {
     amount: playsToAdd,
     reason: `Tiêu dùng ${totalAmount.toLocaleString("vi-VN")}đ — đơn ${orderCode}`,
     new_total: newTotal,
+    metadata: {
+      source: "order_spending",
+      order_code: orderCode,
+      order_amount: totalAmount,
+      spend_per_play: spendPerPlay,
+    },
   });
 
   await supabase

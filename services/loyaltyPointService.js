@@ -256,8 +256,8 @@ function moneyToPoints(amount) {
   return Math.floor(amount / POINT_VALUE);
 }
 
-async function addPlays({ user_id, amount, reason = "Cộng lượt chơi", new_total = 0 }) {
-  await logAnalytics('plays_added', user_id, { amount, reason, new_total });
+async function addPlays({ user_id, amount, reason = "Cộng lượt chơi", new_total = 0, metadata = {} }) {
+  await logAnalytics('plays_added', user_id, { amount, reason, new_total, ...metadata });
 }
 
 async function deductPlays({ user_id, amount, reason = "Sử dụng lượt chơi", new_total = 0 }) {
