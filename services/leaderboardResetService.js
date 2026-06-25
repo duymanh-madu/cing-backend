@@ -356,17 +356,23 @@ async function checkAndNotifyTop1Changes(io) {
       }
     }
 
-    // Update cache chỉ khi có thay đổi thật sự
-    if (notifications.length > 0) {
-      await supabase.from('app_configs').update({ top1_cache: newCache }).eq('id', 1);
+    // Không update cache trước khi broadcast.
+    // Nếu socket/io chưa sẵn sàng mà update cache trước, sự kiện Top 1 sẽ bị mất vĩnh viễn.
+    if (notifications.length === 0) return;
+
+    const ioInstance = io || global._ioInstance || global.io;
+    if (!ioInstance) {
+      console.warn('[TOP1] No io instance available - skip cache update so notification can retry later');
+      return;
     }
 
-    // Broadcast notifications
-    const ioInstance = io || global._ioInstance || global.io;
+    let broadcasted = 0;
+
     for (const notif of notifications) {
       const msg = `🏆 Chúc mừng ${notif.name} đã xuất sắc leo lên Top 1 ${notif.board}!`;
       console.log('[TOP1]', msg);
-      if (ioInstance) {
+
+      try {
         ioInstance.emit('notification.broadcast', {
           notification: {
             title: '🏆 Top 1 mới!',
@@ -379,10 +385,21 @@ async function checkAndNotifyTop1Changes(io) {
             message: msg,
           },
         });
+
+        broadcasted += 1;
         console.log('[TOP1] Broadcasted via socket.io');
-      } else {
-        console.warn('[TOP1] No io instance available');
+      } catch (emitErr) {
+        console.warn('[TOP1] Broadcast failed:', emitErr.message);
       }
+    }
+
+    // Chỉ persist cache sau khi đã broadcast thành công ít nhất một thông báo.
+    // Giữ cache cũ nếu broadcast fail để lần check sau còn retry.
+    if (broadcasted > 0) {
+      await supabase.from('app_configs').update({ top1_cache: newCache }).eq('id', 1);
+      console.log(`[TOP1] Cache updated after ${broadcasted} broadcast(s)`);
+    } else {
+      console.warn('[TOP1] No broadcast succeeded - cache not updated');
     }
   } catch(e) { console.warn('[TOP1] Error:', e.message); }
 }
