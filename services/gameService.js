@@ -118,6 +118,53 @@ async function saveGameScore({
 
 }) {
 
+  const numericScore =
+    Number(score || 0);
+
+  function getCurrentWeekStartVN() {
+    const vnNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
+    const daysBack = (vnNow.getDay() + 6) % 7;
+    const mondayVN = new Date(vnNow);
+    mondayVN.setDate(vnNow.getDate() - daysBack);
+    mondayVN.setHours(0, 0, 0, 0);
+    return new Date(mondayVN.getTime() - 7 * 60 * 60 * 1000).toISOString();
+  }
+
+  const weekStartUtc =
+    getCurrentWeekStartVN();
+
+  let previousAlltimeBest = 0;
+  let previousWeeklyBest = 0;
+
+  try {
+    const { data: alltimeBest } = await supabase
+      .from("game_scores")
+      .select("score")
+      .eq("game_key", game_key)
+      .eq("user_id", user_id)
+      .order("score", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    previousAlltimeBest =
+      Number(alltimeBest?.score || 0);
+
+    const { data: weeklyBest } = await supabase
+      .from("game_scores")
+      .select("score")
+      .eq("game_key", game_key)
+      .eq("user_id", user_id)
+      .gte("played_at", weekStartUtc)
+      .order("score", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    previousWeeklyBest =
+      Number(weeklyBest?.score || 0);
+  } catch (bestErr) {
+    console.warn("[GAME] Previous best check failed:", bestErr.message);
+  }
+
   const {
     data,
     error,
@@ -135,7 +182,8 @@ async function saveGameScore({
 
       avatar,
 
-      score,
+      score:
+        numericScore,
 
     })
 
@@ -168,20 +216,65 @@ async function saveGameScore({
 
         game_key,
 
-        score,
+        score:
+          numericScore,
+
+        previous_alltime_best:
+          previousAlltimeBest,
+
+        previous_weekly_best:
+          previousWeeklyBest,
 
       },
 
     });
 
+  const weeklyHighscoreChanged =
+    numericScore > previousWeeklyBest;
+
+  const alltimeHighscoreChanged =
+    numericScore > previousAlltimeBest;
+
+  if (!weeklyHighscoreChanged && !alltimeHighscoreChanged) {
+    console.log(
+      `[GAME] Score saved without leaderboard emit: ${game_key} user=${user_id} score=${numericScore} weeklyBest=${previousWeeklyBest} alltimeBest=${previousAlltimeBest}`
+    );
+
+    return {
+      ...data,
+      highscore_changed: false,
+      previous_weekly_best: previousWeeklyBest,
+      previous_alltime_best: previousAlltimeBest,
+    };
+  }
+
   try {
-    const { data: top10 } = await supabase
-      .from("game_scores")
-      .select("user_id, player_name, avatar, score")
-      .eq("game_key", game_key)
-      .order("score", { ascending: false })
-      .limit(10);
-    await emitLeaderboardUpdate({ leaderboard: top10 || [] });
+    const { getGameLeaderboard } =
+      require("./leaderboardService");
+
+    const leaderboard =
+      await getGameLeaderboard(
+        game_key,
+        {
+          weekly: true,
+          limit: 100,
+        }
+      );
+
+    await emitLeaderboardUpdate({
+      leaderboard,
+      game_key,
+      scope: "weekly",
+      reason: "highscore_changed",
+      updated_user: {
+        user_id,
+        player_name,
+        avatar,
+      },
+      previous_best: previousWeeklyBest,
+      score: numericScore,
+      highscore_changed: true,
+    });
 
     try {
       const io = global._ioInstance || global.io;
@@ -195,7 +288,15 @@ async function saveGameScore({
   } catch(e) {
     console.warn("[GAME] Leaderboard emit failed:", e.message);
   }
-  return data;
+
+  return {
+    ...data,
+    highscore_changed: true,
+    weekly_highscore_changed: weeklyHighscoreChanged,
+    alltime_highscore_changed: alltimeHighscoreChanged,
+    previous_weekly_best: previousWeeklyBest,
+    previous_alltime_best: previousAlltimeBest,
+  };
 
 }
 
