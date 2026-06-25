@@ -200,34 +200,10 @@ async function syncOnePlayer(player) {
       await addPlays({ user_id: userId, amount: 3, reason: 'Bonus kích hoạt lần đầu', new_total: playsUpdate.game_plays }).catch(()=>{});
     }
 
-    // Logic 2: Moi 20.000d spending tich luy -> +1 luot choi
-    // Tính lượt chơi từ crm_spend_custom (chi tiêu từ 01/06/2026)
-    // Đọc tỉ lệ từ DB — admin có thể thay đổi qua dashboard
-    let appCfg = null;
-    try {
-      const { data } = await supabase.from('app_configs')
-        .select('spend_per_play').eq('id', 1).single();
-      appCfg = data;
-    } catch(e) {}
-    const SPEND_PER_PLAY = appCfg?.spend_per_play || 20000;
-    const spendSinceLaunch = custom || 0;
-    const playsEarned = Math.floor(spendSinceLaunch / SPEND_PER_PLAY);
-    const playsFromSpend = Number(currentPlayer?.plays_from_spend || 0);
-    const newPlays       = playsEarned - playsFromSpend;
-
-    if (newPlays > 0) {
-      const currentPlays = Number(playsUpdate.game_plays != null ? playsUpdate.game_plays : (currentPlayer?.game_plays || 0));
-      playsUpdate.game_plays       = currentPlays + newPlays;
-      playsUpdate.plays_from_spend = playsEarned;
-      console.log('[GAME] Spend bonus: +' + newPlays + ' plays for ' + userId + ' (total earned: ' + playsEarned + ')');
-      const previousSpendForPlays = playsFromSpend * SPEND_PER_PLAY;
-      const orderAmountForPlayLog = Math.max(
-        0,
-        Number(spendSinceLaunch || 0) - previousSpendForPlays
-      );
-      const orderAmountLabel = orderAmountForPlayLog.toLocaleString("vi-VN") + "đ";
-      await addPlays({ user_id: userId, amount: newPlays, reason: 'Thưởng ' + newPlays + ' lượt từ đơn hàng (' + orderAmountLabel + ')', new_total: playsUpdate.game_plays }).catch(()=>{});
-    }
+    // Logic cộng lượt theo chi tiêu đã chuyển sang từng đơn hàng riêng:
+    // - App orders: paymentWebhookRoutes.js
+    // - POS/iPOS orders: iposWebhookRoutes.js
+    // CRM sync chỉ đồng bộ spending, không cấp lượt chơi để tránh lệch baseline.
 
     if (Object.keys(playsUpdate).length > 0) {
       await supabase.from('players').update(playsUpdate).eq('user_id', userId);

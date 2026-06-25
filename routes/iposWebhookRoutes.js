@@ -85,6 +85,104 @@ async function clearMomoPaidCrmRecoveryJob(phone, event) {
   }
 }
 
+
+async function awardOrderGamePlays({ user_id, order_code, amount }) {
+  const phone = normalizePhone(user_id || "");
+  const orderCode = String(order_code || "").trim();
+  const totalAmount = Number(amount || 0);
+
+  if (!phone || !orderCode || totalAmount <= 0) {
+    return { success: false, skipped: true, reason: "invalid_input" };
+  }
+
+  const { data: existingLog } = await supabase
+    .from("analytics_events")
+    .select("id")
+    .eq("user_id", phone)
+    .eq("event_name", "plays_added")
+    .contains("event_data", {
+      source: "order_spending",
+      order_code: orderCode,
+    })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingLog) {
+    return { success: true, skipped: true, reason: "already_awarded", order_code: orderCode };
+  }
+
+  const spendPerPlay = await supabase
+    .from("app_configs")
+    .select("spend_per_play")
+    .eq("id", 1)
+    .single()
+    .then(r => Number(r.data?.spend_per_play || 20000))
+    .catch(() => 20000);
+
+  const playsToAdd = Math.floor(totalAmount / (spendPerPlay || 20000));
+
+  if (playsToAdd <= 0) {
+    return { success: true, skipped: true, reason: "below_threshold", order_code: orderCode };
+  }
+
+  const { data: player } = await supabase
+    .from("players")
+    .select("game_plays, plays_from_spend")
+    .eq("user_id", phone)
+    .maybeSingle();
+
+  const currentPlays = Number(player?.game_plays || 0);
+  const newTotal = currentPlays + playsToAdd;
+
+  const { addPlays } = require("../services/loyaltyPointService");
+
+  await addPlays({
+    user_id: phone,
+    amount: playsToAdd,
+    reason: `Tiêu dùng ${totalAmount.toLocaleString("vi-VN")}đ — đơn ${orderCode}`,
+    new_total: newTotal,
+  });
+
+  await supabase
+    .from("players")
+    .update({
+      game_plays: newTotal,
+      plays_from_spend: Number(player?.plays_from_spend || 0) + playsToAdd,
+    })
+    .eq("user_id", phone);
+
+  console.log(`[GAME] Order spend bonus: +${playsToAdd} plays for ${phone} | ${orderCode} | amount=${totalAmount}`);
+  return { success: true, plays: playsToAdd, order_code: orderCode };
+}
+
+function extractIposOrderAmount(orderData) {
+  if (!orderData) return 0;
+
+  const direct =
+    orderData.total_amount ||
+    orderData.payment_amount ||
+    orderData.total_money ||
+    orderData.money ||
+    orderData.amount ||
+    orderData.grand_total ||
+    orderData.final_amount ||
+    0;
+
+  if (Number(direct || 0) > 0) return Number(direct || 0);
+
+  const items = orderData.order_data_item || orderData.items || [];
+  if (Array.isArray(items)) {
+    return items.reduce((sum, item) => {
+      const price = Number(item.Price || item.price || item.unit_price || 0);
+      const qty = Number(item.Quantity || item.quantity || item.qty || 1);
+      return sum + price * qty;
+    }, 0);
+  }
+
+  return 0;
+}
+
+
 router.post("/callback", async (req, res) => {
   try {
     const body  = req.body || {};
@@ -276,6 +374,18 @@ router.post("/callback", async (req, res) => {
         if (!skipSync) {
           await syncSingleUserSpending(p0);
           console.log(`[FOODBOOK] Spending synced for ${p0} - event: ${event}`);
+        }
+
+        const orderForPlays = body.notify_order_online || body.sale_manager || body.membership_log;
+        const foodbookCodeForPlays = orderForPlays?.foodbook_code;
+        const amountForPlays = extractIposOrderAmount(orderForPlays);
+
+        if (foodbookCodeForPlays) {
+          await awardOrderGamePlays({
+            user_id: p0,
+            order_code: "ORD-" + foodbookCodeForPlays,
+            amount: amountForPlays,
+          }).catch(e => console.warn("[GAME] Order spend bonus failed:", e.message));
         }
         // Nếu iPOS membership_log đã sync hoặc xác nhận đơn app đã sync,
         // dọn job CRM recovery dự phòng từ MoMo để tránh recovery tick sync lại cùng dữ liệu.
