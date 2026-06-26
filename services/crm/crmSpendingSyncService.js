@@ -19,6 +19,9 @@ async function fetchAllPlayerRows(columns, filterFn) {
 const foodbook = require('../foodbook');
 const { addPlays } = require('../loyaltyPointService');
 const { setPartnerMonthlySpending } = require('../partnerProgressService');
+const {
+  awardProcessedCrmIposOrdersForUser,
+} = require('../game/orderSpendPlayAwardService');
 
 /**
  * Lấy thời điểm hiện tại theo giờ VN (UTC+7)
@@ -207,6 +210,21 @@ async function syncOnePlayer(player) {
 
     if (Object.keys(playsUpdate).length > 0) {
       await supabase.from('players').update(playsUpdate).eq('user_id', userId);
+    }
+
+    // POS/iPOS orders recorded in crm_orders are already processed by CRM sync,
+    // but they do not pass through paymentWebhookRoutes.js or iposWebhookRoutes.js.
+    // Award game plays here, idempotently by analytics_events order_code.
+    try {
+      const awardStats = await awardProcessedCrmIposOrdersForUser({
+        user_id: userId,
+      });
+
+      if (awardStats.awarded > 0 || awardStats.failed > 0) {
+        console.log('[GAME] CRM iPOS order plays sync:', awardStats);
+      }
+    } catch(e) {
+      console.warn('[GAME] CRM iPOS order plays sync failed:', userId, e.message);
     }
 
     console.log(`Synced ${memberData.name||userId}: all=${allTimeSpent} week=${weekly} month=${monthly}`);
