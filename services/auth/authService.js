@@ -140,14 +140,10 @@ async function loginWithZalo({
     }
   }
 
-  const customer =
-    await customerRepository.upsertCustomer({
-      zaloUser,
-    });
-
-  // Lấy tên từ Zalo OA API trước khi tạo member iPOS
+  // Lấy tên/avatar từ Zalo OA trước khi upsert customer/iPOS.
+  // Nếu frontend không trả được getUserInfo, backend vẫn không để user mới bị ghi là "Khách hàng".
   const zaloId = zaloUser.zalo_id || zaloUser.id || "";
-  if ((!zaloUser.name || zaloUser.name === "Khách hàng") && zaloId) {
+  if ((!zaloUser.name || zaloUser.name === "Khách hàng" || zaloUser.name === "Khách") && zaloId) {
     try {
       const { data: cfg } = await require("../../supabase")
         .from("app_configs").select("zalo_oa_access_token").eq("id", 1).single();
@@ -161,11 +157,16 @@ async function loginWithZalo({
         if (profileData?.data?.display_name) {
           zaloUser.name = profileData.data.display_name;
           zaloUser.avatar = profileData.data.avatar || zaloUser.avatar || "";
-          console.log("[AUTH] Zalo OA profile fetched:", zaloUser.name);
+          console.log("[AUTH] Zalo OA profile fetched before upsert:", zaloUser.name);
         }
       }
     } catch(e) { console.warn("[AUTH] fetch Zalo OA profile failed:", e.message); }
   }
+
+  const customer =
+    await customerRepository.upsertCustomer({
+      zaloUser,
+    });
 
   // Tạo member trong iPOS nếu chưa có
   if (customer.phone) {
