@@ -160,7 +160,6 @@ async function awardProcessedCrmIposOrdersForUser({
       .from("crm_orders")
       .select("id, order_code, user_id, order_amount, source, processed, created_at")
       .in("user_id", ids)
-      .eq("source", "ipos")
       .eq("processed", true)
       .gt("order_amount", 0)
       .order("created_at", { ascending: true })
@@ -180,7 +179,7 @@ async function awardProcessedCrmIposOrdersForUser({
           user_id: phone0,
           order_code: order.order_code,
           amount: order.order_amount,
-          source_context: "crm_orders_ipos",
+          source_context: `crm_orders:${order.source || "unknown"}`,
         });
 
         if (result?.skipped) skipped++;
