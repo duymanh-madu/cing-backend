@@ -308,12 +308,18 @@ router.post("/callback", async (req, res) => {
       };
 
       // 3. Đồng bộ total_points từ CRM → DB
-      // Trước 23h: CRM/iPOS là nguồn chính → sync CRM về App.
-      // Sau 23h: nếu đơn app đã spending_synced=true, app đã ghi nhận tức thì
-      // → không overwrite điểm local bằng webhook của chính đơn đó.
+      // CRM/iPOS là nguồn điểm thật cho giao dịch tại quầy.
+      // App history đọc analytics_events, nên khi điểm CRM tăng phải ghi points_added event idempotent.
       try {
         const orderDataForPointSource = body.notify_order_online || body.sale_manager || body.membership_log;
         const foodbookCodeForPointSource = orderDataForPointSource?.foodbook_code;
+        const amountForPointSource = extractIposOrderAmount(orderDataForPointSource);
+        const directOrderCodeForPointSource = foodbookCodeForPointSource
+          ? "ORD-" + foodbookCodeForPointSource
+          : event === "membership_log" && uniqueId
+            ? "IPOS-MEMBERSHIP-" + uniqueId
+            : "";
+
         let skipPointOverwrite = false;
 
         if (foodbookCodeForPointSource) {
@@ -326,20 +332,54 @@ router.post("/callback", async (req, res) => {
           skipPointOverwrite = existingOrder?.spending_synced === true;
         }
 
-        if (skipPointOverwrite) {
-          const { data: localPlayer } = await supabase
-            .from("players")
-            .select("total_points")
-            .eq("user_id", p0)
-            .maybeSingle();
+        const { data: localPlayer } = await supabase
+          .from("players")
+          .select("total_points")
+          .eq("user_id", p0)
+          .maybeSingle();
 
-          memberData.points = Number(localPlayer?.total_points || 0);
+        const localPoints = Number(localPlayer?.total_points || 0);
+
+        if (skipPointOverwrite) {
+          memberData.points = localPoints;
           console.log(`[IPOS WEBHOOK] Skip point overwrite for after-hours app order ${foodbookCodeForPointSource} / ${p0}`);
         } else {
           const crmPoints = Math.floor(d.point || 0);
+          const pointsDelta = crmPoints - localPoints;
+
+          if (pointsDelta > 0 && directOrderCodeForPointSource) {
+            const { error: pointHistoryErr } = await supabase
+              .from("analytics_events")
+              .insert({
+                event_name: "points_added",
+                user_id: p0,
+                event_data: {
+                  amount: pointsDelta,
+                  reason: `Tích điểm đơn tại quầy iPOS — đơn ${directOrderCodeForPointSource}`,
+                  source: foodbookCodeForPointSource ? "ipos_order" : "ipos_membership_log",
+                  order_code: directOrderCodeForPointSource,
+                  order_amount: amountForPointSource,
+                  new_total: crmPoints,
+                },
+                created_at: new Date().toISOString(),
+              });
+
+            if (pointHistoryErr && pointHistoryErr.code !== "23505") {
+              console.warn("[IPOS WEBHOOK] points history insert failed:", pointHistoryErr.message);
+            } else if (!pointHistoryErr) {
+              console.log("[IPOS WEBHOOK] points history added:", {
+                phone: p0,
+                order_code: directOrderCodeForPointSource,
+                points: pointsDelta,
+                new_total: crmPoints,
+              });
+            }
+          }
+
           await supabase.from("players")
             .update({ total_points: crmPoints })
             .eq("user_id", p0);
+
           await supabase.from("point_balance_baselines")
             .update({ baseline_points: crmPoints, baseline_at: new Date().toISOString() })
             .eq("user_id", p0);
