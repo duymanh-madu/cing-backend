@@ -6,6 +6,7 @@ const redisPublisher = require("../services/infrastructure/cache/redisPublisher"
 const { realtimeEventBus } = require("../services/realtime/realtimeEventBus");
 const { getMember } = require("../services/foodbook");
 const { syncSingleUserSpending } = require("../services/crm/crmSpendingSyncService");
+const { awardProcessedCrmIposOrdersForUser } = require("../services/game/orderSpendPlayAwardService");
 
 const IPOS_WEBHOOK_SECRET = process.env.IPOS_WEBHOOK_SECRET || "";
 
@@ -380,6 +381,19 @@ router.post("/callback", async (req, res) => {
         if (!skipSync) {
           await syncSingleUserSpending(p0);
           console.log(`[FOODBOOK] Spending synced for ${p0} - event: ${event}`);
+
+          try {
+            const awardStats = await awardProcessedCrmIposOrdersForUser({
+              user_id: p0,
+            });
+            console.log("[GAME] CRM order plays award after iPOS webhook:", {
+              phone: p0,
+              event,
+              ...awardStats,
+            });
+          } catch (e) {
+            console.warn("[GAME] CRM order plays award after iPOS webhook failed:", p0, e.message);
+          }
         }
 
         const orderForPlays = body.notify_order_online || body.sale_manager || body.membership_log;
@@ -392,6 +406,13 @@ router.post("/callback", async (req, res) => {
             order_code: "ORD-" + foodbookCodeForPlays,
             amount: amountForPlays,
           }).catch(e => console.warn("[GAME] Order spend bonus failed:", e.message));
+        } else {
+          console.log("[GAME] Direct iPOS order play award skipped: missing foodbook_code", {
+            phone: p0,
+            event,
+            uniqueId,
+            amount: amountForPlays,
+          });
         }
         // Nếu iPOS membership_log đã sync hoặc xác nhận đơn app đã sync,
         // dọn job CRM recovery dự phòng từ MoMo để tránh recovery tick sync lại cùng dữ liệu.
