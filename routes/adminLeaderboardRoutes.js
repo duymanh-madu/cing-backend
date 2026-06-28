@@ -141,25 +141,41 @@ router.post("/reset-game-scores", requireAdmin, async (req, res) => {
       });
     }
 
-    // Backup top 100 trước khi reset
+    const weekStart = getMonday();
+
+    // Backup weekly top 100 before reset.
+    // Keep archive scope aligned with reset scope.
     const { data: top100 } = await supabase.from("game_scores")
-      .select("*").eq("game_key", game_key)
-      .order("score", { ascending: false }).limit(100);
+      .select("*")
+      .eq("game_key", game_key)
+      .gte("played_at", weekStart)
+      .order("score", { ascending: false })
+      .limit(100);
 
     // Lưu backup
     await supabase.from("game_score_archives").insert({
       game_key,
-      week_start: getMonday(),
+      week_start: weekStart,
       top_scores: top100 || [],
       archived_at: new Date().toISOString(),
     }).catch(() => {}); // ignore nếu chưa có bảng
 
-    // Reset scores
+    // Reset weekly scores only.
+    // game_scores is append-friendly and shared by game_key.
+    // Deleting all rows would destroy alltime leaderboard history.
+
     const { error } = await supabase.from("game_scores")
-      .delete().eq("game_key", game_key);
+      .delete()
+      .eq("game_key", game_key)
+      .gte("played_at", weekStart);
 
     if (error) throw error;
-    res.json({ success: true, message: `Đã reset bảng xếp hạng ${game_key}`, archived: top100?.length || 0 });
+    res.json({
+      success: true,
+      message: `Đã reset BXH tuần ${game_key}`,
+      archived: top100?.length || 0,
+      week_start: weekStart,
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
