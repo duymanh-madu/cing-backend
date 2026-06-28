@@ -193,6 +193,16 @@ router.get("/alltime-games-config", requireAdmin, async (req, res) => {
             { rank:3, points:200, label:"🥉 Hạng ba" },
           ]
         },
+        "cing-stack-tower": {
+          enabled: true,
+          display_name: "Xếp Tháp Cing",
+          icon: "🧱",
+          rewards: [
+            { rank:1, points:500, label:"🥇 Vô địch" },
+            { rank:2, points:300, label:"🥈 Á quân" },
+            { rank:3, points:200, label:"🥉 Hạng ba" },
+          ]
+        },
       }
     };
     res.json({ success:true, data: data?.alltime_games_config || defaultConfig });

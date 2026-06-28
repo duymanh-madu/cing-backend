@@ -98,6 +98,7 @@ module.exports =
 
       const validGames = [
         "black-pearl-rush",
+        "cing-stack-tower",
         "chess",
       ];
 

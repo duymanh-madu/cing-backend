@@ -232,6 +232,7 @@ router.get("/leaderboard/alltime-games", async (req, res) => {
     const cfg = cfgRow?.alltime_games_config || {};
     const gamesConfig = cfg.games || {
       "black-pearl-rush": { enabled:true, display_name:"Bay cùng trân châu", icon:"🫧" },
+      "cing-stack-tower": { enabled:true, display_name:"Xếp Tháp Cing", icon:"🧱" },
     };
 
     // Chỉ lấy game đang enabled
