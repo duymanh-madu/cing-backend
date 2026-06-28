@@ -345,21 +345,22 @@ router.post("/callback", async (req, res) => {
           console.log(`[IPOS WEBHOOK] Skip point overwrite for after-hours app order ${foodbookCodeForPointSource} / ${p0}`);
         } else {
           const crmPoints = Math.floor(d.point || 0);
-          const pointsDelta = crmPoints - localPoints;
+          const orderEarnedPoints = Math.floor(Number(amountForPointSource || 0) * 0.1 / 1000);
 
-          if (pointsDelta > 0 && directOrderCodeForPointSource) {
+          if (orderEarnedPoints > 0 && directOrderCodeForPointSource) {
             const { error: pointHistoryErr } = await supabase
               .from("analytics_events")
               .insert({
                 event_name: "points_added",
                 user_id: p0,
                 event_data: {
-                  amount: pointsDelta,
+                  amount: orderEarnedPoints,
                   reason: `Tích điểm đơn tại quầy iPOS — đơn ${directOrderCodeForPointSource}`,
                   source: foodbookCodeForPointSource ? "ipos_order" : "ipos_membership_log",
                   order_code: directOrderCodeForPointSource,
                   order_amount: amountForPointSource,
                   new_total: crmPoints,
+                  crm_points_delta: crmPoints - localPoints,
                 },
                 created_at: new Date().toISOString(),
               });
@@ -370,7 +371,8 @@ router.post("/callback", async (req, res) => {
               console.log("[IPOS WEBHOOK] points history added:", {
                 phone: p0,
                 order_code: directOrderCodeForPointSource,
-                points: pointsDelta,
+                points: orderEarnedPoints,
+                order_amount: amountForPointSource,
                 new_total: crmPoints,
               });
             }
