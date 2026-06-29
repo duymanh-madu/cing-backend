@@ -204,6 +204,17 @@ router.delete("/daily-challenge/reset", async (req, res) => {
   }
 });
 
+// POST /api/game/daily-challenge/sync-today — Admin áp dụng config mới cho hôm nay
+router.post("/daily-challenge/sync-today", async (req, res) => {
+  try {
+    const { syncTodayChallengesFromConfig } = require("../services/dailyChallengeService");
+    const data = await syncTodayChallengesFromConfig();
+    res.json({ success: true, data });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST /api/game/daily-challenge/claim
 router.post("/daily-challenge/claim", async (req, res) => {
   try {
