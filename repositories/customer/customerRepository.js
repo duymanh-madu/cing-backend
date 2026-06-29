@@ -1,24 +1,60 @@
 const supabase = require("../../supabase");
 
+const GENERIC_CUSTOMER_NAMES = new Set([
+  "khách hàng",
+  "khach hang",
+  "khách",
+  "khach",
+  "guest",
+  "hội viên",
+  "hoi vien",
+]);
+
+function cleanCustomerName(value) {
+  const name = String(value || "").trim();
+  if (!name) return "";
+  if (GENERIC_CUSTOMER_NAMES.has(name.toLowerCase())) return "";
+  return name;
+}
+
+function pickCustomerName(...values) {
+  for (const value of values) {
+    const name = cleanCustomerName(value);
+    if (name) return name;
+  }
+  return "";
+}
+
 async function upsertCustomer({ zaloUser }) {
   const zaloId = zaloUser.zalo_id || zaloUser.id || "";
   if (!zaloId) throw new Error("Missing zalo_id");
+
   const rawPhone = (zaloUser.phone || "").replace(/\D/g, "");
   const phone = rawPhone
     ? (rawPhone.startsWith("84") ? "0" + rawPhone.slice(2) : rawPhone)
     : null;
+
+  const { data: existing } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("zalo_id", zaloId)
+    .maybeSingle();
+
   const upsertData = {
     zalo_id:    zaloId,
-    name:       zaloUser.name   || "Khách hàng",
-    avatar:     zaloUser.avatar || null,
+    name:       pickCustomerName(zaloUser.name, existing?.name) || "Cing iu",
+    avatar:     zaloUser.avatar || existing?.avatar || null,
     updated_at: new Date().toISOString(),
   };
+
   if (phone)             upsertData.phone    = phone;
   if (zaloUser.birthday) upsertData.birthday = zaloUser.birthday;
+
   const { data, error } = await supabase
     .from("customers")
     .upsert(upsertData, { onConflict: "zalo_id", ignoreDuplicates: false })
     .select("*").single();
+
   if (error) throw new Error("upsertCustomer: " + error.message);
   return normalizeCustomer(data);
 }
@@ -50,7 +86,7 @@ function normalizeCustomer(row) {
   return {
     id:          row.id,
     zalo_id:     row.zalo_id      || "",
-    name:        row.name         || "Khách hàng",
+    name:        pickCustomerName(row.name) || "Cing iu",
     phone:       row.phone        || "",
     avatar:      row.avatar       || null,
     birthday:    row.birthday     || null,

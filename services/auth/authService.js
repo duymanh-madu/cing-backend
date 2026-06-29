@@ -29,6 +29,31 @@ const logger =
     "../loggerService"
   );
 
+const GENERIC_AUTH_NAMES = new Set([
+  "khách hàng",
+  "khach hang",
+  "khách",
+  "khach",
+  "guest",
+  "hội viên",
+  "hoi vien",
+]);
+
+function cleanDisplayName(value) {
+  const name = String(value || "").trim();
+  if (!name) return "";
+  if (GENERIC_AUTH_NAMES.has(name.toLowerCase())) return "";
+  return name;
+}
+
+function pickDisplayName(...values) {
+  for (const value of values) {
+    const name = cleanDisplayName(value);
+    if (name) return name;
+  }
+  return "";
+}
+
 async function grantFirstActivationGamePlaysBonus({
   phone,
   zaloId = "",
@@ -79,7 +104,7 @@ async function grantFirstActivationGamePlaysBonus({
   } else {
     const insertData = {
       user_id: userId,
-      zalo_name: name || userId,
+      zalo_name: pickDisplayName(name) || "Cing iu",
       game_plays: 3,
       total_points: 0,
       first_activated_at: activatedAt,
@@ -143,7 +168,7 @@ async function loginWithZalo({
   // Lấy tên/avatar từ Zalo OA trước khi upsert customer/iPOS.
   // Nếu frontend không trả được getUserInfo, backend vẫn không để user mới bị ghi là "Khách hàng".
   const zaloId = zaloUser.zalo_id || zaloUser.id || "";
-  if ((!zaloUser.name || zaloUser.name === "Khách hàng" || zaloUser.name === "Khách") && zaloId) {
+  if (!cleanDisplayName(zaloUser.name) && zaloId) {
     try {
       const { data: cfg } = await require("../../supabase")
         .from("app_configs").select("zalo_oa_access_token").eq("id", 1).single();
@@ -163,6 +188,22 @@ async function loginWithZalo({
     } catch(e) { console.warn("[AUTH] fetch Zalo OA profile failed:", e.message); }
   }
 
+  let crmMemberData = null;
+  const normalizedLoginPhone = normalizePhone(zaloUser.phone || "");
+  if (normalizedLoginPhone) {
+    try {
+      const { getMember } = require("../foodbook");
+      const memberResult = await getMember(normalizedLoginPhone).catch(() => null);
+      if (memberResult?.success && memberResult?.data?.data) {
+        crmMemberData = memberResult.data.data;
+      }
+    } catch(e) {}
+  }
+
+  const crmName = cleanDisplayName(crmMemberData?.name);
+  const zaloName = cleanDisplayName(zaloUser.name);
+  zaloUser.name = pickDisplayName(crmName, zaloName);
+
   const customer =
     await customerRepository.upsertCustomer({
       zaloUser,
@@ -177,11 +218,12 @@ async function loginWithZalo({
         // Chưa có trong CRM → tạo mới
         await addMember({
           phone: customer.phone,
-          name: zaloUser.name || customer.name || "Khách hàng",
+          name: pickDisplayName(crmMemberData?.name, zaloUser.name, customer.name) || "Cing iu",
           birthday: zaloUser.birthday || "",
         });
         console.log("[AUTH] iPOS member created for:", customer.phone);
       } else {
+        crmMemberData = existing.data.data || crmMemberData;
         console.log("[AUTH] iPOS member already exists:", customer.phone);
       }
     } catch(e) { console.warn("[AUTH] addMember failed:", e.message); }
@@ -212,8 +254,14 @@ async function loginWithZalo({
         .eq("zalo_user_id", zaloId)
         .maybeSingle();
       if (playerData?.avatar) customer.avatar = playerData.avatar;
-      const displayName = playerData?.display_name || playerData?.zalo_name;
-      if (displayName && displayName !== "Khách hàng") {
+      const displayName = pickDisplayName(
+        playerData?.display_name,
+        crmMemberData?.name,
+        playerData?.zalo_name,
+        zaloUser.name,
+        customer.name
+      );
+      if (displayName) {
         customer.name = displayName;
       }
     }
@@ -226,7 +274,7 @@ async function loginWithZalo({
       await grantFirstActivationGamePlaysBonus({
         phone: customer.phone,
         zaloId: zaloUser.zalo_id || zaloUser.id || "",
-        name: customer.name || zaloUser.name || "Khách hàng",
+        name: pickDisplayName(customer.name, crmMemberData?.name, zaloUser.name) || "Cing iu",
       });
     } catch(e) {
       console.warn("[AUTH] first activation bonus failed:", e.message);
@@ -257,6 +305,8 @@ async function loginWithZalo({
       else console.log(`[AUTH] players.zalo_user_id synced: ${phone} -> ${zaloId}`);
     }
   } catch(e) { console.warn("[AUTH] zalo_user_id sync error:", e.message); }
+
+  customer.name = pickDisplayName(customer.name, crmMemberData?.name, zaloUser.name) || "Cing iu";
 
   const accessToken =
     tokenService.generateAccessToken({
@@ -327,6 +377,8 @@ async function refreshSession({
       console.warn("[AUTH] Redis invalidation failed:", e.message);
     }
   }
+
+  customer.name = pickDisplayName(customer.name, crmMemberData?.name, zaloUser.name) || "Cing iu";
 
   const accessToken =
     tokenService.generateAccessToken({
