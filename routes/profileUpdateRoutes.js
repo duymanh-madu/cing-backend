@@ -51,7 +51,11 @@ router.get("/status/:userId", async (req, res) => {
 router.post("/save/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const { display_name, avatar_base64, use_points, email } = req.body;
+    const { display_name, avatar_base64, use_points } = req.body;
+    const hasEmailField = Object.prototype.hasOwnProperty.call(req.body || {}, "email");
+    const email = hasEmailField && req.body.email !== null && req.body.email !== undefined
+      ? String(req.body.email).trim()
+      : null;
 
     // Validate userId phải là số điện thoại VN hợp lệ
     if (!/^(0|84)\d{8,10}$/.test(String(userId))) {
@@ -76,7 +80,7 @@ router.post("/save/:userId", async (req, res) => {
       }
     }
 
-    if (!display_name?.trim() && !avatar_base64 && email === undefined) {
+    if (!display_name?.trim() && !avatar_base64 && !hasEmailField) {
       return res.status(400).json({ success: false, error: "Không có thông tin nào để cập nhật" });
     }
 
@@ -117,7 +121,7 @@ router.post("/save/:userId", async (req, res) => {
     }
 
     const updates = { profile_changed_at: new Date().toISOString() };
-    if (email !== undefined) updates.email = email ? email.trim() : null;
+    if (email !== undefined) updates.email = email ? String(email || '').trim() : null;
 
     let avatarUrl = player?.avatar || null;
     if (avatar_base64) {
@@ -197,7 +201,7 @@ router.post("/save/:userId", async (req, res) => {
     res.json({
       success:        true,
       display_name:   newName,
-      email:          email !== undefined ? (email.trim() || null) : undefined,
+      email:          email !== undefined ? (String(email || '').trim() || null) : undefined,
       avatar_url:     avatarUrl,
       points_used:    (use_points && !status.can_change_free) ? POINT_COST : 0,
       next_free_date: new Date(Date.now() + COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString(),
