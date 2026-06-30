@@ -184,19 +184,20 @@ router.post("/decode-location", async (req, res) => {
       return res.status(400).json({ success: false, error: "Missing location token" });
     }
 
-    // Decode token → lat/lng qua Zalo Graph API
-    const axios = require("axios");
-    const zmpToken = process.env.ZMP_TOKEN;
-    const appId    = process.env.ZALO_APP_ID;
-
-    if (!zmpToken || !appId) {
-      return res.status(500).json({ success: false, error: "Missing ZMP config" });
+    const miniAccessTokenSafe = String(miniAccessToken || "").trim();
+    if (!miniAccessTokenSafe) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing mini access token",
+      });
     }
 
+    // Zalo API bị giới hạn vùng, nên Railway chỉ proxy sang server Mắt Bão tại Việt Nam.
+    const axios = require("axios");
     const MATBAO_URL = process.env.GAME_SERVER_URL || "http://112.78.3.72:3001";
     const zaloRes = await axios.post(`${MATBAO_URL}/zalo/decode-location`, {
       token,
-      mini_access_token: miniAccessToken || "",
+      mini_access_token: miniAccessTokenSafe,
     }).catch(e => ({ data: e.response?.data || { error: e.message } }));
 
     const lat = zaloRes.data?.latitude  || zaloRes.data?.data?.latitude;
