@@ -39,7 +39,10 @@ function verifyZaloCheckoutMac(data, mac) {
 async function awardGamePlaysForPaidOrder({ phone, order }) {
   const userId = normalizePhone(phone || order?.customer_phone || order?.user_id || "");
   const orderCode = String(order?.order_code || "").trim();
-  const amount = Number(order?.total_amount || 0);
+  const subtotal = Number(order?.subtotal || 0);
+  const shippingFee = Number(order?.shipping_fee || 0);
+  const totalAmount = Number(order?.total_amount || 0);
+  const amount = subtotal > 0 ? subtotal : Math.max(0, totalAmount - shippingFee);
 
   if (!userId || !orderCode || amount <= 0) {
     return { success: false, skipped: true, reason: "invalid_order" };
