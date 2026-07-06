@@ -51,11 +51,15 @@ async function checkAndResetMonthly(io) {
       const reward = monthlyRewards[i];
       const player = top3[i];
       if (!reward?.points || !player?.user_id) continue;
-      await supabase.from('pending_rewards').insert({
-        user_id: player.user_id, player_name: resolvePlayerName(player),
-        points: reward.points, reason: `🏆 ${reward.label||`Top ${i+1}`} BXH chi tiêu tháng`,
-        rank: i+1, board: 'Chi tiêu tháng', claimed: false, created_at: new Date().toISOString(),
-      }).catch(()=>{});
+      try {
+        await supabase.from('pending_rewards').insert({
+          user_id: player.user_id, player_name: resolvePlayerName(player),
+          points: reward.points, reason: `🏆 ${reward.label||`Top ${i+1}`} BXH chi tiêu tháng`,
+          rank: i+1, board: 'Chi tiêu tháng', claimed: false, created_at: new Date().toISOString(),
+        });
+      } catch(e) {
+        console.warn('[RESET] Monthly pending reward failed:', e.message);
+      }
     }
 
     // Reset crm_spend_monthly
@@ -98,11 +102,15 @@ async function checkAndResetYearly(io) {
       const reward = yearlyRewards[i];
       const player = top3[i];
       if (!reward?.points || !player?.user_id) continue;
-      await supabase.from('pending_rewards').insert({
-        user_id: player.user_id, player_name: resolvePlayerName(player),
-        points: reward.points, reason: `🏆 ${reward.label||`Top ${i+1}`} BXH chi tiêu năm`,
-        rank: i+1, board: 'Chi tiêu năm', claimed: false, created_at: new Date().toISOString(),
-      }).catch(()=>{});
+      try {
+        await supabase.from('pending_rewards').insert({
+          user_id: player.user_id, player_name: resolvePlayerName(player),
+          points: reward.points, reason: `🏆 ${reward.label||`Top ${i+1}`} BXH chi tiêu năm`,
+          rank: i+1, board: 'Chi tiêu năm', claimed: false, created_at: new Date().toISOString(),
+        });
+      } catch(e) {
+        console.warn('[RESET] Yearly pending reward failed:', e.message);
+      }
     }
 
     // Reset crm_spend_yearly về 0
