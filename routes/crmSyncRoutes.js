@@ -14,6 +14,23 @@ const {
 } = require("../services/crm/crmSpendingSyncService");
 
 const { normalizePhone } = require("../utils/phoneIdentity");
+const CUSTOM_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const CUSTOM_DATETIME_RE = /^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}$/;
+
+function normalizeCustomRangeBoundary(value, endOfDay = false) {
+  const raw = String(value || "").trim();
+  if (CUSTOM_DATETIME_RE.test(raw)) return raw;
+  if (CUSTOM_DATE_RE.test(raw)) return raw + (endOfDay ? " 23:59:59" : " 00:00:00");
+  return "";
+}
+
+function normalizeCustomRangeConfigDate(value) {
+  const raw = String(value || "").trim();
+  if (CUSTOM_DATETIME_RE.test(raw)) return raw.slice(0, 10);
+  if (CUSTOM_DATE_RE.test(raw)) return raw;
+  return "";
+}
+
  
 /**
  * POST /crm/sync-spending
@@ -145,12 +162,39 @@ router.post("/sync-custom-range", async (req, res) => {
   }
   try {
     const { from, to } = req.body;
-    if (!from || !to) return res.status(400).json({ success: false, error: "Missing from/to" });
+    const fromDate = normalizeCustomRangeConfigDate(from);
+    const toDate = normalizeCustomRangeConfigDate(to);
+    const fromBoundary = normalizeCustomRangeBoundary(from, false);
+    const toBoundary = normalizeCustomRangeBoundary(to, true);
+
+    if (!fromDate || !toDate || !fromBoundary || !toBoundary) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid from/to. Expected YYYY-MM-DD or YYYY-MM-DD HH:mm:ss",
+      });
+    }
+
+    const { error: configErr } = await supabase
+      .from("app_configs")
+      .update({
+        custom_leaderboard_from: fromDate,
+        custom_leaderboard_to: toDate,
+      })
+      .eq("id", 1);
+
+    if (configErr) {
+      return res.status(500).json({ success: false, error: configErr.message });
+    }
+
+    await supabase
+      .from("players")
+      .update({ crm_spend_custom: 0 })
+      .gt("crm_spend_custom", 0);
 
     res.json({ success: true, message: "Custom range sync started" });
 
     const { syncCustomRangeSpending } = require("../services/crm/crmSpendingSyncService");
-    await syncCustomRangeSpending(from, to);
+    await syncCustomRangeSpending(fromBoundary, toBoundary);
   } catch (err) {
     console.error("Custom sync error:", err.message);
   }

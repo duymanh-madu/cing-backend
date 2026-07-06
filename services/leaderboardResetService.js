@@ -26,17 +26,17 @@ function scheduleWeeklyReset(io) {
 // Reset tháng — ngày 1 hàng tháng 00:00 VN
 async function checkAndResetMonthly(io) {
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-  if (now.getDate() !== 1) return;
-  if (now.getHours() !== 0) return;
-  if (now.getMinutes() > 1) return;
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
 
   const { data: cfg } = await supabase.from('app_configs')
     .select('last_monthly_reset').eq('id', 1).single();
   const lastReset = cfg?.last_monthly_reset ? new Date(cfg.last_monthly_reset) : null;
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   if (lastReset && lastReset >= monthStart) return;
 
-  console.log('[RESET] Starting monthly leaderboard reset...');
+  console.log('[RESET] Starting monthly leaderboard reset...', {
+    period_start_vn: monthStart.toISOString(),
+    last_monthly_reset: cfg?.last_monthly_reset || null,
+  });
   try {
     // Lấy top 3 chi tiêu tháng
     const { data: cfg2 } = await supabase.from('app_configs').select('leaderboard_config').eq('id', 1).single();
@@ -72,17 +72,19 @@ async function checkAndResetMonthly(io) {
 // Reset năm — ngày 1/1 00:00 VN
 async function checkAndResetYearly(io) {
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-  if (now.getDate() !== 1 || now.getMonth() !== 0) return;
-  if (now.getHours() !== 0) return;
-  if (now.getMinutes() > 1) return;
+  if (now.getMonth() !== 0) return;
+
+  const yearStart = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
 
   const { data: cfg } = await supabase.from('app_configs')
     .select('last_yearly_reset').eq('id', 1).single();
   const lastReset = cfg?.last_yearly_reset ? new Date(cfg.last_yearly_reset) : null;
-  const yearStart = new Date(now.getFullYear(), 0, 1);
   if (lastReset && lastReset >= yearStart) return;
 
-  console.log('[RESET] Starting yearly leaderboard reset...');
+  console.log('[RESET] Starting yearly leaderboard reset...', {
+    period_start_vn: yearStart.toISOString(),
+    last_yearly_reset: cfg?.last_yearly_reset || null,
+  });
   try {
     const { data: cfg2 } = await supabase.from('app_configs').select('leaderboard_config').eq('id', 1).single();
     const yearlyRewards = cfg2?.leaderboard_config?.spending?.yearly?.rewards || [];

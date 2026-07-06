@@ -147,7 +147,7 @@ async function syncOnePlayer(player) {
     const safeMonthly  = Math.max(Number(existingPlayer?.crm_spend_monthly  || 0), Number(monthly || 0));
     const safeQuarter  = Math.max(Number(existingPlayer?.crm_spend_quarterly || 0), Number(quarterly || 0));
     const safeYearly   = Math.max(Number(existingPlayer?.crm_spend_yearly   || 0), Number(yearly || 0));
-    const safeCustom   = Math.max(Number(existingPlayer?.crm_spend_custom   || 0), Number(custom || 0));
+    const safeCustom   = customFrom ? Number(custom || 0) : 0;
 
     // Lưu vào Supabase — timestamp dùng UTC chuẩn (Supabase tự xử lý)
     const { error } = await supabase
