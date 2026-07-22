@@ -41,31 +41,25 @@ async function useGamePlay(
 
   }
 
-  if (
+  const currentGamePlays =
     Number(
       player.game_plays || 0
-    ) <= 0
-  ) {
-
-    throw new Error(
-      "Bạn đã hết lượt chơi"
     );
 
+  if (currentGamePlays <= 0) {
+    const noPlayError = new Error(
+      "Bạn đã hết lượt chơi"
+    );
+    noPlayError.statusCode = 409;
+    noPlayError.code = "NO_GAME_PLAYS";
+    throw noPlayError;
   }
 
   const newGamePlays =
-
-    Math.max(
-
-      Number(
-        player.game_plays || 0
-      ) - 1,
-
-      0
-
-    );
+    Math.max(currentGamePlays - 1, 0);
 
   const {
+    data: updatedPlayer,
     error: updateError,
   } = await supabase
 
@@ -81,10 +75,28 @@ async function useGamePlay(
     .eq(
       "user_id",
       user_id
-    );
+    )
+
+    .eq(
+      "game_plays",
+      currentGamePlays
+    )
+
+    .select("game_plays")
+
+    .maybeSingle();
 
   if (updateError) {
     throw updateError;
+  }
+
+  if (!updatedPlayer) {
+    const stalePlayError = new Error(
+      "Lượt chơi vừa được sử dụng, vui lòng thử lại"
+    );
+    stalePlayError.statusCode = 409;
+    stalePlayError.code = "GAME_PLAY_CONFLICT";
+    throw stalePlayError;
   }
 
   // Log lượt chơi bị trừ
@@ -96,7 +108,7 @@ async function useGamePlay(
   return {
 
     game_plays:
-      newGamePlays,
+      Number(updatedPlayer.game_plays || newGamePlays),
 
   };
 

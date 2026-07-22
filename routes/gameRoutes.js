@@ -74,9 +74,16 @@ router.post(
 
       console.log(error);
 
-      res.status(500).json({
+      const statusCode =
+        error.statusCode ||
+        (error.code === "NO_GAME_PLAYS" ? 409 : 500);
+
+      res.status(statusCode).json({
 
         success: false,
+
+        code:
+          error.code || "GAME_USE_PLAY_FAILED",
 
         message:
           error.message,
