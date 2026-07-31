@@ -26,7 +26,9 @@ function scheduleWeeklyReset(io) {
 // Reset tháng — ngày 1 hàng tháng 00:00 VN
 async function checkAndResetMonthly(io) {
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  // Ngày 1 lúc 00:00 tại Việt Nam tương ứng 17:00 UTC ngày hôm trước.
+  const monthStartVN = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const monthStart = new Date(monthStartVN.getTime() - 7 * 60 * 60 * 1000);
 
   const { data: cfg } = await supabase.from('app_configs')
     .select('last_monthly_reset').eq('id', 1).single();
@@ -68,7 +70,15 @@ async function checkAndResetMonthly(io) {
 
     const names = top3.slice(0,3).map((p,i)=>['🥇','🥈','🥉'][i]+' '+resolvePlayerName(p)).join(' ');
     const msg = "🎁 BXH chi tiêu tháng đã reset! " + names + "\nMời top 3 vào nhận thưởng! 🏆";
-    if (io) { io.emit('leaderboard.monthly_reset', { message: msg }); io.emit('notification', { type:'monthly_reset', message: msg }); }
+    if (io) {
+      io.emit('leaderboard.monthly_reset', {
+        type: 'monthly',
+        periodKey: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+        message: msg,
+        timestamp: new Date().toISOString(),
+      });
+      io.emit('notification', { type:'monthly_reset', message: msg });
+    }
     console.log('[RESET] Monthly reset done:', msg);
   } catch(e) { console.error('[RESET] Monthly error:', e.message); }
 }
@@ -78,7 +88,9 @@ async function checkAndResetYearly(io) {
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
   if (now.getMonth() !== 0) return;
 
-  const yearStart = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+  // Ngày 01/01 lúc 00:00 tại Việt Nam tương ứng 17:00 UTC ngày hôm trước.
+  const yearStartVN = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+  const yearStart = new Date(yearStartVN.getTime() - 7 * 60 * 60 * 1000);
 
   const { data: cfg } = await supabase.from('app_configs')
     .select('last_yearly_reset').eq('id', 1).single();
@@ -119,7 +131,14 @@ async function checkAndResetYearly(io) {
     const names = top3.slice(0,3).map((p,i)=>['🥇','🥈','🥉'][i]+' '+resolvePlayerName(p)).join(' ');
     const msg = `🎁 BXH chi tiêu năm đã reset! ${names}
 Mời top 3 vào nhận thưởng! 🏆`;
-    if (io) { io.emit('leaderboard.yearly_reset', { message: msg }); }
+    if (io) {
+      io.emit('leaderboard.yearly_reset', {
+        type: 'yearly',
+        periodKey: String(now.getFullYear()),
+        message: msg,
+        timestamp: new Date().toISOString(),
+      });
+    }
     console.log('[RESET] Yearly reset done');
   } catch(e) { console.error('[RESET] Yearly error:', e.message); }
 }
