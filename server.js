@@ -970,6 +970,28 @@ try {
 
 /**
  * =====================================================
+ * NATIONAL DAY REWARD IPOS SYNC WORKER
+ * Durable retry for campaign loyalty-point mirroring.
+ * =====================================================
+ */
+try {
+  const {
+    startNationalDayRewardIposSyncWorker,
+  } = require(
+    "./services/campaign/nationalDayRewardIposSyncWorker"
+  );
+
+  startNationalDayRewardIposSyncWorker();
+} catch (e) {
+  console.warn(
+    "[CAMPAIGN IPOS SYNC] worker start failed:",
+    e.message
+  );
+}
+
+
+/**
+ * =====================================================
  * TRANSACTION INTEGRITY WORKER
  * Detect paid orders missing CRM/iPOS sync and auto-recover.
  * =====================================================

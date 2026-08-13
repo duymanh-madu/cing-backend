@@ -908,6 +908,64 @@ async function getMemberTransactions(userId, page = 1) {
  * @param {string} userId
  * @param {object} opts - { page, log_type, create_from, create_to, page_size }
  */
+async function findMembershipLogByNote(userId, note, opts = {}) {
+  try {
+    const {
+      page = 1,
+      page_size = 100,
+      create_from,
+      create_to,
+    } = opts;
+
+    const params = {
+      access_token: ACCESS_TOKEN,
+      pos_parent: POS_PARENT,
+      user_id: userId,
+      page,
+      page_size,
+    };
+
+    if (create_from) params.create_from = create_from;
+    if (create_to) params.create_to = create_to;
+
+    const response = await client.get(
+      "/ipos/ws/xpartner/membership_log",
+      { params }
+    );
+
+    const raw = response.data;
+
+    const list = Array.isArray(raw?.data?.logs_membership)
+      ? raw.data.logs_membership
+      : Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw)
+          ? raw
+          : [];
+
+    const expectedNote = String(note || "").trim();
+
+    const match = list.find((item) =>
+      item?.log_type === "CHANGE_POINT_BY_PARTNER" &&
+      String(item?.note || "").trim() === expectedNote
+    );
+
+    return {
+      success: true,
+      found: !!match,
+      data: match || null,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      found: false,
+      data: null,
+      error: error.message,
+    };
+  }
+}
+
+
 async function getMembershipLog(userId, opts = {}) {
   try {
     const {
@@ -1012,6 +1070,7 @@ module.exports = {
   getMemberTransactions,
 
   getMembershipLog,
+  findMembershipLogByNote,
   getEstimateShipFee,
 
 };

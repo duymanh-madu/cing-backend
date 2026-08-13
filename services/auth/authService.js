@@ -24,6 +24,10 @@ const tokenService =
 
 const { normalizePhone } = require("../../utils/phoneIdentity");
 
+const {
+  claimNationalDayLoginReward,
+} = require("../campaign/nationalDayLoginRewardService");
+
 const logger =
   require(
     "../loggerService"
@@ -52,94 +56,6 @@ function pickDisplayName(...values) {
     if (name) return name;
   }
   return "";
-}
-
-async function grantFirstActivationGamePlaysBonus({
-  phone,
-  zaloId = "",
-  name = "",
-}) {
-  const userId = normalizePhone(phone || "");
-  if (!userId || userId.length < 9) return;
-
-  const supabase = require("../../supabase");
-  const { addPlays } = require("../loyaltyPointService");
-
-  const activatedAt = new Date().toISOString();
-
-  const { data: player, error: readErr } = await supabase
-    .from("players")
-    .select("user_id, game_plays, first_activated_at")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (readErr) {
-    console.warn("[AUTH] first activation bonus read failed:", userId, readErr.message);
-    return;
-  }
-
-  if (player?.first_activated_at) return;
-
-  let newTotal = Number(player?.game_plays || 0) + 3;
-  let granted = false;
-
-  if (player) {
-    const { data: updated, error: updateErr } = await supabase
-      .from("players")
-      .update({
-        first_activated_at: activatedAt,
-        game_plays: newTotal,
-      })
-      .eq("user_id", userId)
-      .is("first_activated_at", null)
-      .select("user_id, game_plays, first_activated_at")
-      .maybeSingle();
-
-    if (updateErr) {
-      console.warn("[AUTH] first activation bonus update failed:", userId, updateErr.message);
-      return;
-    }
-
-    granted = !!updated;
-  } else {
-    const insertData = {
-      user_id: userId,
-      zalo_name: pickDisplayName(name) || "Cing iu",
-      game_plays: 3,
-      total_points: 0,
-      first_activated_at: activatedAt,
-    };
-
-    if (zaloId) insertData.zalo_user_id = zaloId;
-
-    const { data: inserted, error: insertErr } = await supabase
-      .from("players")
-      .insert(insertData)
-      .select("user_id, game_plays, first_activated_at")
-      .maybeSingle();
-
-    if (insertErr) {
-      console.warn("[AUTH] first activation bonus insert failed:", userId, insertErr.message);
-      return;
-    }
-
-    newTotal = Number(inserted?.game_plays || 3);
-    granted = !!inserted;
-  }
-
-  if (!granted) return;
-
-  console.log("[GAME] First activation bonus: +3 plays for " + userId);
-  await addPlays({
-    user_id: userId,
-    amount: 3,
-    reason: "Bonus kích hoạt lần đầu",
-    new_total: newTotal,
-    metadata: {
-      source: "auth_zalo_login",
-      first_activated_at: activatedAt,
-    },
-  }).catch(e => console.warn("[AUTH] first activation bonus log failed:", e.message));
 }
 
 /**
@@ -267,17 +183,27 @@ async function loginWithZalo({
     }
   } catch(e) { console.warn("[AUTH] read player avatar failed:", e.message); }
 
-  // Tặng 3 lượt chơi đúng lúc kích hoạt member lần đầu.
-  // Idempotent bằng players.first_activated_at IS NULL để không cộng trùng khi login/retry/reopen app.
+  // National Day 2026 campaign:
+  // mọi member login trong campaign được tạo đúng một quà chờ nhận +29 điểm
+  // theo player và installation. Login không cộng điểm và không sync iPOS.
   if (customer.phone) {
     try {
-      await grantFirstActivationGamePlaysBonus({
+      await claimNationalDayLoginReward({
         phone: customer.phone,
-        zaloId: zaloUser.zalo_id || zaloUser.id || "",
-        name: pickDisplayName(customer.name, crmMemberData?.name, zaloUser.name) || "Cing iu",
+        installationId:
+          zaloUser.installation_id ||
+          zaloUser.installationId ||
+          "",
+        source:
+          zaloUser.source ||
+          "zalo-miniapp",
       });
-    } catch(e) {
-      console.warn("[AUTH] first activation bonus failed:", e.message);
+    } catch (error) {
+      logger.warn("National Day login reward processing failed", {
+        customerId: customer.id,
+        phone: customer.phone,
+        error,
+      });
     }
   }
 

@@ -17,7 +17,6 @@ async function fetchAllPlayerRows(columns, filterFn) {
   return allRows;
 }
 const foodbook = require('../foodbook');
-const { addPlays } = require('../loyaltyPointService');
 const { setPartnerMonthlySpending } = require('../partnerProgressService');
 const {
   awardProcessedCrmIposOrdersForUser,
@@ -186,31 +185,10 @@ async function syncOnePlayer(player) {
       console.warn('[PARTNER PROGRESS] CRM sync failed:', userId, e.message);
     }
 
-    // Lấy player hiện tại để tính lượt chơi
-    const { data: currentPlayer } = await supabase
-      .from('players')
-      .select('game_plays, plays_from_spend, first_activated_at')
-      .eq('user_id', userId)
-      .single();
-
-    const playsUpdate = {};
-
-    // Logic 1: Lần đầu active -> tang 3 luot choi mien phi
-    if (!currentPlayer?.first_activated_at && allTimeOrders > 0) {
-      playsUpdate.first_activated_at = new Date().toISOString();
-      playsUpdate.game_plays = Number(currentPlayer?.game_plays || 0) + 3;
-      console.log('[GAME] First activation bonus: +3 plays for ' + userId);
-      await addPlays({ user_id: userId, amount: 3, reason: 'Bonus kích hoạt lần đầu', new_total: playsUpdate.game_plays }).catch(()=>{});
-    }
-
-    // Logic cộng lượt theo chi tiêu đã chuyển sang từng đơn hàng riêng:
+    // Game plays từ chi tiêu được cấp theo từng đơn hàng riêng.
+    // CRM spending sync không sở hữu activation reward và không ghi first_activated_at.
     // - App orders: paymentWebhookRoutes.js
     // - POS/iPOS orders: iposWebhookRoutes.js
-    // CRM sync chỉ đồng bộ spending, không cấp lượt chơi để tránh lệch baseline.
-
-    if (Object.keys(playsUpdate).length > 0) {
-      await supabase.from('players').update(playsUpdate).eq('user_id', userId);
-    }
 
     // POS/iPOS orders recorded in crm_orders are already processed by CRM sync,
     // but they do not pass through paymentWebhookRoutes.js or iposWebhookRoutes.js.
