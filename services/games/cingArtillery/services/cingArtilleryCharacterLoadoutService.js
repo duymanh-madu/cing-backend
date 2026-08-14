@@ -26,6 +26,13 @@ const {
   "../domain/cingArtilleryCosmeticContracts"
 );
 
+const {
+  assertCharacterName,
+  assertGender,
+} = require(
+  "../domain/cingArtilleryCharacterIdentityContracts"
+);
+
 function normalizeCharacterRecord(
   row
 ) {
@@ -39,6 +46,12 @@ function normalizeCharacterRecord(
 
     character_key:
       row.character_key,
+
+    character_name:
+      row.character_name,
+
+    gender:
+      row.gender,
 
     created_at:
       row.created_at,
@@ -278,9 +291,74 @@ async function unequipItemType({
   };
 }
 
+async function setCharacterIdentity({
+  userId,
+  characterName:
+    rawCharacterName,
+  gender:
+    rawGender,
+}) {
+  const characterName =
+    assertCharacterName(
+      rawCharacterName
+    );
+
+  const gender =
+    assertGender(
+      rawGender
+    );
+
+  const account =
+    await requireActiveAccount(
+      userId
+    );
+
+  await ensureCharacter(
+    userId
+  );
+
+  try {
+    const updated =
+      await characterRepository
+        .updateIdentity({
+          accountId:
+            account.id,
+
+          characterName,
+
+          gender,
+        });
+
+    return normalizeCharacterRecord(
+      updated
+    );
+  } catch (error) {
+    if (
+      error?.code ===
+      "23505"
+    ) {
+      const conflictError =
+        new Error(
+          `Tên nhân vật "${characterName}" đã được sử dụng`
+        );
+
+      conflictError.code =
+        "CING_ARTILLERY_CHARACTER_NAME_TAKEN";
+
+      conflictError.statusCode =
+        409;
+
+      throw conflictError;
+    }
+
+    throw error;
+  }
+}
+
 module.exports = {
   ensureCharacter,
   getCharacterState,
+  setCharacterIdentity,
   equipInventoryItem,
   unequipItemType,
 };
