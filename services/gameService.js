@@ -8,25 +8,192 @@ const { emitLeaderboardUpdate } = require("./gamification/realtime/realtimeLeade
  * =====================================================
  */
 
+const GAME_ECONOMY_TYPES =
+  Object.freeze({
+    PAID_OFFLINE:
+      "paid_offline",
+
+    FREE_MULTIPLAYER:
+      "free_multiplayer",
+  });
+
+async function getGameEconomyPolicy(
+  gameIdentifier
+) {
+  const identifier =
+    String(
+      gameIdentifier || ""
+    ).trim();
+
+  if (!identifier) {
+    const error =
+      new Error(
+        "Thiếu game_key"
+      );
+
+    error.statusCode = 400;
+    error.code =
+      "GAME_KEY_REQUIRED";
+
+    throw error;
+  }
+
+  const {
+    data: configRow,
+    error,
+  } = await supabase
+    .from("app_configs")
+    .select("game_economy_config")
+    .eq("id", 1)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  const games =
+    configRow
+      ?.game_economy_config
+      ?.games;
+
+  if (
+    !games ||
+    typeof games !== "object"
+  ) {
+    const policyError =
+      new Error(
+        "Game economy chưa được cấu hình"
+      );
+
+    policyError.statusCode = 503;
+    policyError.code =
+      "GAME_ECONOMY_CONFIG_UNAVAILABLE";
+
+    throw policyError;
+  }
+
+  let gameKey = null;
+  let gamePolicy = null;
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      games,
+      identifier
+    )
+  ) {
+    gameKey =
+      identifier;
+
+    gamePolicy =
+      games[identifier];
+  } else {
+    for (
+      const [
+        key,
+        policy,
+      ] of Object.entries(games)
+    ) {
+      const aliases =
+        Array.isArray(
+          policy?.aliases
+        )
+          ? policy.aliases
+          : [];
+
+      const matched =
+        aliases.some(
+          alias =>
+            String(alias || "").trim() ===
+            identifier
+        );
+
+      if (matched) {
+        gameKey = key;
+        gamePolicy = policy;
+        break;
+      }
+    }
+  }
+
+  if (
+    !gameKey ||
+    !gamePolicy
+  ) {
+    const error =
+      new Error(
+        `Game chưa có economy policy: ${identifier}`
+      );
+
+    error.statusCode = 409;
+    error.code =
+      "GAME_POLICY_NOT_CONFIGURED";
+
+    throw error;
+  }
+
+  const economyType =
+    String(
+      gamePolicy.economy_type || ""
+    ).trim();
+
+  if (
+    economyType !==
+      GAME_ECONOMY_TYPES.PAID_OFFLINE &&
+    economyType !==
+      GAME_ECONOMY_TYPES.FREE_MULTIPLAYER
+  ) {
+    const error =
+      new Error(
+        `Economy policy không hợp lệ: ${gameKey}`
+      );
+
+    error.statusCode = 500;
+    error.code =
+      "INVALID_GAME_ECONOMY_POLICY";
+
+    throw error;
+  }
+
+  return {
+    game_key:
+      gameKey,
+
+    economy_type:
+      economyType,
+
+    play_cost:
+      economyType ===
+      GAME_ECONOMY_TYPES.PAID_OFFLINE
+        ? 1
+        : 0,
+  };
+}
+
+/**
+ * =====================================================
+ * USE GAME PLAY
+ * =====================================================
+ */
+
 async function useGamePlay(
   user_id,
-  gameName = 'Bay cùng trân châu'
+  gameIdentifier
 ) {
+  const policy =
+    await getGameEconomyPolicy(
+      gameIdentifier
+    );
 
   const {
     data: player,
     error,
   } = await supabase
-
     .from("players")
-
-    .select("*")
-
+    .select("game_plays")
     .eq(
       "user_id",
       user_id
     )
-
     .maybeSingle();
 
   if (error) {
@@ -34,11 +201,16 @@ async function useGamePlay(
   }
 
   if (!player) {
+    const error =
+      new Error(
+        "Không tìm thấy player"
+      );
 
-    throw new Error(
-      "Không tìm thấy player"
-    );
+    error.statusCode = 404;
+    error.code =
+      "PLAYER_NOT_FOUND";
 
+    throw error;
   }
 
   const currentGamePlays =
@@ -46,44 +218,76 @@ async function useGamePlay(
       player.game_plays || 0
     );
 
-  if (currentGamePlays <= 0) {
-    const noPlayError = new Error(
-      "Bạn đã hết lượt chơi"
-    );
-    noPlayError.statusCode = 409;
-    noPlayError.code = "NO_GAME_PLAYS";
-    throw noPlayError;
+  /*
+   * Multiplayer realtime:
+   * không tiêu lượt.
+   */
+  if (
+    policy.play_cost === 0
+  ) {
+    return {
+      game_key:
+        policy.game_key,
+
+      economy_type:
+        policy.economy_type,
+
+      play_cost: 0,
+
+      play_consumed:
+        false,
+
+      game_plays:
+        currentGamePlays,
+    };
+  }
+
+  /*
+   * Offline leaderboard game:
+   * tiêu đúng 1 lượt/ván.
+   */
+  if (
+    currentGamePlays <
+    policy.play_cost
+  ) {
+    const error =
+      new Error(
+        "Bạn đã hết lượt chơi"
+      );
+
+    error.statusCode = 409;
+    error.code =
+      "NO_GAME_PLAYS";
+
+    throw error;
   }
 
   const newGamePlays =
-    Math.max(currentGamePlays - 1, 0);
+    currentGamePlays -
+    policy.play_cost;
 
+  /*
+   * Compare-and-set để tránh
+   * concurrent double-consume.
+   */
   const {
     data: updatedPlayer,
     error: updateError,
   } = await supabase
-
     .from("players")
-
     .update({
-
       game_plays:
         newGamePlays,
-
     })
-
     .eq(
       "user_id",
       user_id
     )
-
     .eq(
       "game_plays",
       currentGamePlays
     )
-
     .select("game_plays")
-
     .maybeSingle();
 
   if (updateError) {
@@ -91,27 +295,55 @@ async function useGamePlay(
   }
 
   if (!updatedPlayer) {
-    const stalePlayError = new Error(
-      "Lượt chơi vừa được sử dụng, vui lòng thử lại"
-    );
-    stalePlayError.statusCode = 409;
-    stalePlayError.code = "GAME_PLAY_CONFLICT";
-    throw stalePlayError;
+    const error =
+      new Error(
+        "Lượt chơi vừa được sử dụng, vui lòng thử lại"
+      );
+
+    error.statusCode = 409;
+    error.code =
+      "GAME_PLAY_CONFLICT";
+
+    throw error;
   }
 
-  // Log lượt chơi bị trừ
   try {
-    const { deductPlays } = require('./loyaltyPointService');
-    await deductPlays({ user_id, amount: 1, reason: 'Chơi ' + (gameName || 'game'), new_total: newGamePlays });
-  } catch(e) {}
+    const {
+      deductPlays,
+    } =
+      require(
+        "./loyaltyPointService"
+      );
+
+    await deductPlays({
+      user_id,
+      amount:
+        policy.play_cost,
+      reason:
+        `Chơi ${policy.game_key}`,
+      new_total:
+        newGamePlays,
+    });
+  } catch (e) {}
 
   return {
+    game_key:
+      policy.game_key,
+
+    economy_type:
+      policy.economy_type,
+
+    play_cost:
+      policy.play_cost,
+
+    play_consumed:
+      true,
 
     game_plays:
-      Number(updatedPlayer.game_plays || newGamePlays),
-
+      Number(
+        updatedPlayer.game_plays
+      ),
   };
-
 }
 
 /**
@@ -315,6 +547,8 @@ async function saveGameScore({
 module.exports = {
 
   useGamePlay,
+
+  getGameEconomyPolicy,
 
   saveGameScore,
 

@@ -40,6 +40,7 @@ router.post(
 
       const {
         user_id,
+        game_key,
         game_name,
       } = req.body;
 
@@ -59,7 +60,7 @@ router.post(
       const data =
         await useGamePlay(
           user_id,
-          game_name
+          game_key || game_name
         );
 
       res.json({
