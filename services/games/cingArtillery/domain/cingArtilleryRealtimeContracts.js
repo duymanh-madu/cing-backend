@@ -65,6 +65,24 @@ function assertRealtimeJoinRequest(
   };
 }
 
+function assertRealtimeLeaveRequest(
+  payload
+) {
+  const source =
+    payload &&
+    typeof payload === "object" &&
+    !Array.isArray(payload)
+      ? payload
+      : {};
+
+  return {
+    matchId:
+      assertMatchId(
+        source.matchId
+      ),
+  };
+}
+
 function buildMatchRoomName(
   rawMatchId
 ) {
@@ -79,5 +97,6 @@ function buildMatchRoomName(
 module.exports = {
   assertAccessToken,
   assertRealtimeJoinRequest,
+  assertRealtimeLeaveRequest,
   buildMatchRoomName,
 };

@@ -6,6 +6,7 @@ const {
 
 const {
   authorizeMatchJoin,
+  authorizeMatchLeave,
 } = require(
   "../../services/games/cingArtillery/services/cingArtilleryRealtimeService"
 );
@@ -83,6 +84,63 @@ function registerCingArtilleryRealtimeConnection({
 
             player:
               authority.player,
+          },
+        });
+      } catch (error) {
+        respond(
+          serializeError(
+            error
+          )
+        );
+      }
+    }
+  );
+
+  socket.on(
+    "cing-artillery:match:leave",
+    async (
+      payload,
+      acknowledgement
+    ) => {
+      const respond =
+        typeof acknowledgement ===
+        "function"
+          ? acknowledgement
+          : () => {};
+
+      try {
+        /*
+         * Explicit leave is transport lifecycle only.
+         *
+         * It re-authenticates and re-authorizes against
+         * durable match membership before leaving the
+         * Socket.IO room. It must never terminate or
+         * mutate match/runtime/gameplay-session state.
+         */
+        const identity =
+          await authenticateSocket(
+            socket
+          );
+
+        const authority =
+          await authorizeMatchLeave({
+            userId:
+              identity.userId,
+
+            payload,
+          });
+
+        await socket.leave(
+          authority.room
+        );
+
+        respond({
+          success:
+            true,
+
+          data: {
+            match_id:
+              authority.matchId,
           },
         });
       } catch (error) {

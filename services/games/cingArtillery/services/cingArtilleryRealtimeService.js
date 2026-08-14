@@ -16,6 +16,7 @@ const matchRuntimeService =
 
 const {
   assertRealtimeJoinRequest,
+  assertRealtimeLeaveRequest,
   buildMatchRoomName,
 } = require(
   "../domain/cingArtilleryRealtimeContracts"
@@ -40,17 +41,10 @@ function buildError({
   return error;
 }
 
-async function authorizeMatchJoin({
+async function resolveMatchRoomAuthority({
   userId,
-  payload,
+  matchId,
 }) {
-  await requireCingArtilleryEnabled();
-
-  const request =
-    assertRealtimeJoinRequest(
-      payload
-    );
-
   const account =
     await accountService
       .getAccountByUserId(
@@ -71,16 +65,17 @@ async function authorizeMatchJoin({
   }
 
   /*
-   * Realtime is deliberately read-only against the
+   * Realtime lifecycle remains read-only against the
    * durable match-runtime authority.
    *
-   * Runtime creation remains owned by the private
-   * match-runtime write boundary.
+   * Join, rejoin and explicit leave all resolve current
+   * membership from durable runtime state. Socket-local
+   * identity is never an authorization source.
    */
   const runtime =
     await matchRuntimeService
       .getMatchRuntime(
-        request.matchId
+        matchId
       );
 
   if (!runtime) {
@@ -147,6 +142,43 @@ async function authorizeMatchJoin({
   };
 }
 
+async function authorizeMatchJoin({
+  userId,
+  payload,
+}) {
+  await requireCingArtilleryEnabled();
+
+  const request =
+    assertRealtimeJoinRequest(
+      payload
+    );
+
+  return resolveMatchRoomAuthority({
+    userId,
+    matchId:
+      request.matchId,
+  });
+}
+
+async function authorizeMatchLeave({
+  userId,
+  payload,
+}) {
+  await requireCingArtilleryEnabled();
+
+  const request =
+    assertRealtimeLeaveRequest(
+      payload
+    );
+
+  return resolveMatchRoomAuthority({
+    userId,
+    matchId:
+      request.matchId,
+  });
+}
+
 module.exports = {
   authorizeMatchJoin,
+  authorizeMatchLeave,
 };
