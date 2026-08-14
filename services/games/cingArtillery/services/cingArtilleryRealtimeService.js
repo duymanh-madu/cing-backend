@@ -148,6 +148,36 @@ async function resolveMatchRoomAuthority({
   };
 }
 
+async function resolveMatchReadinessAuthorityByMatchId(
+  matchId
+) {
+  const runtime =
+    await matchRuntimeService
+      .getMatchRuntime(
+        matchId
+      );
+
+  if (!runtime) {
+    return null;
+  }
+
+  return {
+    matchId:
+      runtime.match_id,
+
+    playerOneAccountId:
+      runtime.player_one_account_id,
+
+    playerTwoAccountId:
+      runtime.player_two_account_id,
+
+    room:
+      buildMatchRoomName(
+        runtime.match_id
+      ),
+  };
+}
+
 async function resolveMatchRealtimeReadiness({
   io,
   authority,
@@ -297,4 +327,5 @@ module.exports = {
   authorizeMatchJoin,
   authorizeMatchLeave,
   resolveMatchRealtimeReadiness,
+  resolveMatchReadinessAuthorityByMatchId,
 };

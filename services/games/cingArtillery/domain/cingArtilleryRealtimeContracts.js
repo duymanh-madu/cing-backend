@@ -83,6 +83,39 @@ function assertRealtimeLeaveRequest(
   };
 }
 
+function parseMatchRoomName(
+  rawRoom
+) {
+  const room =
+    String(
+      rawRoom || ""
+    ).trim();
+
+  const prefix =
+    "cing-artillery:match:";
+
+  if (
+    !room.startsWith(
+      prefix
+    )
+  ) {
+    return null;
+  }
+
+  const matchId =
+    room.slice(
+      prefix.length
+    );
+
+  try {
+    return assertMatchId(
+      matchId
+    );
+  } catch (_error) {
+    return null;
+  }
+}
+
 function buildMatchRoomName(
   rawMatchId
 ) {
@@ -99,4 +132,5 @@ module.exports = {
   assertRealtimeJoinRequest,
   assertRealtimeLeaveRequest,
   buildMatchRoomName,
+  parseMatchRoomName,
 };

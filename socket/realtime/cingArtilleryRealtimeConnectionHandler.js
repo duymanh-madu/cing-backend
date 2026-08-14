@@ -8,8 +8,15 @@ const {
   authorizeMatchJoin,
   authorizeMatchLeave,
   resolveMatchRealtimeReadiness,
+  resolveMatchReadinessAuthorityByMatchId,
 } = require(
   "../../services/games/cingArtillery/services/cingArtilleryRealtimeService"
+);
+
+const {
+  parseMatchRoomName,
+} = require(
+  "../../services/games/cingArtillery/domain/cingArtilleryRealtimeContracts"
 );
 
 function serializeError(
@@ -27,6 +34,40 @@ function serializeError(
       error?.message ||
       "Cing Artillery realtime error",
   };
+}
+
+async function broadcastMatchReadiness({
+  io,
+  authority,
+}) {
+  const readiness =
+    await resolveMatchRealtimeReadiness({
+      io,
+      authority,
+    });
+
+  const payload = {
+    match_id:
+      authority.matchId,
+
+    player_one:
+      readiness.playerOneReady,
+
+    player_two:
+      readiness.playerTwoReady,
+
+    both:
+      readiness.bothReady,
+  };
+
+  io.to(
+    authority.room
+  ).emit(
+    "cing-artillery:match:readiness",
+    payload
+  );
+
+  return readiness;
 }
 
 function registerCingArtilleryRealtimeConnection({
@@ -82,39 +123,10 @@ function registerCingArtilleryRealtimeConnection({
         );
 
         const readiness =
-          await resolveMatchRealtimeReadiness({
+          await broadcastMatchReadiness({
             io,
             authority,
           });
-
-        const readinessPayload = {
-          match_id:
-            authority.matchId,
-
-          player_one:
-            readiness.playerOneReady,
-
-          player_two:
-            readiness.playerTwoReady,
-
-          both:
-            readiness.bothReady,
-        };
-
-        /*
-         * Room-level readiness is server-derived and
-         * adapter-aware.
-         *
-         * Every authorized participant receives the same
-         * canonical readiness transition when a participant
-         * successfully joins the match room.
-         */
-        io.to(
-          authority.room
-        ).emit(
-          "cing-artillery:match:readiness",
-          readinessPayload
-        );
 
         respond({
           success:
@@ -152,6 +164,28 @@ function registerCingArtilleryRealtimeConnection({
           )
         );
       }
+    }
+  );
+
+  let disconnectMatchIds = [];
+
+  /*
+   * Socket.IO emits "disconnecting" before leaveAll().
+   * Capture only canonical Artillery match identifiers here.
+   * No readiness calculation is allowed until "disconnect",
+   * when adapter room membership has already been cleaned.
+   */
+  socket.on(
+    "disconnecting",
+    () => {
+      disconnectMatchIds =
+        Array.from(
+          socket.rooms || []
+        )
+          .map(
+            parseMatchRoomName
+          )
+          .filter(Boolean);
     }
   );
 
@@ -193,6 +227,12 @@ function registerCingArtilleryRealtimeConnection({
           authority.room
         );
 
+        const readiness =
+          await broadcastMatchReadiness({
+            io,
+            authority,
+          });
+
         respond({
           success:
             true,
@@ -200,6 +240,17 @@ function registerCingArtilleryRealtimeConnection({
           data: {
             match_id:
               authority.matchId,
+
+            readiness: {
+              player_one:
+                readiness.playerOneReady,
+
+              player_two:
+                readiness.playerTwoReady,
+
+              both:
+                readiness.bothReady,
+            },
           },
         });
       } catch (error) {
@@ -208,6 +259,54 @@ function registerCingArtilleryRealtimeConnection({
             error
           )
         );
+      }
+    }
+  );
+
+  socket.on(
+    "disconnect",
+    async () => {
+      const matchIds =
+        Array.from(
+          new Set(
+            disconnectMatchIds
+          )
+        );
+
+      disconnectMatchIds = [];
+
+      for (const matchId of matchIds) {
+        try {
+          /*
+           * This runs after Socket.IO _cleanup()/leaveAll().
+           * fetchSockets() therefore observes canonical
+           * post-disconnect adapter membership.
+           *
+           * Durable match/runtime/session state is never
+           * mutated by transport disconnect.
+           */
+          const authority =
+            await resolveMatchReadinessAuthorityByMatchId(
+              matchId
+            );
+
+          if (!authority) {
+            continue;
+          }
+
+          await broadcastMatchReadiness({
+            io,
+            authority,
+          });
+        } catch (_error) {
+          /*
+           * Disconnect has no acknowledgement channel.
+           * Readiness is ephemeral and will be recomputed
+           * again on the next authorized join/leave.
+           *
+           * Do not mutate durable state as compensation.
+           */
+        }
       }
     }
   );
