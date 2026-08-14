@@ -9,6 +9,12 @@ const logger =
  * =====================================================
  */
 
+const {
+  registerCingArtilleryRealtimeConnection,
+} = require(
+  "./cingArtilleryRealtimeConnectionHandler"
+);
+
 function realtimeConnectionHandler({
 
   io,
@@ -16,6 +22,10 @@ function realtimeConnectionHandler({
   socket,
 
 }) {
+  registerCingArtilleryRealtimeConnection({
+    socket,
+  });
+
 
   logger.info(
     "socket connected",
