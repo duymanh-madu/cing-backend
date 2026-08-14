@@ -125,6 +125,12 @@ async function resolveMatchRoomAuthority({
     accountId:
       account.id,
 
+    playerOneAccountId:
+      runtime.player_one_account_id,
+
+    playerTwoAccountId:
+      runtime.player_two_account_id,
+
     gameplaySessionId:
       isPlayerOne
         ? runtime.player_one_session_id
@@ -139,6 +145,115 @@ async function resolveMatchRoomAuthority({
       buildMatchRoomName(
         runtime.match_id
       ),
+  };
+}
+
+async function resolveMatchRealtimeReadiness({
+  io,
+  authority,
+}) {
+  if (
+    !io ||
+    typeof io.in !== "function"
+  ) {
+    throw buildError({
+      message:
+        "Socket.IO authority Cing Artillery không hợp lệ",
+
+      code:
+        "CING_ARTILLERY_REALTIME_SERVER_INVALID",
+
+      statusCode:
+        500,
+    });
+  }
+
+  const playerOneAccountId =
+    String(
+      authority?.playerOneAccountId || ""
+    ).trim();
+
+  const playerTwoAccountId =
+    String(
+      authority?.playerTwoAccountId || ""
+    ).trim();
+
+  if (
+    !playerOneAccountId ||
+    !playerTwoAccountId ||
+    playerOneAccountId ===
+      playerTwoAccountId
+  ) {
+    throw buildError({
+      message:
+        "Realtime participant authority Cing Artillery không hợp lệ",
+
+      code:
+        "CING_ARTILLERY_REALTIME_PARTICIPANTS_INVALID",
+
+      statusCode:
+        500,
+    });
+  }
+
+  /*
+   * fetchSockets() is adapter-aware and therefore sees
+   * room members across Socket.IO instances through the
+   * existing Redis adapter.
+   *
+   * Readiness is based on canonical Cing Artillery
+   * account identity, never raw socket count.
+   *
+   * socket.data is transport metadata only. The account
+   * id stored there was produced by authenticated +
+   * durable match authorization before room join.
+   */
+  const sockets =
+    await io
+      .in(
+        authority.room
+      )
+      .fetchSockets();
+
+  const participantAccountIds =
+    new Set();
+
+  for (const candidate of sockets) {
+    const accountId =
+      String(
+        candidate?.data
+          ?.cingArtilleryAccountId ||
+        ""
+      ).trim();
+
+    if (accountId) {
+      participantAccountIds.add(
+        accountId
+      );
+    }
+  }
+
+  const playerOneReady =
+    participantAccountIds.has(
+      playerOneAccountId
+    );
+
+  const playerTwoReady =
+    participantAccountIds.has(
+      playerTwoAccountId
+    );
+
+  return {
+    matchId:
+      authority.matchId,
+
+    playerOneReady,
+
+    playerTwoReady,
+
+    bothReady:
+      playerOneReady &&
+      playerTwoReady,
   };
 }
 
@@ -181,4 +296,5 @@ async function authorizeMatchLeave({
 module.exports = {
   authorizeMatchJoin,
   authorizeMatchLeave,
+  resolveMatchRealtimeReadiness,
 };

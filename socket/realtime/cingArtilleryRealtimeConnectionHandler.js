@@ -7,6 +7,7 @@ const {
 const {
   authorizeMatchJoin,
   authorizeMatchLeave,
+  resolveMatchRealtimeReadiness,
 } = require(
   "../../services/games/cingArtillery/services/cingArtilleryRealtimeService"
 );
@@ -29,6 +30,7 @@ function serializeError(
 }
 
 function registerCingArtilleryRealtimeConnection({
+  io,
   socket,
 }) {
   socket.on(
@@ -64,8 +66,54 @@ function registerCingArtilleryRealtimeConnection({
             payload,
           });
 
+        /*
+         * Transport metadata only.
+         *
+         * accountId is server-derived after JWT authentication
+         * and durable match-membership authorization.
+         * It is never accepted from the client and never used
+         * as durable game authority.
+         */
+        socket.data.cingArtilleryAccountId =
+          authority.accountId;
+
         await socket.join(
           authority.room
+        );
+
+        const readiness =
+          await resolveMatchRealtimeReadiness({
+            io,
+            authority,
+          });
+
+        const readinessPayload = {
+          match_id:
+            authority.matchId,
+
+          player_one:
+            readiness.playerOneReady,
+
+          player_two:
+            readiness.playerTwoReady,
+
+          both:
+            readiness.bothReady,
+        };
+
+        /*
+         * Room-level readiness is server-derived and
+         * adapter-aware.
+         *
+         * Every authorized participant receives the same
+         * canonical readiness transition when a participant
+         * successfully joins the match room.
+         */
+        io.to(
+          authority.room
+        ).emit(
+          "cing-artillery:match:readiness",
+          readinessPayload
         );
 
         respond({
@@ -84,6 +132,17 @@ function registerCingArtilleryRealtimeConnection({
 
             player:
               authority.player,
+
+            readiness: {
+              player_one:
+                readiness.playerOneReady,
+
+              player_two:
+                readiness.playerTwoReady,
+
+              both:
+                readiness.bothReady,
+            },
           },
         });
       } catch (error) {

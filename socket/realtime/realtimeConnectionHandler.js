@@ -23,6 +23,7 @@ function realtimeConnectionHandler({
 
 }) {
   registerCingArtilleryRealtimeConnection({
+    io,
     socket,
   });
 
