@@ -18,9 +18,15 @@ const featureGateService =
     "./services/cingArtilleryFeatureGateService"
   );
 
+const characterLoadoutService =
+  require(
+    "./services/cingArtilleryCharacterLoadoutService"
+  );
+
 module.exports = {
   constants,
   contracts,
   accountService,
   featureGateService,
+  characterLoadoutService,
 };

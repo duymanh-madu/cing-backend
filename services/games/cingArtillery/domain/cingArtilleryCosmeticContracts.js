@@ -51,6 +51,62 @@ function assertItemKey(
   return itemKey;
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function normalizeInventoryItemId(
+  value
+) {
+  return String(
+    value || ""
+  ).trim();
+}
+
+function assertInventoryItemId(
+  value
+) {
+  const itemId =
+    normalizeInventoryItemId(
+      value
+    );
+
+  if (!itemId) {
+    const error =
+      new Error(
+        "Thiếu inventory_item_id cho Cing Artillery"
+      );
+
+    error.code =
+      "CING_ARTILLERY_INVENTORY_ITEM_ID_REQUIRED";
+
+    error.statusCode =
+      400;
+
+    throw error;
+  }
+
+  if (
+    !UUID_PATTERN.test(
+      itemId
+    )
+  ) {
+    const error =
+      new Error(
+        "inventory_item_id Cing Artillery không hợp lệ"
+      );
+
+    error.code =
+      "CING_ARTILLERY_INVALID_INVENTORY_ITEM_ID";
+
+    error.statusCode =
+      400;
+
+    throw error;
+  }
+
+  return itemId.toLowerCase();
+}
+
 function assertItemType(
   value
 ) {
@@ -114,6 +170,8 @@ function assertEquippableItemType(
 module.exports = {
   normalizeItemKey,
   assertItemKey,
+  normalizeInventoryItemId,
+  assertInventoryItemId,
   assertItemType,
   assertEquippableItemType,
 };

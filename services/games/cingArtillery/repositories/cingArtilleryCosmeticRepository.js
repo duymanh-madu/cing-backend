@@ -119,8 +119,78 @@ async function listLoadoutByAccountId(
   return data || [];
 }
 
+async function upsertLoadoutItem({
+  accountId,
+  itemType,
+  inventoryItemId,
+}) {
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      LOADOUT_TABLE
+    )
+    .upsert(
+      {
+        account_id:
+          accountId,
+
+        item_type:
+          itemType,
+
+        inventory_item_id:
+          inventoryItemId,
+
+        updated_at:
+          new Date().toISOString(),
+      },
+      {
+        onConflict:
+          "account_id,item_type",
+      }
+    )
+    .select(
+      LOADOUT_FIELDS
+    )
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function deleteLoadoutItem({
+  accountId,
+  itemType,
+}) {
+  const {
+    error,
+  } = await supabase
+    .from(
+      LOADOUT_TABLE
+    )
+    .delete()
+    .eq(
+      "account_id",
+      accountId
+    )
+    .eq(
+      "item_type",
+      itemType
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
 module.exports = {
   listInventoryByAccountId,
   findInventoryItemByAccountIdAndId,
   listLoadoutByAccountId,
+  upsertLoadoutItem,
+  deleteLoadoutItem,
 };
