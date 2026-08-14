@@ -4,14 +4,17 @@ BEGIN;
 -- CING ARTILLERY — DOMAIN FOUNDATION
 --
 -- Scope:
---   account identity only
---   no character
---   no inventory
---   no cosmetics
---   no matchmaking
---   no ranking
---   no economy
---   no public exposure
+--   account identity
+--   private runtime configuration
+--
+-- No:
+--   character
+--   inventory
+--   cosmetics
+--   matchmaking
+--   ranking
+--   economy
+--   public exposure
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS public.cing_artillery_accounts (
@@ -55,18 +58,43 @@ ON public.cing_artillery_accounts (
   status
 );
 
+-- =====================================================
+-- PRIVATE GAME CONFIG
+--
+-- app_configs is the existing production source of truth
+-- for application/game configuration.
+--
 -- Game remains dark until explicitly enabled.
-INSERT INTO public.feature_flags (
-  key,
-  enabled
-)
-SELECT
-  'cing_artillery_enabled',
-  false
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM public.feature_flags
-  WHERE key = 'cing_artillery_enabled'
-);
+-- =====================================================
+
+ALTER TABLE public.app_configs
+  ADD COLUMN IF NOT EXISTS cing_artillery_config jsonb
+  NOT NULL
+  DEFAULT '{
+    "version": 1,
+    "enabled": false
+  }'::jsonb;
+
+UPDATE public.app_configs
+SET cing_artillery_config =
+  jsonb_build_object(
+    'version',
+    COALESCE(
+      NULLIF(
+        cing_artillery_config->>'version',
+        ''
+      )::integer,
+      1
+    ),
+
+    'enabled',
+    COALESCE(
+      (
+        cing_artillery_config->>'enabled'
+      )::boolean,
+      false
+    )
+  )
+WHERE id = 1;
 
 COMMIT;

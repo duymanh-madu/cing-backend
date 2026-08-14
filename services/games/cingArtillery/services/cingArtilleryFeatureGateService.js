@@ -1,19 +1,47 @@
-const {
-  isFeatureEnabled,
-} = require(
-  "../../../infrastructure/featureFlags/featureFlagManager"
-);
+const configRepository =
+  require(
+    "../repositories/cingArtilleryConfigRepository"
+  );
 
-const {
-  CING_ARTILLERY_FEATURE_FLAG,
-} = require(
-  "../domain/cingArtilleryConstants"
-);
+function normalizeRuntimeConfig(
+  rawConfig
+) {
+  const source =
+    rawConfig &&
+    typeof rawConfig === "object" &&
+    !Array.isArray(rawConfig)
+      ? rawConfig
+      : {};
+
+  return {
+    version:
+      Number.isInteger(
+        Number(source.version)
+      ) &&
+      Number(source.version) > 0
+        ? Number(source.version)
+        : 1,
+
+    enabled:
+      source.enabled === true,
+  };
+}
+
+async function getCingArtilleryRuntimeConfig() {
+  const config =
+    await configRepository
+      .getRuntimeConfig();
+
+  return normalizeRuntimeConfig(
+    config
+  );
+}
 
 async function isCingArtilleryEnabled() {
-  return isFeatureEnabled(
-    CING_ARTILLERY_FEATURE_FLAG
-  );
+  const config =
+    await getCingArtilleryRuntimeConfig();
+
+  return config.enabled;
 }
 
 async function requireCingArtilleryEnabled() {
@@ -39,6 +67,8 @@ async function requireCingArtilleryEnabled() {
 }
 
 module.exports = {
+  normalizeRuntimeConfig,
+  getCingArtilleryRuntimeConfig,
   isCingArtilleryEnabled,
   requireCingArtilleryEnabled,
 };
