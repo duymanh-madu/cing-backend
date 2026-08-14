@@ -75,7 +75,39 @@ async function createActive({
   return data;
 }
 
+async function endAtomic({
+  accountId,
+  sessionId,
+  status,
+}) {
+  const {
+    data,
+    error,
+  } = await supabase
+    .rpc(
+      "cing_artillery_end_gameplay_session_atomic",
+      {
+        p_account_id:
+          accountId,
+
+        p_session_id:
+          sessionId,
+
+        p_status:
+          status,
+      }
+    )
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 module.exports = {
   findActiveByAccountId,
   createActive,
+  endAtomic,
 };

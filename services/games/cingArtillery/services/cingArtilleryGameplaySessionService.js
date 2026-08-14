@@ -8,6 +8,11 @@ const gameEntryService =
     "./cingArtilleryGameEntryService"
   );
 
+const accountRepository =
+  require(
+    "../repositories/cingArtilleryAccountRepository"
+  );
+
 const gameplaySessionRepository =
   require(
     "../repositories/cingArtilleryGameplaySessionRepository"
@@ -17,6 +22,7 @@ const {
   CING_ARTILLERY_GAMEPLAY_SESSION_STATUS,
   normalizeGameplaySessionRecord,
   assertCreateGameplaySessionRequest,
+  assertEndGameplaySessionRequest,
 } = require(
   "../domain/cingArtilleryGameplaySessionContracts"
 );
@@ -231,6 +237,136 @@ async function getOrCreateGameplaySession(
   }
 }
 
+function mapEndGameplaySessionError(
+  error
+) {
+  const message =
+    String(
+      error?.message || ""
+    );
+
+  if (
+    message.includes(
+      "CING_ARTILLERY_GAMEPLAY_SESSION_NOT_FOUND"
+    )
+  ) {
+    return buildError({
+      message:
+        "Không tìm thấy gameplay session Cing Artillery thuộc tài khoản này",
+
+      code:
+        "CING_ARTILLERY_GAMEPLAY_SESSION_NOT_FOUND",
+
+      statusCode:
+        404,
+    });
+  }
+
+  if (
+    message.includes(
+      "CING_ARTILLERY_GAMEPLAY_SESSION_STATE_CONFLICT"
+    )
+  ) {
+    return buildError({
+      message:
+        "Gameplay session Cing Artillery đã kết thúc ở trạng thái khác",
+
+      code:
+        "CING_ARTILLERY_GAMEPLAY_SESSION_STATE_CONFLICT",
+
+      statusCode:
+        409,
+    });
+  }
+
+  if (
+    message.includes(
+      "CING_ARTILLERY_INVALID_GAMEPLAY_SESSION_TERMINAL_STATUS"
+    )
+  ) {
+    return buildError({
+      message:
+        "Trạng thái kết thúc gameplay session Cing Artillery không hợp lệ",
+
+      code:
+        "CING_ARTILLERY_INVALID_GAMEPLAY_SESSION_TERMINAL_STATUS",
+
+      statusCode:
+        400,
+    });
+  }
+
+  return error;
+}
+
+async function endGameplaySession({
+  userId,
+  sessionId,
+  status,
+}) {
+  /*
+   * Private lifecycle write boundary.
+   *
+   * Ownership is resolved from the authenticated Cing
+   * Artillery account and enforced again atomically by
+   * PostgreSQL using account_id + session_id.
+   *
+   * This service intentionally does not:
+   *   mutate combat state
+   *   update scores/ranking
+   *   mutate economy/rewards
+   *   expose a public route
+   */
+  const request =
+    assertEndGameplaySessionRequest({
+      userId,
+      sessionId,
+      status,
+    });
+
+  const account =
+    await accountRepository
+      .findByUserId(
+        request.userId
+      );
+
+  if (!account?.id) {
+    throw buildError({
+      message:
+        "Không tìm thấy tài khoản Cing Artillery",
+
+      code:
+        "CING_ARTILLERY_ACCOUNT_NOT_FOUND",
+
+      statusCode:
+        404,
+    });
+  }
+
+  try {
+    const session =
+      await gameplaySessionRepository
+        .endAtomic({
+          accountId:
+            account.id,
+
+          sessionId:
+            request.sessionId,
+
+          status:
+            request.status,
+        });
+
+    return normalizeGameplaySessionRecord(
+      session
+    );
+  } catch (error) {
+    throw mapEndGameplaySessionError(
+      error
+    );
+  }
+}
+
 function isGameplaySessionActive(
   rawSession
 ) {
@@ -249,5 +385,6 @@ function isGameplaySessionActive(
 module.exports = {
   getActiveGameplaySession,
   getOrCreateGameplaySession,
+  endGameplaySession,
   isGameplaySessionActive,
 };
