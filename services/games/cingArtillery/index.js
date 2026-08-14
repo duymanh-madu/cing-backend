@@ -28,6 +28,11 @@ const runtimeProfileService =
     "./services/cingArtilleryRuntimeProfileService"
   );
 
+const gameEntryService =
+  require(
+    "./services/cingArtilleryGameEntryService"
+  );
+
 module.exports = {
   constants,
   contracts,
@@ -35,4 +40,5 @@ module.exports = {
   featureGateService,
   characterLoadoutService,
   runtimeProfileService,
+  gameEntryService,
 };
