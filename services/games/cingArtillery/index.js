@@ -43,6 +43,11 @@ const matchmakingService =
     "./services/cingArtilleryMatchmakingService"
   );
 
+const matchRuntimeService =
+  require(
+    "./services/cingArtilleryMatchRuntimeService"
+  );
+
 module.exports = {
   constants,
   contracts,
@@ -53,4 +58,5 @@ module.exports = {
   gameEntryService,
   gameplaySessionService,
   matchmakingService,
+  matchRuntimeService,
 };
