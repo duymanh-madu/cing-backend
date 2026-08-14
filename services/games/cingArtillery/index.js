@@ -38,6 +38,11 @@ const gameplaySessionService =
     "./services/cingArtilleryGameplaySessionService"
   );
 
+const matchmakingService =
+  require(
+    "./services/cingArtilleryMatchmakingService"
+  );
+
 module.exports = {
   constants,
   contracts,
@@ -47,4 +52,5 @@ module.exports = {
   runtimeProfileService,
   gameEntryService,
   gameplaySessionService,
+  matchmakingService,
 };
