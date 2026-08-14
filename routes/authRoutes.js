@@ -81,6 +81,12 @@ router.get(
 );
 
 router.post(
+  "/session/open",
+  authMiddleware,
+  authController.openSession
+);
+
+router.post(
   "/logout",
   authMiddleware,
   authController.logout

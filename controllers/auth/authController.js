@@ -70,7 +70,8 @@ async function refreshSession(
     const result =
       await authService.refreshSession({
         refreshToken:
-          req.body.refreshToken,
+          req.body.refreshToken ||
+          req.body.refresh_token,
       });
 
     return res.json({
@@ -127,6 +128,66 @@ async function getSession(
 
 /**
  * =====================================================
+ * SESSION OPEN
+ * =====================================================
+ */
+
+async function openSession(
+  req,
+  res,
+  next
+) {
+
+  try {
+
+    const evaluation =
+      await authService
+        .evaluateAuthenticatedSessionEntry({
+          customer:
+            req.customer,
+
+          installationId:
+            req.body?.installation_id ||
+            req.body?.installationId ||
+            "",
+
+          source:
+            req.body?.source ||
+            "zalo-miniapp-session",
+        });
+
+    return res.json({
+
+      success: true,
+
+      data: {
+
+        customer:
+          req.customer,
+
+        session_entry: {
+          evaluated:
+            true,
+
+          reward_granted:
+            evaluation?.reward_granted ===
+            true,
+        },
+
+      },
+
+    });
+
+  } catch (error) {
+
+    next(error);
+
+  }
+
+}
+
+/**
+ * =====================================================
  * LOGOUT
  * =====================================================
  */
@@ -163,6 +224,7 @@ module.exports = {
   loginWithZalo,
   refreshSession,
   getSession,
+  openSession,
   logout,
 
 };

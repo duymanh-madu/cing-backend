@@ -304,7 +304,11 @@ async function refreshSession({
     }
   }
 
-  customer.name = pickDisplayName(customer.name, crmMemberData?.name, zaloUser.name) || "Cing iu";
+  customer.name =
+    pickDisplayName(
+      customer.name
+    ) ||
+    "Cing iu";
 
   const accessToken =
     tokenService.generateAccessToken({
@@ -318,6 +322,82 @@ async function refreshSession({
     customer,
 
   };
+
+}
+
+/**
+ * =====================================================
+ * AUTHENTICATED SESSION ENTRY
+ * =====================================================
+ */
+
+async function evaluateAuthenticatedSessionEntry({
+  customer,
+  installationId = "",
+  source = "zalo-miniapp-session",
+}) {
+
+  if (
+    !customer ||
+    !customer.phone
+  ) {
+    return {
+      reward_granted: false,
+      skipped: true,
+      reason:
+        "customer_phone_missing",
+    };
+  }
+
+  try {
+
+    return await claimNationalDayLoginReward({
+      phone:
+        customer.phone,
+
+      installationId:
+        String(
+          installationId || ""
+        ).trim(),
+
+      source:
+        String(
+          source ||
+          "zalo-miniapp-session"
+        ).trim() ||
+        "zalo-miniapp-session",
+    });
+
+  } catch (error) {
+
+    /*
+     * Campaign evaluation must never break an otherwise
+     * valid authenticated app session.
+     *
+     * PostgreSQL remains the final atomic/idempotent
+     * reward authority.
+     */
+    logger.warn(
+      "Authenticated session campaign evaluation failed",
+      {
+        customerId:
+          customer.id,
+
+        phone:
+          customer.phone,
+
+        error,
+      }
+    );
+
+    return {
+      reward_granted: false,
+      skipped: true,
+      reason:
+        "campaign_processing_failed",
+    };
+
+  }
 
 }
 
@@ -341,6 +421,7 @@ module.exports = {
 
   loginWithZalo,
   refreshSession,
+  evaluateAuthenticatedSessionEntry,
   logout,
 
 };
