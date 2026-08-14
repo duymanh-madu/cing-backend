@@ -33,6 +33,11 @@ const gameEntryService =
     "./services/cingArtilleryGameEntryService"
   );
 
+const gameplaySessionService =
+  require(
+    "./services/cingArtilleryGameplaySessionService"
+  );
+
 module.exports = {
   constants,
   contracts,
@@ -41,4 +46,5 @@ module.exports = {
   characterLoadoutService,
   runtimeProfileService,
   gameEntryService,
+  gameplaySessionService,
 };
