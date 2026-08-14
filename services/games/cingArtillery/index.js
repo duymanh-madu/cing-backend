@@ -23,10 +23,16 @@ const characterLoadoutService =
     "./services/cingArtilleryCharacterLoadoutService"
   );
 
+const runtimeProfileService =
+  require(
+    "./services/cingArtilleryRuntimeProfileService"
+  );
+
 module.exports = {
   constants,
   contracts,
   accountService,
   featureGateService,
   characterLoadoutService,
+  runtimeProfileService,
 };
