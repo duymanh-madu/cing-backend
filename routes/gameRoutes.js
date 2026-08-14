@@ -13,6 +13,7 @@ const router =
 
 const {
   useGamePlay,
+  getGameEconomyPolicies,
   saveGameScore,
 } = require(
   "../services/gameService"
@@ -25,6 +26,41 @@ const validateGameScore =
   require(
     "../middlewares/validateGameScore"
   );
+
+/**
+ * =====================================================
+ * PUBLIC GAME ECONOMY POLICY
+ * =====================================================
+ */
+
+router.get(
+  "/economy-policy",
+  async (req, res) => {
+    try {
+      const data =
+        await getGameEconomyPolicies();
+
+      return res.json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      const statusCode =
+        error.statusCode || 500;
+
+      return res
+        .status(statusCode)
+        .json({
+          success: false,
+          code:
+            error.code ||
+            "GAME_ECONOMY_POLICY_FAILED",
+          message:
+            error.message,
+        });
+    }
+  }
+);
 
 /**
  * =====================================================

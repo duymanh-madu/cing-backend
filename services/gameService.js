@@ -171,6 +171,98 @@ async function getGameEconomyPolicy(
 
 /**
  * =====================================================
+ * PUBLIC GAME ECONOMY POLICY
+ * =====================================================
+ */
+
+async function getGameEconomyPolicies() {
+  const {
+    data: configRow,
+    error,
+  } = await supabase
+    .from("app_configs")
+    .select("game_economy_config")
+    .eq("id", 1)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  const config =
+    configRow?.game_economy_config;
+
+  const games =
+    config?.games;
+
+  if (
+    !games ||
+    typeof games !== "object"
+  ) {
+    const policyError =
+      new Error(
+        "Game economy chưa được cấu hình"
+      );
+
+    policyError.statusCode = 503;
+    policyError.code =
+      "GAME_ECONOMY_CONFIG_UNAVAILABLE";
+
+    throw policyError;
+  }
+
+  const normalizedGames = {};
+
+  for (
+    const [
+      gameKey,
+      gamePolicy,
+    ] of Object.entries(games)
+  ) {
+    const economyType =
+      String(
+        gamePolicy?.economy_type || ""
+      ).trim();
+
+    if (
+      economyType !==
+        GAME_ECONOMY_TYPES.PAID_OFFLINE &&
+      economyType !==
+        GAME_ECONOMY_TYPES.FREE_MULTIPLAYER
+    ) {
+      const policyError =
+        new Error(
+          `Economy policy không hợp lệ: ${gameKey}`
+        );
+
+      policyError.statusCode = 500;
+      policyError.code =
+        "INVALID_GAME_ECONOMY_POLICY";
+
+      throw policyError;
+    }
+
+    normalizedGames[gameKey] = {
+      game_key: gameKey,
+      economy_type: economyType,
+      play_cost:
+        economyType ===
+        GAME_ECONOMY_TYPES.PAID_OFFLINE
+          ? 1
+          : 0,
+    };
+  }
+
+  return {
+    version:
+      Number(config?.version || 1),
+    games:
+      normalizedGames,
+  };
+}
+
+/**
+ * =====================================================
  * USE GAME PLAY
  * =====================================================
  */
@@ -549,6 +641,8 @@ module.exports = {
   useGamePlay,
 
   getGameEconomyPolicy,
+
+  getGameEconomyPolicies,
 
   saveGameScore,
 
