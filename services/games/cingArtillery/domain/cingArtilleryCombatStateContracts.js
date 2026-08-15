@@ -4,6 +4,13 @@ const {
   "./cingArtilleryMatchRuntimeContracts"
 );
 
+const {
+  normalizeGameRules,
+  assertRulesVersionMatches,
+} = require(
+  "./cingArtilleryGameRulesContracts"
+);
+
 const CING_ARTILLERY_COMBAT_STATE_STATUS =
   Object.freeze({
     INITIALIZED:
@@ -143,6 +150,29 @@ function normalizeCombatStateRecord(
       assertCombatStateStatus(
         row.status
       ),
+
+    ...(() => {
+      const rulesSnapshot =
+        normalizeGameRules(
+          row.rules_snapshot
+        );
+
+      const rulesVersion =
+        assertRulesVersionMatches({
+          rulesVersion:
+            row.rules_version,
+          rules:
+            rulesSnapshot,
+        });
+
+      return {
+        rules_version:
+          rulesVersion,
+
+        rules_snapshot:
+          rulesSnapshot,
+      };
+    })(),
 
     initialized_at:
       row.initialized_at,

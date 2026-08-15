@@ -16,6 +16,8 @@ const COMBAT_STATE_FIELDS =
     "player_two_account_id",
     "player_two_session_id",
     "status",
+    "rules_version",
+    "rules_snapshot",
     "initialized_at",
     "created_at",
     "updated_at",

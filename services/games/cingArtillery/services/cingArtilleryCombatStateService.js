@@ -128,6 +128,23 @@ function mapRepositoryError(
 
   if (
     message.includes(
+      "cing_artillery_rules_config_invalid"
+    )
+  ) {
+    return buildError({
+      message:
+        "Cấu hình luật chơi Cing Artillery không hợp lệ",
+      code:
+        "CING_ARTILLERY_RULES_CONFIG_INVALID",
+      statusCode:
+        500,
+      cause:
+        error,
+    });
+  }
+
+  if (
+    message.includes(
       "cing_artillery_config_invalid"
     )
   ) {
