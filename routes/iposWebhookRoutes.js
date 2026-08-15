@@ -400,6 +400,28 @@ router.post("/callback", async (req, res) => {
         timestamp:     new Date().toISOString(),
       });
 
+      /*
+       * Canonical loyalty-points realtime transition.
+       *
+       * memberData.points is the authoritative value after the
+       * CRM/iPOS point-governance block above. In particular,
+       * skipPointOverwrite may intentionally preserve local points
+       * for an app order that was already instant-synced, so realtime
+       * must never publish raw d.point independently here.
+       */
+      realtimeEventBus.publish({
+        event: "membership.points",
+        delivery_type: "BROADCAST",
+        payload: {
+          user_id: p0,
+          phone: p0,
+          points: Number(memberData.points || 0),
+          points_changed: true,
+        },
+        channel: "membership",
+        timestamp: new Date().toISOString(),
+      });
+
       // 5. Sync spending — chỉ skip nếu đơn app đã được instant sync rồi
       // Đơn tại quầy không có record spending_synced=true nên luôn được sync
       try {
