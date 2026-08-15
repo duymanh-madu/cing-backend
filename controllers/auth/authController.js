@@ -3,6 +3,12 @@ const authService =
     "../../services/auth/authService"
   );
 
+const {
+  evaluateCachedMemberAppOpen,
+} = require(
+  "../../services/campaign/cachedMemberAppOpenService"
+);
+
 const logger =
   require(
     "../../services/loggerService"
@@ -128,6 +134,64 @@ async function getSession(
 
 /**
  * =====================================================
+ * CACHED MEMBER APP OPEN
+ * =====================================================
+ *
+ * This endpoint does NOT authenticate a customer,
+ * issue a JWT, or expose customer data.
+ *
+ * Shell-cached identity is treated only as an app-open
+ * signal. Server-side canonical customer + player
+ * identity remains the authority.
+ */
+
+async function openCachedMemberApp(
+  req,
+  res,
+  next
+) {
+
+  try {
+
+    await evaluateCachedMemberAppOpen({
+      phone:
+        req.body?.phone ||
+        "",
+
+      zaloUserId:
+        req.body?.zalo_id ||
+        req.body?.zaloId ||
+        "",
+
+      installationId:
+        req.body?.installation_id ||
+        req.body?.installationId ||
+        "",
+
+      source:
+        req.body?.source ||
+        "zalo-miniapp-shell-cache",
+    });
+
+    /*
+     * Deliberately generic response:
+     * do not expose whether a supplied identity pair
+     * exists or whether a reward was granted.
+     */
+    return res.json({
+      success: true,
+    });
+
+  } catch (error) {
+
+    next(error);
+
+  }
+
+}
+
+/**
+ * =====================================================
  * SESSION OPEN
  * =====================================================
  */
@@ -224,6 +288,7 @@ module.exports = {
   loginWithZalo,
   refreshSession,
   getSession,
+  openCachedMemberApp,
   openSession,
   logout,
 

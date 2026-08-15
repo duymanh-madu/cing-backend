@@ -68,6 +68,11 @@ router.post(
   authController.refreshSession
 );
 
+router.post(
+  "/member/app-open",
+  authController.openCachedMemberApp
+);
+
 /**
  * =====================================================
  * AUTHENTICATED
