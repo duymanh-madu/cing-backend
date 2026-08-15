@@ -345,36 +345,154 @@ router.post("/callback", async (req, res) => {
           console.log(`[IPOS WEBHOOK] Skip point overwrite for after-hours app order ${foodbookCodeForPointSource} / ${p0}`);
         } else {
           const crmPoints = Math.floor(d.point || 0);
-          const orderEarnedPoints = Math.floor(Number(amountForPointSource || 0) * 0.1 / 1000);
+          const crmPointsDelta = crmPoints - localPoints;
 
-          if (orderEarnedPoints > 0 && directOrderCodeForPointSource) {
-            const { error: pointHistoryErr } = await supabase
-              .from("analytics_events")
-              .insert({
-                event_name: "points_added",
-                user_id: p0,
-                event_data: {
-                  amount: orderEarnedPoints,
-                  reason: `Tích điểm đơn tại quầy iPOS — đơn ${directOrderCodeForPointSource}`,
-                  source: foodbookCodeForPointSource ? "ipos_order" : "ipos_membership_log",
-                  order_code: directOrderCodeForPointSource,
-                  order_amount: amountForPointSource,
-                  new_total: crmPoints,
-                  crm_points_delta: crmPoints - localPoints,
-                },
-                created_at: new Date().toISOString(),
-              });
+          /*
+           * CRM/iPOS point history is balance-delta authoritative.
+           *
+           * Do not infer the ledger amount from order spend:
+           * manual CRM adjustments, redemptions and partner point
+           * changes may alter the balance independently of an order.
+           *
+           * The external webhook object id is used as the durable
+           * source identity when available. Redis already protects the
+           * concurrent-delivery window; this persisted lookup protects
+           * retries delivered again after that lock expires.
+           */
+          if (crmPointsDelta !== 0) {
+            const pointHistoryEventName =
+              crmPointsDelta > 0
+                ? "points_added"
+                : "points_deducted";
 
-            if (pointHistoryErr && pointHistoryErr.code !== "23505") {
-              console.warn("[IPOS WEBHOOK] points history insert failed:", pointHistoryErr.message);
-            } else if (!pointHistoryErr) {
-              console.log("[IPOS WEBHOOK] points history added:", {
-                phone: p0,
-                order_code: directOrderCodeForPointSource,
-                points: orderEarnedPoints,
-                order_amount: amountForPointSource,
-                new_total: crmPoints,
-              });
+            const pointHistorySource =
+              foodbookCodeForPointSource
+                ? "ipos_order"
+                : "ipos_membership_log";
+
+            const pointHistoryExternalId =
+              eventData?.id
+                ? `${event}:${String(eventData.id)}`
+                : directOrderCodeForPointSource
+                  ? `${event}:${directOrderCodeForPointSource}:${crmPoints}`
+                  : "";
+
+            const pointHistoryReason =
+              foodbookCodeForPointSource
+                ? crmPointsDelta > 0
+                  ? `Tích điểm đơn tại quầy iPOS — đơn ${directOrderCodeForPointSource}`
+                  : `Điều chỉnh giảm điểm từ iPOS — đơn ${directOrderCodeForPointSource}`
+                : crmPointsDelta > 0
+                  ? "CRM/iPOS cộng điểm"
+                  : "CRM/iPOS trừ điểm";
+
+            let pointHistoryExists = false;
+
+            if (pointHistoryExternalId) {
+              const { data: existingPointHistory, error: pointHistoryLookupErr } =
+                await supabase
+                  .from("analytics_events")
+                  .select("id")
+                  .eq("user_id", p0)
+                  .eq("event_name", pointHistoryEventName)
+                  .contains("event_data", {
+                    crm_event_id: pointHistoryExternalId,
+                  })
+                  .limit(1)
+                  .maybeSingle();
+
+              if (pointHistoryLookupErr) {
+                throw pointHistoryLookupErr;
+              }
+
+              pointHistoryExists =
+                !!existingPointHistory;
+            }
+
+            if (!pointHistoryExists) {
+              const { error: pointHistoryErr } =
+                await supabase
+                  .from("analytics_events")
+                  .insert({
+                    event_name:
+                      pointHistoryEventName,
+                    user_id:
+                      p0,
+                    event_data: {
+                      amount:
+                        crmPointsDelta,
+                      reason:
+                        pointHistoryReason,
+                      source:
+                        pointHistorySource,
+                      order_code:
+                        directOrderCodeForPointSource ||
+                        null,
+                      order_amount:
+                        Number(
+                          amountForPointSource || 0
+                        ),
+                      new_total:
+                        crmPoints,
+                      balance_before:
+                        localPoints,
+                      crm_points_delta:
+                        crmPointsDelta,
+                      crm_event_id:
+                        pointHistoryExternalId ||
+                        null,
+                    },
+                    created_at:
+                      new Date().toISOString(),
+                  });
+
+              const pointHistoryDuplicateConstraint =
+                pointHistoryErr?.code === "23505"
+                  ? String(
+                      pointHistoryErr?.message || ""
+                    )
+                  : "";
+
+              const pointHistoryDuplicate =
+                pointHistoryErr?.code === "23505" &&
+                (
+                  pointHistoryDuplicateConstraint.includes(
+                    "analytics_events_crm_point_event_uidx"
+                  ) ||
+                  pointHistoryDuplicateConstraint.includes(
+                    "analytics_events_ipos_points_uidx"
+                  )
+                );
+
+              if (
+                pointHistoryErr &&
+                !pointHistoryDuplicate
+              ) {
+                throw pointHistoryErr;
+              }
+
+              if (!pointHistoryErr) {
+                console.log(
+                  "[IPOS WEBHOOK] points history added:",
+                  {
+                    phone:
+                      p0,
+                    event_name:
+                      pointHistoryEventName,
+                    delta:
+                      crmPointsDelta,
+                    previous_total:
+                      localPoints,
+                    new_total:
+                      crmPoints,
+                    source:
+                      pointHistorySource,
+                    crm_event_id:
+                      pointHistoryExternalId ||
+                      null,
+                  }
+                );
+              }
             }
           }
 
