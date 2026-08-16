@@ -27,6 +27,22 @@ const VALID_TURN_STATE_STATUSES =
     )
   );
 
+const CING_ARTILLERY_INITIATIVE_REASON =
+  Object.freeze({
+    SPEED:
+      "speed",
+
+    SPEED_TIEBREAK:
+      "speed_tiebreak",
+  });
+
+const VALID_INITIATIVE_REASONS =
+  new Set(
+    Object.values(
+      CING_ARTILLERY_INITIATIVE_REASON
+    )
+  );
+
 function buildError({
   message,
   code,
@@ -110,6 +126,48 @@ function assertTurnStateStatus(
 
 const POSTGRES_INTEGER_MAX =
   2147483647;
+
+function assertInitiativeReason(
+  value,
+  nullable = false
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    if (nullable) {
+      return null;
+    }
+
+    throw buildError({
+      message:
+        "Thiếu initiative reason Cing Artillery",
+      code:
+        "CING_ARTILLERY_INVALID_INITIATIVE_REASON",
+    });
+  }
+
+  const reason =
+    String(value)
+      .trim()
+      .toLowerCase();
+
+  if (
+    !VALID_INITIATIVE_REASONS.has(
+      reason
+    )
+  ) {
+    throw buildError({
+      message:
+        "Initiative reason Cing Artillery không hợp lệ",
+      code:
+        "CING_ARTILLERY_INVALID_INITIATIVE_REASON",
+    });
+  }
+
+  return reason;
+}
 
 function assertTurnNumber(
   value
@@ -258,6 +316,12 @@ function normalizeTurnStateRecord(
         )
       : null;
 
+  const initiativeReason =
+    assertInitiativeReason(
+      row.initiative_reason,
+      true
+    );
+
   const turnStartedAt =
     normalizeTimestamp(
       row.turn_started_at,
@@ -281,6 +345,7 @@ function normalizeTurnStateRecord(
       turnNumber !== 0 ||
       activeAccountId !== null ||
       activeSessionId !== null ||
+      initiativeReason !== null ||
       turnStartedAt !== null ||
       turnDeadlineAt !== null
     ) {
@@ -316,6 +381,7 @@ function normalizeTurnStateRecord(
         !activeIsPlayerOne &&
         !activeIsPlayerTwo
       ) ||
+      !initiativeReason ||
       !turnStartedAt ||
       !turnDeadlineAt ||
       new Date(
@@ -378,6 +444,9 @@ function normalizeTurnStateRecord(
     active_session_id:
       activeSessionId,
 
+    initiative_reason:
+      initiativeReason,
+
     turn_started_at:
       turnStartedAt,
 
@@ -400,8 +469,10 @@ function normalizeTurnStateRecord(
 
 module.exports = {
   CING_ARTILLERY_TURN_STATE_STATUS,
+  CING_ARTILLERY_INITIATIVE_REASON,
   assertTurnStateId,
   assertTurnStateStatus,
+  assertInitiativeReason,
   assertTurnNumber,
   normalizeTurnStateRecord,
 };

@@ -20,6 +20,7 @@ const TURN_STATE_FIELDS =
     "turn_number",
     "active_account_id",
     "active_session_id",
+    "initiative_reason",
     "turn_started_at",
     "turn_deadline_at",
     "created_at",
@@ -74,7 +75,32 @@ async function getOrCreateAtomic(
     : data || null;
 }
 
+async function activateFirstTurnAtomic(
+  combatStateId
+) {
+  const {
+    data,
+    error,
+  } = await supabase
+    .rpc(
+      "cing_artillery_activate_first_turn_atomic",
+      {
+        p_combat_state_id:
+          combatStateId,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data)
+    ? data[0] || null
+    : data || null;
+}
+
 module.exports = {
   findByCombatStateId,
   getOrCreateAtomic,
+  activateFirstTurnAtomic,
 };

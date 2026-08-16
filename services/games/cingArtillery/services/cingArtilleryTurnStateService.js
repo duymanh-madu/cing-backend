@@ -142,6 +142,74 @@ function mapRepositoryError(
 
   if (
     message.includes(
+      "CING_ARTILLERY_TURN_STATE_NOT_FOUND"
+    )
+  ) {
+    return buildError({
+      message:
+        "Không tìm thấy turn state Cing Artillery",
+      code:
+        "CING_ARTILLERY_TURN_STATE_NOT_FOUND",
+      statusCode:
+        404,
+      cause:
+        error,
+    });
+  }
+
+  if (
+    message.includes(
+      "CING_ARTILLERY_INITIATIVE_STATE_INCONSISTENT"
+    )
+  ) {
+    return buildError({
+      message:
+        "Initiative state Cing Artillery không nhất quán",
+      code:
+        "CING_ARTILLERY_INITIATIVE_STATE_INCONSISTENT",
+      statusCode:
+        409,
+      cause:
+        error,
+    });
+  }
+
+  if (
+    message.includes(
+      "CING_ARTILLERY_INITIATIVE_COMBAT_STATS_INVALID"
+    )
+  ) {
+    return buildError({
+      message:
+        "Combat stats không đủ điều kiện xác định initiative",
+      code:
+        "CING_ARTILLERY_INITIATIVE_COMBAT_STATS_INVALID",
+      statusCode:
+        409,
+      cause:
+        error,
+    });
+  }
+
+  if (
+    message.includes(
+      "CING_ARTILLERY_INITIATIVE_RULES_INVALID"
+    )
+  ) {
+    return buildError({
+      message:
+        "Luật lượt chơi Cing Artillery không hợp lệ",
+      code:
+        "CING_ARTILLERY_INITIATIVE_RULES_INVALID",
+      statusCode:
+        409,
+      cause:
+        error,
+    });
+  }
+
+  if (
+    message.includes(
       "CING_ARTILLERY_TURN_STATE_RESOLUTION_FAILED"
     )
   ) {
@@ -217,7 +285,58 @@ async function getOrCreateForCombatState(
   }
 }
 
+async function activateFirstTurnForCombatState(
+  rawCombatStateId
+) {
+  await requireCingArtilleryEnabled();
+
+  const combatStateId =
+    assertCombatStateId(
+      rawCombatStateId
+    );
+
+  try {
+    /*
+     * Turn-state existence and initiative activation are
+     * intentionally separate durable transitions.
+     *
+     * Initialization is idempotent and can only produce
+     * canonical PENDING state. Initiative activation below
+     * owns the PENDING -> ACTIVE transition.
+     */
+    await getOrCreateForCombatState(
+      combatStateId
+    );
+
+    const row =
+      await repository
+        .activateFirstTurnAtomic(
+          combatStateId
+        );
+
+    if (!row) {
+      throw buildError({
+        message:
+          "Không thể kích hoạt lượt đầu Cing Artillery",
+        code:
+          "CING_ARTILLERY_INITIATIVE_STATE_INCONSISTENT",
+        statusCode:
+          500,
+      });
+    }
+
+    return normalizeTurnStateRecord(
+      row
+    );
+  } catch (error) {
+    throw mapRepositoryError(
+      error
+    );
+  }
+}
+
 module.exports = {
   getByCombatStateId,
   getOrCreateForCombatState,
+  activateFirstTurnForCombatState,
 };
