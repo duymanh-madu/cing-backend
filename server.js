@@ -1016,3 +1016,25 @@ try {
 } catch (e) {
   console.warn("[IPOS ACTIVITY] worker start failed:", e.message);
 }
+
+
+/**
+ * =====================================================
+ * CING ARTILLERY SHOT EXECUTION RECOVERY WORKER
+ * Recover expired durable execution leases only.
+ * =====================================================
+ */
+try {
+  const {
+    startCingArtilleryShotExecutionWorker,
+  } = require(
+    "./services/games/cingArtillery/workers/cingArtilleryShotExecutionWorker"
+  );
+
+  startCingArtilleryShotExecutionWorker();
+} catch (e) {
+  console.warn(
+    "[CING ARTILLERY SHOT EXECUTION] worker start failed:",
+    e.message
+  );
+}
