@@ -53,6 +53,11 @@ const combatStateService =
     "./services/cingArtilleryCombatStateService"
   );
 
+const turnStateService =
+  require(
+    "./services/cingArtilleryTurnStateService"
+  );
+
 module.exports = {
   constants,
   contracts,
@@ -65,4 +70,5 @@ module.exports = {
   matchmakingService,
   matchRuntimeService,
   combatStateService,
+  turnStateService,
 };
