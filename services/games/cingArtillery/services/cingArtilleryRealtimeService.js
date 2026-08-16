@@ -24,6 +24,11 @@ const combatWorldService =
     "./cingArtilleryCombatWorldService"
   );
 
+const combatVitalService =
+  require(
+    "./cingArtilleryCombatVitalService"
+  );
+
 const turnStateService =
   require(
     "./cingArtilleryTurnStateService"
@@ -340,12 +345,18 @@ async function resolveMatchCombatStartAuthority(
    *
    *   runtime -> combat state
    *   combat state -> immutable combat world
+   *   combat state -> mutable combat vital state
    *   combat state -> turn state
    *   pending turn -> canonical active initiative
    *
-   * Combat world MUST exist before first-turn activation.
+   * Combat world and Combat Vital MUST both exist before
+   * first-turn activation.
+   *
    * A match can therefore never expose an ACTIVE turn
-   * without a canonical map/spawn/side/wind snapshot.
+   * without:
+   *
+   *   canonical map/spawn/side/wind authority
+   *   canonical mutable current-HP authority
    *
    * Concurrent Socket.IO instances may therefore enter this
    * boundary safely for the same match.
@@ -411,6 +422,46 @@ async function resolveMatchCombatStartAuthority(
 
       code:
         "CING_ARTILLERY_REALTIME_COMBAT_WORLD_INCONSISTENT",
+
+      statusCode:
+        500,
+    });
+  }
+
+  /*
+   * Combat Vital initialization is the mutable gameplay
+   * prerequisite for first-turn activation.
+   *
+   * PostgreSQL derives initial current HP exclusively from
+   * the immutable per-combat stat snapshots.
+   *
+   * This layer must not supply, calculate or reset HP.
+   */
+  const combatVital =
+    await combatVitalService
+      .getOrCreateForCombatState(
+        combatState.id
+      );
+
+  if (
+    !combatVital?.id ||
+    combatVital.combat_state_id !==
+      combatState.id ||
+    combatVital.match_runtime_id !==
+      runtimeId ||
+    combatVital.match_id !==
+      authority.matchId ||
+    combatVital.player_one_account_id !==
+      combatState.player_one_account_id ||
+    combatVital.player_two_account_id !==
+      combatState.player_two_account_id
+  ) {
+    throw buildError({
+      message:
+        "Canonical Combat Vital authority Cing Artillery không nhất quán",
+
+      code:
+        "CING_ARTILLERY_REALTIME_COMBAT_VITAL_INCONSISTENT",
 
       statusCode:
         500,
