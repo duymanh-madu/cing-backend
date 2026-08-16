@@ -24,9 +24,15 @@ const turnStateService =
     "./cingArtilleryTurnStateService"
   );
 
+const shotCommandService =
+  require(
+    "./cingArtilleryShotCommandService"
+  );
+
 const {
   assertRealtimeJoinRequest,
   assertRealtimeLeaveRequest,
+  assertRealtimeShotCommandRequest,
   buildMatchRoomName,
 } = require(
   "../domain/cingArtilleryRealtimeContracts"
@@ -404,6 +410,84 @@ async function authorizeMatchJoin({
   });
 }
 
+async function acceptRealtimeShotCommand({
+  userId,
+  payload,
+}) {
+  await requireCingArtilleryEnabled();
+
+  const request =
+    assertRealtimeShotCommandRequest(
+      payload
+    );
+
+  /*
+   * Durable shooter authority is derived from authenticated
+   * match membership. Client input is intent only.
+   */
+  const authority =
+    await resolveMatchRoomAuthority({
+      userId,
+      matchId:
+        request.matchId,
+    });
+
+  const combatState =
+    await combatStateService
+      .getByMatchRuntimeId(
+        authority.runtimeId
+      );
+
+  if (
+    !combatState?.id ||
+    combatState.match_runtime_id !==
+      authority.runtimeId ||
+    combatState.match_id !==
+      authority.matchId
+  ) {
+    throw buildError({
+      message:
+        "Combat state authority Cing Artillery chưa sẵn sàng cho shot command",
+
+      code:
+        "CING_ARTILLERY_SHOT_COMBAT_STATE_NOT_READY",
+
+      statusCode:
+        409,
+    });
+  }
+
+  const shotCommand =
+    await shotCommandService
+      .acceptShotCommand({
+        combatStateId:
+          combatState.id,
+
+        shooterAccountId:
+          authority.accountId,
+
+        shooterSessionId:
+          authority.gameplaySessionId,
+
+        turnNumber:
+          request.turnNumber,
+
+        commandId:
+          request.commandId,
+
+        angleDeg:
+          request.angleDeg,
+
+        power:
+          request.power,
+      });
+
+  return {
+    authority,
+    shotCommand,
+  };
+}
+
 async function authorizeMatchLeave({
   userId,
   payload,
@@ -423,6 +507,7 @@ async function authorizeMatchLeave({
 }
 
 module.exports = {
+  acceptRealtimeShotCommand,
   authorizeMatchJoin,
   authorizeMatchLeave,
   resolveMatchCombatStartAuthority,

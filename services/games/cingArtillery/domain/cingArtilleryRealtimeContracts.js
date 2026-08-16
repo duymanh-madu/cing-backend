@@ -65,6 +65,53 @@ function assertRealtimeJoinRequest(
   };
 }
 
+function assertRealtimeShotCommandRequest(
+  payload
+) {
+  const source =
+    payload &&
+    typeof payload === "object" &&
+    !Array.isArray(payload)
+      ? payload
+      : {};
+
+  const {
+    assertShotCommandId,
+    assertShotTurnNumber,
+    assertShotAngleDeg,
+    assertShotPower,
+  } = require(
+    "./cingArtilleryShotCommandContracts"
+  );
+
+  return {
+    matchId:
+      assertMatchId(
+        source.matchId
+      ),
+
+    commandId:
+      assertShotCommandId(
+        source.commandId
+      ),
+
+    turnNumber:
+      assertShotTurnNumber(
+        source.turnNumber
+      ),
+
+    angleDeg:
+      assertShotAngleDeg(
+        source.angleDeg
+      ),
+
+    power:
+      assertShotPower(
+        source.power
+      ),
+  };
+}
+
 function assertRealtimeLeaveRequest(
   payload
 ) {
@@ -131,6 +178,7 @@ module.exports = {
   assertAccessToken,
   assertRealtimeJoinRequest,
   assertRealtimeLeaveRequest,
+  assertRealtimeShotCommandRequest,
   buildMatchRoomName,
   parseMatchRoomName,
 };

@@ -4,7 +4,7 @@ const supabase =
   );
 
 const RPC_NAME =
-  "cing_artillery_accept_shot_command_atomic";
+  "cing_artillery_accept_shot_command_with_execution_atomic";
 
 async function acceptAtomic({
   combatStateId,

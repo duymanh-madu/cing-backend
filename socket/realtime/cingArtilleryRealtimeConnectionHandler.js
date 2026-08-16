@@ -5,6 +5,7 @@ const {
 );
 
 const {
+  acceptRealtimeShotCommand,
   authorizeMatchJoin,
   authorizeMatchLeave,
   resolveMatchCombatStartAuthority,
@@ -210,6 +211,64 @@ function registerCingArtilleryRealtimeConnection({
             );
           }
         }
+      } catch (error) {
+        respond(
+          serializeError(
+            error
+          )
+        );
+      }
+    }
+  );
+
+  socket.on(
+    "cing-artillery:match:shot-command",
+    async (
+      payload,
+      acknowledgement
+    ) => {
+      const respond =
+        typeof acknowledgement ===
+        "function"
+          ? acknowledgement
+          : () => {};
+
+      try {
+        /*
+         * Re-authenticate every gameplay command.
+         *
+         * Socket room membership is transport state and is
+         * intentionally NOT used as durable gameplay authority.
+         */
+        const identity =
+          await authenticateSocket(
+            socket
+          );
+
+        const {
+          shotCommand,
+        } =
+          await acceptRealtimeShotCommand({
+            userId:
+              identity.userId,
+
+            payload,
+          });
+
+        /*
+         * ACK accepted durable command to the caller only.
+         *
+         * Do NOT broadcast this command as gameplay execution.
+         * Durable shot execution will later produce the
+         * canonical result event after processing completes.
+         */
+        respond({
+          success:
+            true,
+
+          data:
+            shotCommand,
+        });
       } catch (error) {
         respond(
           serializeError(
