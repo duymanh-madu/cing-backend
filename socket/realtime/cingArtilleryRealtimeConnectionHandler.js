@@ -7,6 +7,7 @@ const {
 const {
   authorizeMatchJoin,
   authorizeMatchLeave,
+  resolveMatchCombatStartAuthority,
   resolveMatchRealtimeReadiness,
   resolveMatchReadinessAuthorityByMatchId,
 } = require(
@@ -128,6 +129,14 @@ function registerCingArtilleryRealtimeConnection({
             authority,
           });
 
+        /*
+         * JOIN acknowledgement closes the transport
+         * lifecycle only.
+         *
+         * Once authenticated + authorized room membership
+         * succeeds, the client is joined regardless of the
+         * outcome of a later durable combat-start attempt.
+         */
         respond({
           success:
             true,
@@ -157,6 +166,50 @@ function registerCingArtilleryRealtimeConnection({
             },
           },
         });
+
+        if (readiness.bothReady) {
+          /*
+           * Readiness is only a trigger.
+           *
+           * Durable start is intentionally isolated from
+           * JOIN acknowledgement semantics:
+           *
+           *   success -> canonical turn-state event
+           *   failure -> sanitized start-error event
+           *
+           * Never roll back room membership as compensation.
+           * PostgreSQL may already have committed canonical
+           * state even if a later transport operation fails.
+           */
+          try {
+            const turnState =
+              await resolveMatchCombatStartAuthority(
+                authority
+              );
+
+            io.to(
+              authority.room
+            ).emit(
+              "cing-artillery:match:turn-state",
+              turnState
+            );
+          } catch (startError) {
+            io.to(
+              authority.room
+            ).emit(
+              "cing-artillery:match:start-error",
+              {
+                match_id:
+                  authority.matchId,
+
+                error:
+                  serializeError(
+                    startError
+                  ),
+              }
+            );
+          }
+        }
       } catch (error) {
         respond(
           serializeError(

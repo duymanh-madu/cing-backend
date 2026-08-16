@@ -14,6 +14,16 @@ const matchRuntimeService =
     "./cingArtilleryMatchRuntimeService"
   );
 
+const combatStateService =
+  require(
+    "./cingArtilleryCombatStateService"
+  );
+
+const turnStateService =
+  require(
+    "./cingArtilleryTurnStateService"
+  );
+
 const {
   assertRealtimeJoinRequest,
   assertRealtimeLeaveRequest,
@@ -287,6 +297,95 @@ async function resolveMatchRealtimeReadiness({
   };
 }
 
+async function resolveMatchCombatStartAuthority(
+  authority
+) {
+  const runtimeId =
+    String(
+      authority?.runtimeId || ""
+    ).trim();
+
+  if (!runtimeId) {
+    throw buildError({
+      message:
+        "Match runtime authority Cing Artillery không hợp lệ",
+
+      code:
+        "CING_ARTILLERY_MATCH_RUNTIME_AUTHORITY_INVALID",
+
+      statusCode:
+        500,
+    });
+  }
+
+  /*
+   * Realtime readiness is a trigger only.
+   *
+   * It cannot choose initiative, participants, turn number
+   * or timer. Those values are resolved exclusively through
+   * the durable PostgreSQL authorities below.
+   *
+   * All transitions are idempotent:
+   *
+   *   runtime -> combat state
+   *   combat state -> turn state
+   *   pending turn -> canonical active initiative
+   *
+   * Concurrent Socket.IO instances may therefore enter this
+   * boundary safely for the same match.
+   */
+  const combatState =
+    await combatStateService
+      .getOrCreateForMatchRuntime(
+        runtimeId
+      );
+
+  if (!combatState?.id) {
+    throw buildError({
+      message:
+        "Combat state authority Cing Artillery không hợp lệ",
+
+      code:
+        "CING_ARTILLERY_COMBAT_STATE_AUTHORITY_INVALID",
+
+      statusCode:
+        500,
+    });
+  }
+
+  const turnState =
+    await turnStateService
+      .activateFirstTurnForCombatState(
+        combatState.id
+      );
+
+  if (
+    !turnState ||
+    turnState.match_runtime_id !==
+      runtimeId ||
+    turnState.match_id !==
+      authority.matchId ||
+    turnState.combat_state_id !==
+      combatState.id ||
+    turnState.status !==
+      "active" ||
+    turnState.turn_number <= 0
+  ) {
+    throw buildError({
+      message:
+        "Canonical turn authority Cing Artillery không nhất quán",
+
+      code:
+        "CING_ARTILLERY_REALTIME_TURN_STATE_INCONSISTENT",
+
+      statusCode:
+        500,
+    });
+  }
+
+  return turnState;
+}
+
 async function authorizeMatchJoin({
   userId,
   payload,
@@ -326,6 +425,7 @@ async function authorizeMatchLeave({
 module.exports = {
   authorizeMatchJoin,
   authorizeMatchLeave,
+  resolveMatchCombatStartAuthority,
   resolveMatchRealtimeReadiness,
   resolveMatchReadinessAuthorityByMatchId,
 };
