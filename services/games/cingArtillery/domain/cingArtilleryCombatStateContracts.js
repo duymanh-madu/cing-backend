@@ -11,6 +11,12 @@ const {
   "./cingArtilleryGameRulesContracts"
 );
 
+const {
+  normalizeCombatStats,
+} = require(
+  "./cingArtilleryCombatStatsContracts"
+);
+
 const CING_ARTILLERY_COMBAT_STATE_STATUS =
   Object.freeze({
     INITIALIZED:
@@ -173,6 +179,16 @@ function normalizeCombatStateRecord(
           rulesSnapshot,
       };
     })(),
+
+    player_one_stats_snapshot:
+      normalizeCombatStats(
+        row.player_one_stats_snapshot
+      ),
+
+    player_two_stats_snapshot:
+      normalizeCombatStats(
+        row.player_two_stats_snapshot
+      ),
 
     initialized_at:
       row.initialized_at,

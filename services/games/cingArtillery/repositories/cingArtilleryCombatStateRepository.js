@@ -18,6 +18,8 @@ const COMBAT_STATE_FIELDS =
     "status",
     "rules_version",
     "rules_snapshot",
+    "player_one_stats_snapshot",
+    "player_two_stats_snapshot",
     "initialized_at",
     "created_at",
     "updated_at",
