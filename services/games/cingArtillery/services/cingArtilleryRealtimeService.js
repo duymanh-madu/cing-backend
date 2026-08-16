@@ -19,6 +19,11 @@ const combatStateService =
     "./cingArtilleryCombatStateService"
   );
 
+const combatWorldService =
+  require(
+    "./cingArtilleryCombatWorldService"
+  );
+
 const turnStateService =
   require(
     "./cingArtilleryTurnStateService"
@@ -334,8 +339,13 @@ async function resolveMatchCombatStartAuthority(
    * All transitions are idempotent:
    *
    *   runtime -> combat state
+   *   combat state -> immutable combat world
    *   combat state -> turn state
    *   pending turn -> canonical active initiative
+   *
+   * Combat world MUST exist before first-turn activation.
+   * A match can therefore never expose an ACTIVE turn
+   * without a canonical map/spawn/side/wind snapshot.
    *
    * Concurrent Socket.IO instances may therefore enter this
    * boundary safely for the same match.
@@ -353,6 +363,54 @@ async function resolveMatchCombatStartAuthority(
 
       code:
         "CING_ARTILLERY_COMBAT_STATE_AUTHORITY_INVALID",
+
+      statusCode:
+        500,
+    });
+  }
+
+  /*
+   * World initialization is a durable prerequisite of
+   * first-turn activation.
+   *
+   * PostgreSQL exclusively resolves:
+   *
+   *   map
+   *   spawn pair
+   *   side assignment
+   *   resolved coordinates
+   *   initial wind
+   *
+   * This orchestration layer only verifies that the
+   * returned immutable world belongs to the exact
+   * combat/runtime/match authority already resolved above.
+   *
+   * IMPORTANT:
+   * Do not move this below activateFirstTurnForCombatState().
+   * An ACTIVE turn must never exist before canonical world
+   * authority has been established.
+   */
+  const combatWorld =
+    await combatWorldService
+      .getOrCreateForCombatState(
+        combatState.id
+      );
+
+  if (
+    !combatWorld?.id ||
+    combatWorld.combat_state_id !==
+      combatState.id ||
+    combatWorld.match_runtime_id !==
+      runtimeId ||
+    combatWorld.match_id !==
+      authority.matchId
+  ) {
+    throw buildError({
+      message:
+        "Canonical combat world authority Cing Artillery không nhất quán",
+
+      code:
+        "CING_ARTILLERY_REALTIME_COMBAT_WORLD_INCONSISTENT",
 
       statusCode:
         500,
