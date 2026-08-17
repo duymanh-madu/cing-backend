@@ -18,7 +18,8 @@
     "verify:cing-artillery-cordic-constants": "python3 tools/cingArtillery/generateCordicConstantsV1.py --check",
     "test:cing-artillery-cordic-constants": "node --test tests/cingArtillery/cingArtilleryCordicConstantsV1.test.js",
     "test:cing-artillery-shot-angle-convention": "node --test tests/cingArtillery/cingArtilleryShotAngleConventionV1.test.js",
-    "test:cing-artillery-cordic-rotation": "node --test tests/cingArtillery/cingArtilleryCordicRotationV1.test.js"
+    "test:cing-artillery-cordic-rotation": "node --test tests/cingArtillery/cingArtilleryCordicRotationV1.test.js",
+    "test:cing-artillery-launch-vector": "node --test tests/cingArtillery/cingArtilleryLaunchVectorV1.test.js"
   },
   "keywords": [],
   "author": "",
