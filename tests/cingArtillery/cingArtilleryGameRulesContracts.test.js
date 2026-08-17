@@ -53,6 +53,7 @@ function buildValidV2() {
 
     angle_min_deg: 10,
     angle_max_deg: 80,
+    angle_step_deg: 1,
 
     power_min: 0,
     power_max: 100,
@@ -273,6 +274,48 @@ test(
       {
         code:
           "CING_ARTILLERY_UNSUPPORTED_GAME_RULES_VERSION",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects angle range not divisible by angle step",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.angle_step_deg =
+      3;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_ANGLE_GRID_RANGE_MISALIGNED",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects angle step outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.angle_step_deg =
+      0.0001;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
       }
     );
   }

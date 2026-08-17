@@ -33,6 +33,12 @@ function assertRulesObject(
   return value;
 }
 
+const {
+  normalizeAngleGridRulesV1,
+} = require(
+  "./cingArtilleryAngleGridV1"
+);
+
 const POSTGRES_INTEGER_MAX =
   2147483647;
 
@@ -209,6 +215,7 @@ const PHYSICS_RULES_V2_KEYS =
 
     "angle_min_deg",
     "angle_max_deg",
+    "angle_step_deg",
 
     "power_min",
     "power_max",
@@ -444,6 +451,12 @@ function normalizeGameRulesV2(
         "angle_max_deg"
       ),
 
+    angle_step_deg:
+      assertPositiveNumber(
+        rules.angle_step_deg,
+        "angle_step_deg"
+      ),
+
     power_min:
       assertNonNegativeNumber(
         rules.power_min,
@@ -588,6 +601,20 @@ function normalizeGameRulesV2(
         "CING_ARTILLERY_INVALID_GAME_RULES",
     });
   }
+
+  normalizeAngleGridRulesV1({
+    angleMinDeg:
+      normalized.angle_min_deg,
+
+    angleMaxDeg:
+      normalized.angle_max_deg,
+
+    angleStepDeg:
+      normalized.angle_step_deg,
+
+    physicsFixedScale:
+      normalized.physics_fixed_scale,
+  });
 
   if (
     normalized.max_flight_time_ms <=
