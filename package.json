@@ -22,7 +22,8 @@
     "test:cing-artillery-launch-vector": "node --test tests/cingArtillery/cingArtilleryLaunchVectorV1.test.js",
     "test:cing-artillery-power-numeric": "node --test tests/cingArtillery/cingArtilleryPowerNumericV1.test.js",
     "test:cing-artillery-initial-velocity": "node --test tests/cingArtillery/cingArtilleryInitialVelocityV1.test.js",
-    "test:cing-artillery-muzzle-geometry-numeric": "node --test tests/cingArtillery/cingArtilleryMuzzleGeometryNumericV1.test.js"
+    "test:cing-artillery-muzzle-geometry-numeric": "node --test tests/cingArtillery/cingArtilleryMuzzleGeometryNumericV1.test.js",
+    "test:cing-artillery-muzzle-origin": "node --test tests/cingArtillery/cingArtilleryMuzzleOriginV1.test.js"
   },
   "keywords": [],
   "author": "",
