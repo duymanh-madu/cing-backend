@@ -1,0 +1,273 @@
+"use strict";
+
+const test =
+  require("node:test");
+
+const assert =
+  require("node:assert/strict");
+
+const {
+  MAX_SAFE_SCALED_MAGNITUDE,
+
+  toScaledBigInt,
+
+  floorDivBigInt,
+  mulDivFloorBigInt,
+
+  clampBigInt,
+  absBigInt,
+} =
+  require(
+    "../../services/games/cingArtillery/domain/cingArtilleryFixedPoint"
+  );
+
+
+test(
+  "integer converts exactly to fixed point",
+  () => {
+    assert.equal(
+      toScaledBigInt(
+        980,
+        1000,
+        "gravity"
+      ),
+      980000n
+    );
+  }
+);
+
+
+test(
+  "decimal converts without floating-point multiplication authority",
+  () => {
+    assert.equal(
+      toScaledBigInt(
+        0.1,
+        1000,
+        "ratio"
+      ),
+      100n
+    );
+
+    assert.equal(
+      toScaledBigInt(
+        -0.1,
+        1000,
+        "wind"
+      ),
+      -100n
+    );
+  }
+);
+
+
+test(
+  "scientific notation converts exactly",
+  () => {
+    assert.equal(
+      toScaledBigInt(
+        1e-3,
+        1000,
+        "small"
+      ),
+      1n
+    );
+  }
+);
+
+
+test(
+  "value outside configured fixed grid fails closed",
+  () => {
+    assert.throws(
+      () =>
+        toScaledBigInt(
+          0.0001,
+          1000,
+          "too_precise"
+        ),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);
+
+
+test(
+  "scaled input magnitude is bounded",
+  () => {
+    assert.equal(
+      toScaledBigInt(
+        Number.MAX_SAFE_INTEGER,
+        1,
+        "safe"
+      ),
+      MAX_SAFE_SCALED_MAGNITUDE
+    );
+
+    assert.throws(
+      () =>
+        toScaledBigInt(
+          Number.MAX_SAFE_INTEGER,
+          2,
+          "overflow"
+        ),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_RANGE_ERROR",
+      }
+    );
+  }
+);
+
+
+test(
+  "floor division differs correctly from BigInt truncation for negatives",
+  () => {
+    assert.equal(
+      1n / 3n,
+      0n
+    );
+
+    assert.equal(
+      -1n / 3n,
+      0n
+    );
+
+    assert.equal(
+      floorDivBigInt(
+        1n,
+        3n
+      ),
+      0n
+    );
+
+    assert.equal(
+      floorDivBigInt(
+        -1n,
+        3n
+      ),
+      -1n
+    );
+
+    assert.equal(
+      floorDivBigInt(
+        1n,
+        -3n
+      ),
+      -1n
+    );
+
+    assert.equal(
+      floorDivBigInt(
+        -1n,
+        -3n
+      ),
+      0n
+    );
+  }
+);
+
+
+test(
+  "floor division preserves exact divisions",
+  () => {
+    assert.equal(
+      floorDivBigInt(
+        12n,
+        3n
+      ),
+      4n
+    );
+
+    assert.equal(
+      floorDivBigInt(
+        -12n,
+        3n
+      ),
+      -4n
+    );
+  }
+);
+
+
+test(
+  "mulDivFloor uses deterministic floor semantics",
+  () => {
+    assert.equal(
+      mulDivFloorBigInt(
+        5n,
+        5n,
+        2n
+      ),
+      12n
+    );
+
+    assert.equal(
+      mulDivFloorBigInt(
+        -5n,
+        5n,
+        2n
+      ),
+      -13n
+    );
+  }
+);
+
+
+test(
+  "divide by zero fails closed",
+  () => {
+    assert.throws(
+      () =>
+        floorDivBigInt(
+          1n,
+          0n
+        ),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_DIVIDE_BY_ZERO",
+      }
+    );
+  }
+);
+
+
+test(
+  "clamp and absolute primitives are exact",
+  () => {
+    assert.equal(
+      clampBigInt(
+        -5n,
+        0n,
+        10n
+      ),
+      0n
+    );
+
+    assert.equal(
+      clampBigInt(
+        15n,
+        0n,
+        10n
+      ),
+      10n
+    );
+
+    assert.equal(
+      clampBigInt(
+        7n,
+        0n,
+        10n
+      ),
+      7n
+    );
+
+    assert.equal(
+      absBigInt(-7n),
+      7n
+    );
+  }
+);
