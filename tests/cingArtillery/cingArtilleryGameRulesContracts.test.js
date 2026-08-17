@@ -568,3 +568,45 @@ test(
     );
   }
 );
+
+
+test(
+  "Rules V2 rejects muzzle forward offset outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.muzzle_offset_forward_px =
+      0.0001;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects muzzle upward offset outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.muzzle_offset_up_px =
+      1.0001;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);

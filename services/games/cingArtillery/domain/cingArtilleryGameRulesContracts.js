@@ -64,6 +64,12 @@ const {
   "./cingArtilleryPowerNumericV1"
 );
 
+const {
+  normalizeMuzzleGeometryRulesV1,
+} = require(
+  "./cingArtilleryMuzzleGeometryNumericV1"
+);
+
 const POSTGRES_INTEGER_MAX =
   2147483647;
 
@@ -684,6 +690,17 @@ function normalizeGameRulesV2(
 
     powerVelocityScale:
       normalized.power_velocity_scale,
+
+    physicsFixedScale:
+      normalized.physics_fixed_scale,
+  });
+
+  normalizeMuzzleGeometryRulesV1({
+    muzzleOffsetForwardPx:
+      normalized.muzzle_offset_forward_px,
+
+    muzzleOffsetUpPx:
+      normalized.muzzle_offset_up_px,
 
     physicsFixedScale:
       normalized.physics_fixed_scale,
