@@ -610,3 +610,66 @@ test(
     );
   }
 );
+
+
+test(
+  "Rules V2 rejects gravity outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.gravity =
+      980.0001;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects wind minimum outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.wind_min =
+      -100.0001;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects wind maximum outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.wind_max =
+      100.0001;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);
