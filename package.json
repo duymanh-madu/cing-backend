@@ -20,7 +20,8 @@
     "test:cing-artillery-shot-angle-convention": "node --test tests/cingArtillery/cingArtilleryShotAngleConventionV1.test.js",
     "test:cing-artillery-cordic-rotation": "node --test tests/cingArtillery/cingArtilleryCordicRotationV1.test.js",
     "test:cing-artillery-launch-vector": "node --test tests/cingArtillery/cingArtilleryLaunchVectorV1.test.js",
-    "test:cing-artillery-power-numeric": "node --test tests/cingArtillery/cingArtilleryPowerNumericV1.test.js"
+    "test:cing-artillery-power-numeric": "node --test tests/cingArtillery/cingArtilleryPowerNumericV1.test.js",
+    "test:cing-artillery-initial-velocity": "node --test tests/cingArtillery/cingArtilleryInitialVelocityV1.test.js"
   },
   "keywords": [],
   "author": "",
