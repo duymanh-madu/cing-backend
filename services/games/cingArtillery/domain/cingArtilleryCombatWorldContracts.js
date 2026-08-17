@@ -285,6 +285,24 @@ function normalizeCombatWorldRecord(
     });
   }
 
+  /*
+   * Physics V1 horizontal firing direction derives from the
+   * opponent X position, never from side A/B labels.
+   *
+   * Equal X would make that direction undefined.
+   */
+  if (
+    playerOneX ===
+    playerTwoX
+  ) {
+    throw buildError({
+      message:
+        "Combat world Cing Artillery có horizontal spawn direction không xác định",
+      code:
+        "CING_ARTILLERY_INVALID_COMBAT_WORLD",
+    });
+  }
+
   return {
     id:
       assertCombatWorldId(
