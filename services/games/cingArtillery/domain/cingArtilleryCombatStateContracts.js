@@ -21,6 +21,9 @@ const CING_ARTILLERY_COMBAT_STATE_STATUS =
   Object.freeze({
     INITIALIZED:
       "initialized",
+
+    COMPLETED:
+      "completed",
   });
 
 const VALID_COMBAT_STATE_STATUSES =

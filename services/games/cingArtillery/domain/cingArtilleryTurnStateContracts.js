@@ -18,6 +18,9 @@ const CING_ARTILLERY_TURN_STATE_STATUS =
 
     ACTIVE:
       "active",
+
+    COMPLETED:
+      "completed",
   });
 
 const VALID_TURN_STATE_STATUSES =

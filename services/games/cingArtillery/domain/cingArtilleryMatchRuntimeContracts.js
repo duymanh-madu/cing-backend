@@ -2,6 +2,9 @@ const CING_ARTILLERY_MATCH_RUNTIME_STATUS =
   Object.freeze({
     READY:
       "ready",
+
+    COMPLETED:
+      "completed",
   });
 
 const VALID_MATCH_RUNTIME_STATUSES =
