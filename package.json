@@ -13,7 +13,10 @@
     "test:cing-artillery-fire-direction": "node --test tests/cingArtillery/cingArtilleryFireDirectionV1.test.js",
     "test:cing-artillery-angle-grid": "node --test tests/cingArtillery/cingArtilleryAngleGridV1.test.js",
     "test:cing-artillery-trig-representation": "node --test tests/cingArtillery/cingArtilleryTrigRepresentationV1.test.js",
-    "test:cing-artillery-trig-algorithm": "node --test tests/cingArtillery/cingArtilleryTrigAlgorithmV1Contract.test.js"
+    "test:cing-artillery-trig-algorithm": "node --test tests/cingArtillery/cingArtilleryTrigAlgorithmV1Contract.test.js",
+    "generate:cing-artillery-cordic-constants": "python3 tools/cingArtillery/generateCordicConstantsV1.py",
+    "verify:cing-artillery-cordic-constants": "python3 tools/cingArtillery/generateCordicConstantsV1.py --check",
+    "test:cing-artillery-cordic-constants": "node --test tests/cingArtillery/cingArtilleryCordicConstantsV1.test.js"
   },
   "keywords": [],
   "author": "",
