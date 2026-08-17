@@ -63,7 +63,8 @@ function buildValidV2() {
     max_flight_time_ms: 1000,
     physics_fixed_scale: 1000,
 
-    trig_angle_scale: 1000000,
+    trig_algorithm_version: 1,
+    trig_angle_scale: 1000000000,
     trig_value_scale: 1000000000,
 
     projectile_radius_px: 1,
@@ -395,6 +396,69 @@ test(
       {
         code:
           "CING_ARTILLERY_INVALID_GAME_RULES",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects unsupported trig algorithm version",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.trig_algorithm_version =
+      2;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_INVALID_TRIG_ALGORITHM_V1",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects noncanonical Trig V1 angle scale",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.trig_angle_scale =
+      1000000;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_INVALID_TRIG_ALGORITHM_V1",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects noncanonical Trig V1 value scale",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.trig_value_scale =
+      1000000;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_INVALID_TRIG_ALGORITHM_V1",
       }
     );
   }

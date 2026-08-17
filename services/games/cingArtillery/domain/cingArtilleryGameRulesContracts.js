@@ -46,6 +46,12 @@ const {
   "./cingArtilleryTrigRepresentationV1"
 );
 
+const {
+  assertTrigAlgorithmV1Contract,
+} = require(
+  "./cingArtilleryTrigAlgorithmV1Contract"
+);
+
 const POSTGRES_INTEGER_MAX =
   2147483647;
 
@@ -232,6 +238,7 @@ const PHYSICS_RULES_V2_KEYS =
     "max_flight_time_ms",
     "physics_fixed_scale",
 
+    "trig_algorithm_version",
     "trig_angle_scale",
     "trig_value_scale",
 
@@ -503,6 +510,12 @@ function normalizeGameRulesV2(
         "physics_fixed_scale"
       ),
 
+    trig_algorithm_version:
+      assertPositiveInteger(
+        rules.trig_algorithm_version,
+        "trig_algorithm_version"
+      ),
+
     trig_angle_scale:
       assertPositiveInteger(
         rules.trig_angle_scale,
@@ -642,6 +655,17 @@ function normalizeGameRulesV2(
   normalizeTrigRepresentationV1({
     physicsFixedScale:
       normalized.physics_fixed_scale,
+
+    trigAngleScale:
+      normalized.trig_angle_scale,
+
+    trigValueScale:
+      normalized.trig_value_scale,
+  });
+
+  assertTrigAlgorithmV1Contract({
+    trigAlgorithmVersion:
+      normalized.trig_algorithm_version,
 
     trigAngleScale:
       normalized.trig_angle_scale,
