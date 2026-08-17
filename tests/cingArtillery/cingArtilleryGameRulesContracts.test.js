@@ -463,3 +463,45 @@ test(
     );
   }
 );
+
+
+test(
+  "Rules V2 rejects negative shot elevation",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.angle_min_deg =
+      -1;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_INVALID_SHOT_ANGLE_CONVENTION_V1",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects shot elevation above 90 degrees",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.angle_max_deg =
+      91;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_INVALID_SHOT_ANGLE_CONVENTION_V1",
+      }
+    );
+  }
+);

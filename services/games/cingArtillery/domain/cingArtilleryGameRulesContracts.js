@@ -52,6 +52,12 @@ const {
   "./cingArtilleryTrigAlgorithmV1Contract"
 );
 
+const {
+  assertShotAngleConventionV1,
+} = require(
+  "./cingArtilleryShotAngleConventionV1"
+);
+
 const POSTGRES_INTEGER_MAX =
   2147483647;
 
@@ -651,6 +657,17 @@ function normalizeGameRulesV2(
       physicsFixedScale:
         normalized.physics_fixed_scale,
     });
+
+  assertShotAngleConventionV1({
+    angleMinDegScaled:
+      angleGrid.angle_min_deg_scaled,
+
+    angleMaxDegScaled:
+      angleGrid.angle_max_deg_scaled,
+
+    physicsFixedScale:
+      normalized.physics_fixed_scale,
+  });
 
   normalizeTrigRepresentationV1({
     physicsFixedScale:
