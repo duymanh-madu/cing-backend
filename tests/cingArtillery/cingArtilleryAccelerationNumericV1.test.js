@@ -299,3 +299,72 @@ test(
     );
   }
 );
+
+
+test(
+  "acceleration numeric values exceeding canonical scaled safe magnitude fail closed",
+  () => {
+    assert.throws(
+      () =>
+        normalizeAccelerationRulesV1({
+          gravity:
+            Number.MAX_SAFE_INTEGER,
+
+          windMin:
+            -1,
+
+          windMax:
+            1,
+
+          physicsFixedScale:
+            1000,
+        }),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_RANGE_ERROR",
+      }
+    );
+
+    assert.throws(
+      () =>
+        normalizeAccelerationRulesV1({
+          gravity:
+            1,
+
+          windMin:
+            -Number.MAX_SAFE_INTEGER,
+
+          windMax:
+            Number.MAX_SAFE_INTEGER,
+
+          physicsFixedScale:
+            1000,
+        }),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_RANGE_ERROR",
+      }
+    );
+
+    assert.throws(
+      () =>
+        normalizePersistedWindV1({
+          initialWind:
+            Number.MAX_SAFE_INTEGER,
+
+          windMin:
+            -Number.MAX_SAFE_INTEGER,
+
+          windMax:
+            Number.MAX_SAFE_INTEGER,
+
+          physicsFixedScale:
+            1000,
+        }),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_RANGE_ERROR",
+      }
+    );
+  }
+);
