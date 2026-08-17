@@ -311,3 +311,40 @@ test(
     );
   }
 );
+
+
+test(
+  "canonical blast distance feeds deterministic damage falloff",
+  () => {
+    const {
+      calculateBlastDistanceFloor,
+    } =
+      require(
+        "../../services/games/cingArtillery/domain/cingArtilleryGeometryV1"
+      );
+
+    const distance =
+      calculateBlastDistanceFloor({
+        impactX: 0n,
+        impactY: 0n,
+        targetX: 30n,
+        targetY: 40n,
+      });
+
+    assert.equal(
+      distance,
+      50n
+    );
+
+    assert.equal(
+      calculateLinearBlastDamage({
+        baseDamage: 300n,
+        distance,
+        blastRadius: 100n,
+        minimumDamageRatioScaled: 100n,
+        scale: 1000n,
+      }),
+      150n
+    );
+  }
+);

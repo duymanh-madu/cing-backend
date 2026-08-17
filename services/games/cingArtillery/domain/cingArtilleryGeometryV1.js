@@ -41,6 +41,13 @@ const {
     "./cingArtilleryFixedPoint"
   );
 
+const {
+  integerDistanceFloor,
+} =
+  require(
+    "./cingArtilleryIntegerMathV1"
+  );
+
 function buildError({
   message,
   code =
@@ -420,6 +427,24 @@ function classifyBlastDistance({
  * Caller supplies canonical integer distance on the same
  * fixed-point scale as blastRadius.
  */
+function calculateBlastDistanceFloor({
+  impactX,
+  impactY,
+  targetX,
+  targetY,
+}) {
+  return integerDistanceFloor({
+    ax:
+      impactX,
+    ay:
+      impactY,
+    bx:
+      targetX,
+    by:
+      targetY,
+  });
+}
+
 function calculateLinearBlastDamage({
   baseDamage,
   distance,
@@ -523,5 +548,6 @@ module.exports = {
   circlesIntersect,
 
   classifyBlastDistance,
+  calculateBlastDistanceFloor,
   calculateLinearBlastDamage,
 };
