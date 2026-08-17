@@ -11,7 +11,8 @@
     "test:cing-artillery-geometry": "node --test tests/cingArtillery/cingArtilleryGeometryV1.test.js",
     "test:cing-artillery-integer-math": "node --test tests/cingArtillery/cingArtilleryIntegerMathV1.test.js",
     "test:cing-artillery-fire-direction": "node --test tests/cingArtillery/cingArtilleryFireDirectionV1.test.js",
-    "test:cing-artillery-angle-grid": "node --test tests/cingArtillery/cingArtilleryAngleGridV1.test.js"
+    "test:cing-artillery-angle-grid": "node --test tests/cingArtillery/cingArtilleryAngleGridV1.test.js",
+    "test:cing-artillery-trig-representation": "node --test tests/cingArtillery/cingArtilleryTrigRepresentationV1.test.js"
   },
   "keywords": [],
   "author": "",
