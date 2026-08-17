@@ -39,6 +39,13 @@ const {
   "./cingArtilleryAngleGridV1"
 );
 
+const {
+  normalizeTrigRepresentationV1,
+  assertAngleGridFitsTrigRepresentationV1,
+} = require(
+  "./cingArtilleryTrigRepresentationV1"
+);
+
 const POSTGRES_INTEGER_MAX =
   2147483647;
 
@@ -224,6 +231,9 @@ const PHYSICS_RULES_V2_KEYS =
     "physics_step_ms",
     "max_flight_time_ms",
     "physics_fixed_scale",
+
+    "trig_angle_scale",
+    "trig_value_scale",
 
     "projectile_radius_px",
 
@@ -493,6 +503,18 @@ function normalizeGameRulesV2(
         "physics_fixed_scale"
       ),
 
+    trig_angle_scale:
+      assertPositiveInteger(
+        rules.trig_angle_scale,
+        "trig_angle_scale"
+      ),
+
+    trig_value_scale:
+      assertPositiveInteger(
+        rules.trig_value_scale,
+        "trig_value_scale"
+      ),
+
     projectile_radius_px:
       assertPositiveNumber(
         rules.projectile_radius_px,
@@ -602,18 +624,47 @@ function normalizeGameRulesV2(
     });
   }
 
-  normalizeAngleGridRulesV1({
-    angleMinDeg:
-      normalized.angle_min_deg,
+  const angleGrid =
+    normalizeAngleGridRulesV1({
+      angleMinDeg:
+        normalized.angle_min_deg,
 
-    angleMaxDeg:
-      normalized.angle_max_deg,
+      angleMaxDeg:
+        normalized.angle_max_deg,
 
-    angleStepDeg:
-      normalized.angle_step_deg,
+      angleStepDeg:
+        normalized.angle_step_deg,
+
+      physicsFixedScale:
+        normalized.physics_fixed_scale,
+    });
+
+  normalizeTrigRepresentationV1({
+    physicsFixedScale:
+      normalized.physics_fixed_scale,
+
+    trigAngleScale:
+      normalized.trig_angle_scale,
+
+    trigValueScale:
+      normalized.trig_value_scale,
+  });
+
+  assertAngleGridFitsTrigRepresentationV1({
+    angleMinDegScaled:
+      angleGrid.angle_min_deg_scaled,
+
+    angleMaxDegScaled:
+      angleGrid.angle_max_deg_scaled,
+
+    angleStepDegScaled:
+      angleGrid.angle_step_deg_scaled,
 
     physicsFixedScale:
       normalized.physics_fixed_scale,
+
+    trigAngleScale:
+      normalized.trig_angle_scale,
   });
 
   if (

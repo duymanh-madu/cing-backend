@@ -63,6 +63,9 @@ function buildValidV2() {
     max_flight_time_ms: 1000,
     physics_fixed_scale: 1000,
 
+    trig_angle_scale: 1000000,
+    trig_value_scale: 1000000000,
+
     projectile_radius_px: 1,
 
     player_hit_radius_px: 2,
@@ -316,6 +319,82 @@ test(
       {
         code:
           "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects angle grid not exactly representable on trig angle lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    /*
+     * physics scale 3 allows canonical 1/3 degree lattice.
+     * trig angle scale 1,000,000 cannot represent 1/3 degree
+     * exactly.
+     */
+    raw.physics_fixed_scale =
+      3;
+
+    raw.angle_min_deg =
+      0;
+
+    raw.angle_max_deg =
+      1;
+
+    raw.angle_step_deg =
+      1 / 3;
+
+    raw.trig_angle_scale =
+      1000000;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw)
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects invalid trig angle scale",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.trig_angle_scale =
+      0;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_INVALID_GAME_RULES",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects invalid trig value scale",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.trig_value_scale =
+      0;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_INVALID_GAME_RULES",
       }
     );
   }
