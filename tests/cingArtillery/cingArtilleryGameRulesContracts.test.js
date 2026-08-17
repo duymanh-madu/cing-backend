@@ -505,3 +505,66 @@ test(
     );
   }
 );
+
+
+test(
+  "Rules V2 rejects power minimum outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.power_min =
+      0.0001;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects power maximum outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.power_max =
+      99.9999;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects power velocity scale outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.power_velocity_scale =
+      1.0001;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);

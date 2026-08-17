@@ -58,6 +58,12 @@ const {
   "./cingArtilleryShotAngleConventionV1"
 );
 
+const {
+  normalizePowerRulesV1,
+} = require(
+  "./cingArtilleryPowerNumericV1"
+);
+
 const POSTGRES_INTEGER_MAX =
   2147483647;
 
@@ -664,6 +670,20 @@ function normalizeGameRulesV2(
 
     angleMaxDegScaled:
       angleGrid.angle_max_deg_scaled,
+
+    physicsFixedScale:
+      normalized.physics_fixed_scale,
+  });
+
+  normalizePowerRulesV1({
+    powerMin:
+      normalized.power_min,
+
+    powerMax:
+      normalized.power_max,
+
+    powerVelocityScale:
+      normalized.power_velocity_scale,
 
     physicsFixedScale:
       normalized.physics_fixed_scale,
