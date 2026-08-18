@@ -32,7 +32,8 @@
     "test:cing-artillery-collision-geometry-numeric": "node --test tests/cingArtillery/cingArtilleryCollisionGeometryNumericV1.test.js",
     "test:cing-artillery-scaled-to-pixel-bridge": "node --test tests/cingArtillery/cingArtilleryScaledToPixelBridgeV1.test.js",
     "test:cing-artillery-player-collider": "node --test tests/cingArtillery/cingArtilleryPlayerColliderV1.test.js",
-    "test:cing-artillery-projectile-player-contact": "node --test tests/cingArtillery/cingArtilleryProjectilePlayerCircleContactV1.test.js"
+    "test:cing-artillery-projectile-player-contact": "node --test tests/cingArtillery/cingArtilleryProjectilePlayerCircleContactV1.test.js",
+    "test:cing-artillery-circle-pixel-cell-contact": "node --test tests/cingArtillery/cingArtilleryCirclePixelCellContactV1.test.js"
   },
   "keywords": [],
   "author": "",
