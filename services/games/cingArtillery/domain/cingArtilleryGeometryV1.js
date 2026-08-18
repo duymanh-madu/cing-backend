@@ -218,6 +218,119 @@ function validateBitmaskV1({
   return true;
 }
 
+function createValidatedBitmaskViewV1({
+  widthPx,
+  heightPx,
+  collisionMask,
+}) {
+  const width =
+    assertPositiveSafeInteger(
+      widthPx,
+      "width_px"
+    );
+
+  const height =
+    assertPositiveSafeInteger(
+      heightPx,
+      "height_px"
+    );
+
+  const mask =
+    assertBuffer(
+      collisionMask,
+      "collision_mask"
+    );
+
+
+  if (
+    !validateBitmaskV1({
+      widthPx:
+        width,
+
+      heightPx:
+        height,
+
+      collisionMask:
+        mask,
+    })
+  ) {
+    return null;
+  }
+
+
+  const {
+    bytesPerRow,
+  } =
+    expectedBitmaskBytes({
+      widthPx:
+        width,
+
+      heightPx:
+        height,
+    });
+
+
+  function isSolid({
+    x,
+    y,
+  }) {
+    const px =
+      assertIntegerCoordinate(
+        x,
+        "x"
+      );
+
+    const py =
+      assertIntegerCoordinate(
+        y,
+        "y"
+      );
+
+
+    if (
+      px < 0 ||
+      py < 0 ||
+      px >= width ||
+      py >= height
+    ) {
+      return false;
+    }
+
+
+    const byteOffset =
+      py *
+        bytesPerRow +
+      Math.floor(
+        px / 8
+      );
+
+    const bitIndex =
+      7 -
+      (px % 8);
+
+
+    return (
+      mask[byteOffset] &
+      (1 << bitIndex)
+    ) !== 0;
+  }
+
+
+  return Object.freeze({
+    width_px:
+      width,
+
+    height_px:
+      height,
+
+    bytes_per_row:
+      bytesPerRow,
+
+    isSolid,
+  });
+}
+
+
 function isSolidBitmaskV1({
   widthPx,
   heightPx,
@@ -225,60 +338,23 @@ function isSolidBitmaskV1({
   x,
   y,
 }) {
-  const px =
-    assertIntegerCoordinate(
-      x,
-      "x"
-    );
-
-  const py =
-    assertIntegerCoordinate(
-      y,
-      "y"
-    );
-
-  if (
-    !validateBitmaskV1({
+  const view =
+    createValidatedBitmaskViewV1({
       widthPx,
       heightPx,
       collisionMask,
-    })
-  ) {
-    return false;
-  }
-
-  if (
-    px < 0 ||
-    py < 0 ||
-    px >= widthPx ||
-    py >= heightPx
-  ) {
-    return false;
-  }
-
-  const {
-    bytesPerRow,
-  } =
-    expectedBitmaskBytes({
-      widthPx,
-      heightPx,
     });
 
-  const byteOffset =
-    py *
-      bytesPerRow +
-    Math.floor(
-      px / 8
-    );
 
-  const bitIndex =
-    7 -
-    (px % 8);
+  if (!view) {
+    return false;
+  }
 
-  return (
-    collisionMask[byteOffset] &
-    (1 << bitIndex)
-  ) !== 0;
+
+  return view.isSolid({
+    x,
+    y,
+  });
 }
 
 function squaredDistanceBigInt({
@@ -542,6 +618,7 @@ function calculateLinearBlastDamage({
 
 module.exports = {
   validateBitmaskV1,
+  createValidatedBitmaskViewV1,
   isSolidBitmaskV1,
 
   squaredDistanceBigInt,

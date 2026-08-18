@@ -68,8 +68,7 @@ const {
   );
 
 const {
-  validateBitmaskV1,
-  isSolidBitmaskV1,
+  createValidatedBitmaskViewV1,
 } =
   require(
     "./cingArtilleryGeometryV1"
@@ -272,8 +271,8 @@ function projectileIntersectsTerrainV1({
     );
 
 
-  if (
-    !validateBitmaskV1({
+  const bitmaskView =
+    createValidatedBitmaskViewV1({
       widthPx:
         width,
 
@@ -282,8 +281,10 @@ function projectileIntersectsTerrainV1({
 
       collisionMask:
         mask,
-    })
-  ) {
+    });
+
+
+  if (!bitmaskView) {
     throw buildError({
       message:
         "Projectile terrain coverage Cing Artillery có bitmask_v1 không hợp lệ",
@@ -412,16 +413,7 @@ function projectileIntersectsTerrainV1({
 
 
       if (
-        !isSolidBitmaskV1({
-          widthPx:
-            width,
-
-          heightPx:
-            height,
-
-          collisionMask:
-            mask,
-
+        !bitmaskView.isSolid({
           x:
             xPx,
 

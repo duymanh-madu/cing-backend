@@ -348,3 +348,200 @@ test(
     );
   }
 );
+
+
+test(
+  "validated bitmask view preserves canonical MSB-first lookup",
+  () => {
+    const {
+      createValidatedBitmaskViewV1,
+    } =
+      require(
+        "../../services/games/cingArtillery/domain/cingArtilleryGeometryV1"
+      );
+
+    const mask =
+      Buffer.from([
+        0b10000001,
+        0b10000000,
+      ]);
+
+    const view =
+      createValidatedBitmaskViewV1({
+        widthPx:
+          10,
+
+        heightPx:
+          1,
+
+        collisionMask:
+          mask,
+      });
+
+    assert.ok(view);
+
+    assert.equal(
+      view.width_px,
+      10
+    );
+
+    assert.equal(
+      view.height_px,
+      1
+    );
+
+    assert.equal(
+      view.bytes_per_row,
+      2
+    );
+
+    assert.equal(
+      view.isSolid({
+        x: 0,
+        y: 0,
+      }),
+      true
+    );
+
+    assert.equal(
+      view.isSolid({
+        x: 7,
+        y: 0,
+      }),
+      true
+    );
+
+    assert.equal(
+      view.isSolid({
+        x: 8,
+        y: 0,
+      }),
+      true
+    );
+
+    assert.equal(
+      view.isSolid({
+        x: 9,
+        y: 0,
+      }),
+      false
+    );
+  }
+);
+
+
+test(
+  "validated bitmask view returns null for invalid canonical mask",
+  () => {
+    const {
+      createValidatedBitmaskViewV1,
+    } =
+      require(
+        "../../services/games/cingArtillery/domain/cingArtilleryGeometryV1"
+      );
+
+    const invalid =
+      Buffer.from([
+        0,
+        0b00100000,
+      ]);
+
+    assert.equal(
+      createValidatedBitmaskViewV1({
+        widthPx:
+          10,
+
+        heightPx:
+          1,
+
+        collisionMask:
+          invalid,
+      }),
+      null
+    );
+  }
+);
+
+
+test(
+  "validated bitmask view treats outside coordinates as non-solid",
+  () => {
+    const {
+      createValidatedBitmaskViewV1,
+    } =
+      require(
+        "../../services/games/cingArtillery/domain/cingArtilleryGeometryV1"
+      );
+
+    const view =
+      createValidatedBitmaskViewV1({
+        widthPx:
+          8,
+
+        heightPx:
+          1,
+
+        collisionMask:
+          Buffer.from([
+            0xff,
+          ]),
+      });
+
+    assert.ok(view);
+
+    for (
+      const [x, y]
+      of [
+        [-1, 0],
+        [0, -1],
+        [8, 0],
+        [0, 1],
+      ]
+    ) {
+      assert.equal(
+        view.isSolid({
+          x,
+          y,
+        }),
+        false
+      );
+    }
+  }
+);
+
+
+test(
+  "validated bitmask view is immutable at authority surface",
+  () => {
+    const {
+      createValidatedBitmaskViewV1,
+    } =
+      require(
+        "../../services/games/cingArtillery/domain/cingArtilleryGeometryV1"
+      );
+
+    const view =
+      createValidatedBitmaskViewV1({
+        widthPx:
+          8,
+
+        heightPx:
+          1,
+
+        collisionMask:
+          Buffer.from([
+            0x80,
+          ]),
+      });
+
+    assert.equal(
+      Object.isFrozen(view),
+      true
+    );
+
+    assert.equal(
+      typeof view.isSolid,
+      "function"
+    );
+  }
+);
