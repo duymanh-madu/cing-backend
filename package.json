@@ -54,6 +54,7 @@
     "test:cing-artillery-segment-contact-point": "node --test tests/cingArtillery/cingArtillerySegmentContactPointV1.test.js",
     "test:cing-artillery-shot-segment-impact-projection": "node --test tests/cingArtillery/cingArtilleryShotSegmentImpactProjectionV1.test.js",
     "test:cing-artillery-impact-numeric-projection": "node --test tests/cingArtillery/cingArtilleryImpactNumericProjectionV1.test.js",
+    "test:cing-artillery-shot-trajectory-solver": "node --test tests/cingArtillery/cingArtilleryShotTrajectorySolverV1.test.js",
     "test:cing-artillery-segment-rounded-pixel-cell-earliest-contact": "node --test tests/cingArtillery/cingArtillerySegmentRoundedPixelCellEarliestContactV1.test.js",
     "test:cing-artillery-swept-projectile-terrain-earliest-contact": "node --test tests/cingArtillery/cingArtillerySweptProjectileTerrainEarliestContactV1.test.js",
     "test:cing-artillery-player-terrain-collision-precedence": "node --test tests/cingArtillery/cingArtilleryPlayerTerrainCollisionPrecedenceV1.test.js",
