@@ -71,6 +71,12 @@ const {
 );
 
 const {
+  normalizeCollisionGeometryRulesV1,
+} = require(
+  "./cingArtilleryCollisionGeometryNumericV1"
+);
+
+const {
   normalizeAccelerationRulesV1,
 } = require(
   "./cingArtilleryAccelerationNumericV1"
@@ -710,6 +716,20 @@ function normalizeGameRulesV2(
 
     muzzleOffsetUpPx:
       normalized.muzzle_offset_up_px,
+
+    physicsFixedScale:
+      normalized.physics_fixed_scale,
+  });
+
+  normalizeCollisionGeometryRulesV1({
+    projectileRadiusPx:
+      normalized.projectile_radius_px,
+
+    playerHitRadiusPx:
+      normalized.player_hit_radius_px,
+
+    playerHitCenterOffsetYPx:
+      normalized.player_hit_center_offset_y_px,
 
     physicsFixedScale:
       normalized.physics_fixed_scale,

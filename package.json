@@ -28,7 +28,8 @@
     "test:cing-artillery-physics-semantic": "node --test tests/cingArtillery/cingArtilleryPhysicsSemanticContractV1.test.js",
     "test:cing-artillery-trajectory-quantization": "node --test tests/cingArtillery/cingArtilleryTrajectoryQuantizationV1.test.js",
     "test:cing-artillery-trajectory-sampler": "node --test tests/cingArtillery/cingArtilleryTrajectorySamplerV1.test.js",
-    "test:cing-artillery-trajectory-segment": "node --test tests/cingArtillery/cingArtilleryTrajectorySegmentV1.test.js"
+    "test:cing-artillery-trajectory-segment": "node --test tests/cingArtillery/cingArtilleryTrajectorySegmentV1.test.js",
+    "test:cing-artillery-collision-geometry-numeric": "node --test tests/cingArtillery/cingArtilleryCollisionGeometryNumericV1.test.js"
   },
   "keywords": [],
   "author": "",

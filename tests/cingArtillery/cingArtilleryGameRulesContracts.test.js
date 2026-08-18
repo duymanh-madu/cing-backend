@@ -765,3 +765,125 @@ test(
     );
   }
 );
+
+
+test(
+  "Rules V2 accepts collision geometry exactly representable on physics lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.projectile_radius_px =
+      1.25;
+
+    raw.player_hit_radius_px =
+      2.5;
+
+    raw.player_hit_center_offset_y_px =
+      1.75;
+
+    const normalized =
+      normalizeGameRules(
+        raw
+      );
+
+    assert.equal(
+      normalized.projectile_radius_px,
+      1.25
+    );
+
+    assert.equal(
+      normalized.player_hit_radius_px,
+      2.5
+    );
+
+    assert.equal(
+      normalized.player_hit_center_offset_y_px,
+      1.75
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects projectile radius outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.projectile_radius_px =
+      1.0001;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects player radius outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.player_hit_radius_px =
+      2.0001;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects player hit center offset outside physics fixed lattice",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.player_hit_center_offset_y_px =
+      1.0001;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_QUANTIZATION_ERROR",
+      }
+    );
+  }
+);
+
+
+test(
+  "Rules V2 collision geometry obeys canonical scaled safe magnitude",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.player_hit_radius_px =
+      Number.MAX_SAFE_INTEGER;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(raw),
+      {
+        code:
+          "CING_ARTILLERY_FIXED_POINT_RANGE_ERROR",
+      }
+    );
+  }
+);
