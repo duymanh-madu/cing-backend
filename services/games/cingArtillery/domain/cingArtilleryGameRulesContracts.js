@@ -79,6 +79,9 @@ const {
 const POSTGRES_INTEGER_MAX =
   2147483647;
 
+const MAX_TRAJECTORY_STEPS_V1 =
+  15000;
+
 function assertPositiveInteger(
   value,
   field
@@ -781,6 +784,23 @@ function normalizeGameRulesV2(
     });
   }
 
+
+  const trajectoryStepCount =
+    normalized.max_flight_time_ms /
+    normalized.physics_step_ms;
+
+  if (
+    trajectoryStepCount >
+      MAX_TRAJECTORY_STEPS_V1
+  ) {
+    throw buildError({
+      message:
+        "Game rules Cing Artillery V2 vượt quá trajectory simulation budget",
+      code:
+        "CING_ARTILLERY_INVALID_GAME_RULES",
+    });
+  }
+
   if (
     normalized.projectile_radius_px >=
     normalized.player_hit_radius_px
@@ -870,6 +890,7 @@ function assertRulesVersionMatches({
 }
 
 module.exports = {
+  MAX_TRAJECTORY_STEPS_V1,
   normalizeGameRules,
   assertRulesVersionMatches,
 };

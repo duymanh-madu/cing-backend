@@ -25,7 +25,8 @@
     "test:cing-artillery-muzzle-geometry-numeric": "node --test tests/cingArtillery/cingArtilleryMuzzleGeometryNumericV1.test.js",
     "test:cing-artillery-muzzle-origin": "node --test tests/cingArtillery/cingArtilleryMuzzleOriginV1.test.js",
     "test:cing-artillery-acceleration-numeric": "node --test tests/cingArtillery/cingArtilleryAccelerationNumericV1.test.js",
-    "test:cing-artillery-physics-semantic": "node --test tests/cingArtillery/cingArtilleryPhysicsSemanticContractV1.test.js"
+    "test:cing-artillery-physics-semantic": "node --test tests/cingArtillery/cingArtilleryPhysicsSemanticContractV1.test.js",
+    "test:cing-artillery-trajectory-quantization": "node --test tests/cingArtillery/cingArtilleryTrajectoryQuantizationV1.test.js"
   },
   "keywords": [],
   "author": "",

@@ -673,3 +673,95 @@ test(
     );
   }
 );
+
+
+test(
+  "Rules V2 accepts exactly MAX_TRAJECTORY_STEPS_V1 samples",
+  () => {
+    const {
+      MAX_TRAJECTORY_STEPS_V1,
+    } =
+      require(
+        "../../services/games/cingArtillery/domain/cingArtilleryGameRulesContracts"
+      );
+
+    const raw =
+      buildValidV2();
+
+    raw.physics_step_ms =
+      1;
+
+    raw.max_flight_time_ms =
+      MAX_TRAJECTORY_STEPS_V1;
+
+    const normalized =
+      normalizeGameRules(
+        raw
+      );
+
+    assert.equal(
+      normalized.max_flight_time_ms /
+        normalized.physics_step_ms,
+      MAX_TRAJECTORY_STEPS_V1
+    );
+  }
+);
+
+
+test(
+  "Rules V2 rejects trajectory sample count above canonical V1 budget",
+  () => {
+    const {
+      MAX_TRAJECTORY_STEPS_V1,
+    } =
+      require(
+        "../../services/games/cingArtillery/domain/cingArtilleryGameRulesContracts"
+      );
+
+    const raw =
+      buildValidV2();
+
+    raw.physics_step_ms =
+      1;
+
+    raw.max_flight_time_ms =
+      MAX_TRAJECTORY_STEPS_V1 + 1;
+
+    assert.throws(
+      () =>
+        normalizeGameRules(
+          raw
+        ),
+      {
+        code:
+          "CING_ARTILLERY_INVALID_GAME_RULES",
+      }
+    );
+  }
+);
+
+
+test(
+  "trajectory budget is based on exact step count rather than flight time alone",
+  () => {
+    const raw =
+      buildValidV2();
+
+    raw.physics_step_ms =
+      10;
+
+    raw.max_flight_time_ms =
+      15000;
+
+    const normalized =
+      normalizeGameRules(
+        raw
+      );
+
+    assert.equal(
+      normalized.max_flight_time_ms /
+        normalized.physics_step_ms,
+      1500
+    );
+  }
+);
