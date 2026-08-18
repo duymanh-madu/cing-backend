@@ -43,7 +43,8 @@
     "test:cing-artillery-contact-parameter": "node --test tests/cingArtillery/cingArtilleryContactParameterV1.test.js",
     "test:cing-artillery-contact-parameter-comparator": "node --test tests/cingArtillery/cingArtilleryContactParameterComparatorV1.test.js",
     "test:cing-artillery-segment-circle-earliest-contact-parameter": "node --test tests/cingArtillery/cingArtillerySegmentCircleEarliestContactParameterV1.test.js",
-    "test:cing-artillery-swept-projectile-player-earliest-contact": "node --test tests/cingArtillery/cingArtillerySweptProjectilePlayerEarliestContactV1.test.js"
+    "test:cing-artillery-swept-projectile-player-earliest-contact": "node --test tests/cingArtillery/cingArtillerySweptProjectilePlayerEarliestContactV1.test.js",
+    "test:cing-artillery-segment-closed-aabb-earliest-contact": "node --test tests/cingArtillery/cingArtillerySegmentClosedAabbEarliestContactParameterV1.test.js"
   },
   "keywords": [],
   "author": "",
