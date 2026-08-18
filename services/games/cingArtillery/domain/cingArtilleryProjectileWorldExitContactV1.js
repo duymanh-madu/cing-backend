@@ -52,10 +52,11 @@
  */
 
 const {
-  POSTGRES_INTEGER_MAX,
+  deriveProjectileExpandedWorldBoundsV1,
+  pointInsideProjectileExpandedWorldV1,
 } =
   require(
-    "./cingArtilleryScaledToPixelBridgeV1"
+    "./cingArtilleryProjectileExpandedWorldBoundsV1"
   );
 
 const {
@@ -135,68 +136,6 @@ function assertTrajectorySegment(
 }
 
 
-function assertPositiveBigInt(
-  value,
-  field
-) {
-  if (
-    typeof value !==
-      "bigint" ||
-    value <= 0n
-  ) {
-    throw buildError({
-      message:
-        `Projectile world exit Cing Artillery yêu cầu ${field} > 0`,
-    });
-  }
-
-
-  return value;
-}
-
-
-function assertPositivePostgresInteger(
-  value,
-  field
-) {
-  if (
-    typeof value !==
-      "number" ||
-    !Number.isSafeInteger(
-      value
-    ) ||
-    value <= 0 ||
-    value >
-      POSTGRES_INTEGER_MAX
-  ) {
-    throw buildError({
-      message:
-        `Projectile world exit Cing Artillery không hợp lệ: ${field}`,
-    });
-  }
-
-
-  return value;
-}
-
-
-function pointInsideClosedAabb({
-  x,
-  y,
-  minX,
-  minY,
-  maxX,
-  maxY,
-}) {
-  return (
-    x >= minX &&
-    x <= maxX &&
-    y >= minY &&
-    y <= maxY
-  );
-}
-
-
 function projectileWorldExitContactV1({
   trajectorySegment,
   projectileRadiusScaled,
@@ -209,70 +148,44 @@ function projectileWorldExitContactV1({
       trajectorySegment
     );
 
-  const radius =
-    assertPositiveBigInt(
-      projectileRadiusScaled,
-      "projectile_radius_scaled"
-    );
-
-  const scale =
-    assertPositivePostgresInteger(
-      physicsFixedScale,
-      "physics_fixed_scale"
-    );
-
-  const width =
-    assertPositivePostgresInteger(
-      widthPx,
-      "width_px"
-    );
-
-  const height =
-    assertPositivePostgresInteger(
-      heightPx,
-      "height_px"
-    );
+  let bounds;
 
 
-  const scaleBigInt =
-    BigInt(scale);
+  try {
+    bounds =
+      deriveProjectileExpandedWorldBoundsV1({
+        projectileRadiusScaled,
+        physicsFixedScale,
+        widthPx,
+        heightPx,
+      });
+  } catch (error) {
+    if (
+      error &&
+      error.code ===
+        "CING_ARTILLERY_INVALID_PROJECTILE_EXPANDED_WORLD_BOUNDS_V1"
+    ) {
+      throw buildError({
+        message:
+          error.message,
+      });
+    }
 
-  const worldWidthScaled =
-    BigInt(width) *
-    scaleBigInt;
 
-  const worldHeightScaled =
-    BigInt(height) *
-    scaleBigInt;
-
-
-  const minX =
-    -radius;
-
-  const minY =
-    -radius;
-
-  const maxX =
-    worldWidthScaled +
-    radius;
-
-  const maxY =
-    worldHeightScaled +
-    radius;
+    throw error;
+  }
 
 
   const startInside =
-    pointInsideClosedAabb({
-      x:
+    pointInsideProjectileExpandedWorldV1({
+      xScaled:
         segment.start_x_scaled,
 
-      y:
+      yScaled:
         segment.start_y_scaled,
 
-      minX,
-      minY,
-      maxX,
-      maxY,
+      expandedWorldBounds:
+        bounds,
     });
 
 
@@ -308,10 +221,17 @@ function projectileWorldExitContactV1({
     endY:
       segment.end_y_scaled,
 
-    minX,
-    minY,
-    maxX,
-    maxY,
+    minX:
+      bounds.min_x_scaled,
+
+    minY:
+      bounds.min_y_scaled,
+
+    maxX:
+      bounds.max_x_scaled,
+
+    maxY:
+      bounds.max_y_scaled,
   });
 }
 

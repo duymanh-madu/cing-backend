@@ -47,6 +47,7 @@
     "test:cing-artillery-segment-closed-aabb-earliest-contact": "node --test tests/cingArtillery/cingArtillerySegmentClosedAabbEarliestContactParameterV1.test.js",
     "test:cing-artillery-segment-closed-aabb-exit-contact": "node --test tests/cingArtillery/cingArtillerySegmentClosedAabbExitContactParameterV1.test.js",
     "test:cing-artillery-projectile-world-exit-contact": "node --test tests/cingArtillery/cingArtilleryProjectileWorldExitContactV1.test.js",
+    "test:cing-artillery-projectile-expanded-world-bounds": "node --test tests/cingArtillery/cingArtilleryProjectileExpandedWorldBoundsV1.test.js",
     "test:cing-artillery-segment-rounded-pixel-cell-earliest-contact": "node --test tests/cingArtillery/cingArtillerySegmentRoundedPixelCellEarliestContactV1.test.js",
     "test:cing-artillery-swept-projectile-terrain-earliest-contact": "node --test tests/cingArtillery/cingArtillerySweptProjectileTerrainEarliestContactV1.test.js",
     "test:cing-artillery-player-terrain-collision-precedence": "node --test tests/cingArtillery/cingArtilleryPlayerTerrainCollisionPrecedenceV1.test.js",
