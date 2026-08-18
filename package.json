@@ -35,7 +35,8 @@
     "test:cing-artillery-projectile-player-contact": "node --test tests/cingArtillery/cingArtilleryProjectilePlayerCircleContactV1.test.js",
     "test:cing-artillery-circle-pixel-cell-contact": "node --test tests/cingArtillery/cingArtilleryCirclePixelCellContactV1.test.js",
     "test:cing-artillery-circle-candidate-cell-range": "node --test tests/cingArtillery/cingArtilleryCircleCandidateCellRangeV1.test.js",
-    "test:cing-artillery-projectile-terrain-coverage": "node --test tests/cingArtillery/cingArtilleryProjectileTerrainCoverageV1.test.js"
+    "test:cing-artillery-projectile-terrain-coverage": "node --test tests/cingArtillery/cingArtilleryProjectileTerrainCoverageV1.test.js",
+    "test:cing-artillery-segment-circle-contact": "node --test tests/cingArtillery/cingArtillerySegmentCircleContactV1.test.js"
   },
   "keywords": [],
   "author": "",
