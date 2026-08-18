@@ -45,7 +45,8 @@
     "test:cing-artillery-segment-circle-earliest-contact-parameter": "node --test tests/cingArtillery/cingArtillerySegmentCircleEarliestContactParameterV1.test.js",
     "test:cing-artillery-swept-projectile-player-earliest-contact": "node --test tests/cingArtillery/cingArtillerySweptProjectilePlayerEarliestContactV1.test.js",
     "test:cing-artillery-segment-closed-aabb-earliest-contact": "node --test tests/cingArtillery/cingArtillerySegmentClosedAabbEarliestContactParameterV1.test.js",
-    "test:cing-artillery-segment-rounded-pixel-cell-earliest-contact": "node --test tests/cingArtillery/cingArtillerySegmentRoundedPixelCellEarliestContactV1.test.js"
+    "test:cing-artillery-segment-rounded-pixel-cell-earliest-contact": "node --test tests/cingArtillery/cingArtillerySegmentRoundedPixelCellEarliestContactV1.test.js",
+    "test:cing-artillery-swept-projectile-terrain-earliest-contact": "node --test tests/cingArtillery/cingArtillerySweptProjectileTerrainEarliestContactV1.test.js"
   },
   "keywords": [],
   "author": "",
