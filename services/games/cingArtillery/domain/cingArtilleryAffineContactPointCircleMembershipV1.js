@@ -131,6 +131,19 @@ const {
   );
 
 
+const AFFINE_CONTACT_POINT_CIRCLE_RELATION_V1 =
+  Object.freeze({
+    INSIDE:
+      "inside",
+
+    TANGENT:
+      "tangent",
+
+    OUTSIDE:
+      "outside",
+  });
+
+
 function buildError({
   message,
   code =
@@ -423,7 +436,7 @@ function deriveDistancePolynomialV1({
 }
 
 
-function rationalPolynomialIsNonPositiveV1({
+function compareRationalPolynomialToZeroV1({
   A,
   B,
   C,
@@ -448,14 +461,27 @@ function rationalPolynomialIsNonPositiveV1({
       q;
 
 
-  return (
-    scaledValue <=
-    0n
-  );
+  if (
+    scaledValue <
+      0n
+  ) {
+    return -1;
+  }
+
+
+  if (
+    scaledValue >
+      0n
+  ) {
+    return 1;
+  }
+
+
+  return 0;
 }
 
 
-function linearRadicalIsNonPositiveV1({
+function compareLinearRadicalToZeroV1({
   P,
   Q,
   discriminant,
@@ -464,10 +490,21 @@ function linearRadicalIsNonPositiveV1({
     Q ===
       0n
   ) {
-    return (
-      P <=
-      0n
-    );
+    if (
+      P <
+        0n
+    ) {
+      return -1;
+    }
+
+    if (
+      P >
+        0n
+    ) {
+      return 1;
+    }
+
+    return 0;
   }
 
 
@@ -481,67 +518,73 @@ function linearRadicalIsNonPositiveV1({
     Q >
       0n
   ) {
-    /*
-     * P + Q*sqrt(D) <= 0
-     *
-     * Q*sqrt(D) is strictly positive.
-     *
-     * Therefore P must be negative, then:
-     *
-     *   Q*sqrt(D) <= -P
-     *
-     * Squaring both non-negative sides:
-     *
-     *   Q^2 * D <= P^2
-     */
     if (
       P >=
         0n
     ) {
-      return false;
+      return 1;
     }
 
 
-    return (
-      radicalMagnitudeSquared <=
+    const rationalMagnitudeSquared =
       P *
-      P
-    );
+      P;
+
+
+    if (
+      radicalMagnitudeSquared <
+        rationalMagnitudeSquared
+    ) {
+      return -1;
+    }
+
+
+    if (
+      radicalMagnitudeSquared >
+        rationalMagnitudeSquared
+    ) {
+      return 1;
+    }
+
+
+    return 0;
   }
 
 
-  /*
-   * Q < 0:
-   *
-   *   P - |Q|*sqrt(D) <= 0
-   *
-   * If P <= 0 this is immediately true.
-   *
-   * Otherwise:
-   *
-   *   P <= |Q|*sqrt(D)
-   *
-   * Squaring both positive sides:
-   *
-   *   P^2 <= Q^2 * D
-   */
   if (
     P <=
       0n
   ) {
-    return true;
+    return -1;
   }
 
 
-  return (
+  const rationalMagnitudeSquared =
     P *
-      P <=
-    radicalMagnitudeSquared
-  );
+    P;
+
+
+  if (
+    rationalMagnitudeSquared <
+      radicalMagnitudeSquared
+  ) {
+    return -1;
+  }
+
+
+  if (
+    rationalMagnitudeSquared >
+      radicalMagnitudeSquared
+  ) {
+    return 1;
+  }
+
+
+  return 0;
 }
 
 
-function quadraticPolynomialIsNonPositiveV1({
+function compareQuadraticPolynomialToZeroV1({
   A,
   B,
   C,
@@ -557,17 +600,6 @@ function quadraticPolynomialIsNonPositiveV1({
     parameter.discriminant;
 
 
-  /*
-   * t =
-   *   (-b - sqrt(D)) /
-   *   (2a)
-   *
-   * 4a^2 * F(t) =
-   *
-   *   P + Q*sqrt(D)
-   *
-   * Because 4a^2 > 0, sign is preserved.
-   */
   const P =
     A *
       (
@@ -594,7 +626,7 @@ function quadraticPolynomialIsNonPositiveV1({
     );
 
 
-  return linearRadicalIsNonPositiveV1({
+  return compareLinearRadicalToZeroV1({
     P,
     Q,
     discriminant,
@@ -602,7 +634,7 @@ function quadraticPolynomialIsNonPositiveV1({
 }
 
 
-function affineContactPointInsideCircleV1({
+function classifyAffineContactPointCircleRelationV1({
   exactPoint,
   circleCenterXScaled,
   circleCenterYScaled,
@@ -628,35 +660,75 @@ function affineContactPointInsideCircleV1({
     point.contact_parameter;
 
 
+  let comparison;
+
+
   if (
     parameter.kind ===
       CONTACT_PARAMETER_KIND_V1.RATIONAL
   ) {
-    return rationalPolynomialIsNonPositiveV1({
-      ...polynomial,
-      parameter,
+    comparison =
+      compareRationalPolynomialToZeroV1({
+        ...polynomial,
+        parameter,
+      });
+  } else if (
+    parameter.kind ===
+      CONTACT_PARAMETER_KIND_V1.QUADRATIC_LOWER_ROOT
+  ) {
+    comparison =
+      compareQuadraticPolynomialToZeroV1({
+        ...polynomial,
+        parameter,
+      });
+  } else {
+    throw buildError({
+      message:
+        "Affine point/circle relation Cing Artillery gặp ContactParameterV1 kind không hỗ trợ",
     });
   }
 
 
   if (
-    parameter.kind ===
-      CONTACT_PARAMETER_KIND_V1.QUADRATIC_LOWER_ROOT
+    comparison <
+      0
   ) {
-    return quadraticPolynomialIsNonPositiveV1({
-      ...polynomial,
-      parameter,
-    });
+    return AFFINE_CONTACT_POINT_CIRCLE_RELATION_V1.INSIDE;
   }
 
 
-  throw buildError({
-    message:
-      "Affine point/circle membership Cing Artillery gặp ContactParameterV1 kind không hỗ trợ",
-  });
+  if (
+    comparison >
+      0
+  ) {
+    return AFFINE_CONTACT_POINT_CIRCLE_RELATION_V1.OUTSIDE;
+  }
+
+
+  return AFFINE_CONTACT_POINT_CIRCLE_RELATION_V1.TANGENT;
+}
+
+
+function affineContactPointInsideCircleV1({
+  exactPoint,
+  circleCenterXScaled,
+  circleCenterYScaled,
+  radiusScaled,
+} = {}) {
+  return (
+    classifyAffineContactPointCircleRelationV1({
+      exactPoint,
+      circleCenterXScaled,
+      circleCenterYScaled,
+      radiusScaled,
+    }) !==
+    AFFINE_CONTACT_POINT_CIRCLE_RELATION_V1.OUTSIDE
+  );
 }
 
 
 module.exports = {
+  AFFINE_CONTACT_POINT_CIRCLE_RELATION_V1,
+  classifyAffineContactPointCircleRelationV1,
   affineContactPointInsideCircleV1,
 };

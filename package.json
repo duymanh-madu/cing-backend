@@ -58,6 +58,7 @@
     "test:cing-artillery-canonical-opponent-binding": "node --test tests/cingArtillery/cingArtilleryCanonicalOpponentBindingV1.test.js",
     "test:cing-artillery-blast-radius-numeric": "node --test tests/cingArtillery/cingArtilleryBlastRadiusNumericV1.test.js",
     "test:cing-artillery-affine-contact-point-circle-membership": "node --test tests/cingArtillery/cingArtilleryAffineContactPointCircleMembershipV1.test.js",
+    "test:cing-artillery-affine-contact-point-circle-relation": "node --test tests/cingArtillery/cingArtilleryAffineContactPointCircleRelationV1.test.js",
     "test:cing-artillery-blast-target-eligibility": "node --test tests/cingArtillery/cingArtilleryBlastTargetEligibilityV1.test.js",
     "test:cing-artillery-canonical-shot-target-materialization": "node --test tests/cingArtillery/cingArtilleryCanonicalShotTargetMaterializationV1.test.js",
     "test:cing-artillery-segment-rounded-pixel-cell-earliest-contact": "node --test tests/cingArtillery/cingArtillerySegmentRoundedPixelCellEarliestContactV1.test.js",
