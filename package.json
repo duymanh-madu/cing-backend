@@ -51,6 +51,7 @@
     "test:cing-artillery-projectile-world-exit-classification": "node --test tests/cingArtillery/cingArtilleryProjectileWorldExitClassificationV1.test.js",
     "test:cing-artillery-collision-world-exit-precedence": "node --test tests/cingArtillery/cingArtilleryCollisionWorldExitPrecedenceV1.test.js",
     "test:cing-artillery-shot-segment-event-classifier": "node --test tests/cingArtillery/cingArtilleryShotSegmentEventClassifierV1.test.js",
+    "test:cing-artillery-segment-contact-point": "node --test tests/cingArtillery/cingArtillerySegmentContactPointV1.test.js",
     "test:cing-artillery-segment-rounded-pixel-cell-earliest-contact": "node --test tests/cingArtillery/cingArtillerySegmentRoundedPixelCellEarliestContactV1.test.js",
     "test:cing-artillery-swept-projectile-terrain-earliest-contact": "node --test tests/cingArtillery/cingArtillerySweptProjectileTerrainEarliestContactV1.test.js",
     "test:cing-artillery-player-terrain-collision-precedence": "node --test tests/cingArtillery/cingArtilleryPlayerTerrainCollisionPrecedenceV1.test.js",
