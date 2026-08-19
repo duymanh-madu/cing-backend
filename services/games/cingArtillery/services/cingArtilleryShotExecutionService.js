@@ -239,49 +239,6 @@ async function claimShotExecutions({
   }
 }
 
-async function completeShotExecution({
-  executionId:
-    rawExecutionId,
-  claimToken:
-    rawClaimToken,
-}) {
-  const executionId =
-    assertShotExecutionId(
-      rawExecutionId
-    );
-
-  const claimToken =
-    assertClaimToken(
-      rawClaimToken
-    );
-
-  try {
-    const row =
-      await repository
-        .completeAtomic({
-          executionId,
-          claimToken,
-        });
-
-    if (!row) {
-      throw buildError({
-        message:
-          "Không thể hoàn tất shot execution Cing Artillery",
-        code:
-          "CING_ARTILLERY_SHOT_EXECUTION_RESOLUTION_FAILED",
-      });
-    }
-
-    return normalizeShotExecutionRecord(
-      row
-    );
-  } catch (error) {
-    throw mapRepositoryError(
-      error
-    );
-  }
-}
-
 async function releaseShotExecution({
   executionId:
     rawExecutionId,
@@ -363,7 +320,6 @@ async function releaseExpiredShotExecutions({
 
 module.exports = {
   claimShotExecutions,
-  completeShotExecution,
   releaseShotExecution,
   releaseExpiredShotExecutions,
 };

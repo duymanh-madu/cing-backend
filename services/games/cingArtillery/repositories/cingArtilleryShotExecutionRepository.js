@@ -6,9 +6,6 @@ const supabase =
 const CLAIM_RPC_NAME =
   "cing_artillery_claim_shot_executions_atomic";
 
-const COMPLETE_RPC_NAME =
-  "cing_artillery_complete_shot_execution_atomic";
-
 const RELEASE_RPC_NAME =
   "cing_artillery_release_shot_execution_atomic";
 
@@ -43,34 +40,6 @@ async function claimAtomic({
     : data
       ? [data]
       : [];
-}
-
-async function completeAtomic({
-  executionId,
-  claimToken,
-}) {
-  const {
-    data,
-    error,
-  } = await supabase
-    .rpc(
-      COMPLETE_RPC_NAME,
-      {
-        p_execution_id:
-          executionId,
-
-        p_claim_token:
-          claimToken,
-      }
-    );
-
-  if (error) {
-    throw error;
-  }
-
-  return Array.isArray(data)
-    ? data[0] || null
-    : data || null;
 }
 
 async function releaseAtomic({
@@ -133,7 +102,6 @@ async function releaseExpiredAtomic({
 
 module.exports = {
   claimAtomic,
-  completeAtomic,
   releaseAtomic,
   releaseExpiredAtomic,
 };
