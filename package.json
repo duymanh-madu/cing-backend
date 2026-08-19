@@ -8,6 +8,7 @@
     "start": "node server.js",
     "test:cing-artillery-rules": "node --test tests/cingArtillery/cingArtilleryGameRulesContracts.test.js",
     "test:cing-artillery-fixed-point": "node --test tests/cingArtillery/cingArtilleryFixedPoint.test.js",
+    "test:cing-artillery-damage-rules-numeric": "node --test tests/cingArtillery/cingArtilleryDamageRulesNumericV1.test.js",
     "test:cing-artillery-geometry": "node --test tests/cingArtillery/cingArtilleryGeometryV1.test.js",
     "test:cing-artillery-integer-math": "node --test tests/cingArtillery/cingArtilleryIntegerMathV1.test.js",
     "test:cing-artillery-fire-direction": "node --test tests/cingArtillery/cingArtilleryFireDirectionV1.test.js",
