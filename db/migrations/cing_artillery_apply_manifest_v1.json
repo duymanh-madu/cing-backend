@@ -1,0 +1,331 @@
+{
+  "manifest_version": 1,
+  "game": "Cing Piu Piu",
+  "technical_namespace": "cing_artillery",
+  "source_head": "42f031c45209a313adb1a5426d7d52bb36b8cfc1",
+  "database_authority": "Supabase PostgreSQL",
+  "realtime_runtime_target": "Mắt Bão cing-game-server",
+  "railway_realtime_runtime": false,
+  "ordering_policy": "Explicit reviewed semantic order derived from Git first-introduction topological history; never infer apply order from migration filenames.",
+  "migration_count": 53,
+  "migrations": [
+    {
+      "path": "db/migrations/20260814_cing_artillery_domain_foundation.sql",
+      "sha256": "24716f1cb8d5086e4c7df892a9f84d3f789ca70e3b63902dbd35e2e000ed8e66",
+      "introduced_commit": "2a777815ae0549005427bf66f0a651aea85f8f7a",
+      "order": 1
+    },
+    {
+      "path": "db/migrations/20260814_cing_artillery_character_inventory_foundation.sql",
+      "sha256": "78141613d6688891ac229caaef14929373efb40534bd9176a6c9ddd07cb821e6",
+      "introduced_commit": "9c65e6db0aa757a827112bedfc96c1e69bcdb30e",
+      "order": 2
+    },
+    {
+      "path": "db/migrations/20260814_cing_artillery_character_identity.sql",
+      "sha256": "f726ca8a74269335fefece8a6a11a6b5e7aa2c55f12e4bc289dffe1d20064747",
+      "introduced_commit": "efc6d3ebc53e12c3d32f2cce7a85e712fbc6c347",
+      "order": 3
+    },
+    {
+      "path": "db/migrations/20260814_cing_artillery_onboarding_atomic.sql",
+      "sha256": "35fe7cd4809e467385f896cc6471172846cfc01d8e27a9a72bc3f23ebca71c5f",
+      "introduced_commit": "3d8717457ab794e4ccbfa78c97250ee2561e10ab",
+      "order": 4
+    },
+    {
+      "path": "db/migrations/20260814_cing_artillery_onboarding_rpc_acl_hardening.sql",
+      "sha256": "45c407c0e26f9ce0e497d21e7c6a2170613bcd4a690dcf74f2a2c9e29c873bba",
+      "introduced_commit": "97b41c5c2359b1057ebd8c0b2fd68c534b5bf4e5",
+      "order": 5
+    },
+    {
+      "path": "db/migrations/20260814_cing_artillery_gameplay_session_foundation.sql",
+      "sha256": "8964ac5a398a072028ad6ac413f512e1ca866ffaf102763d06c700a94ad50324",
+      "introduced_commit": "5aa3eb12ea37fa08e5f6b6cdd7d005d78de41258",
+      "order": 6
+    },
+    {
+      "path": "db/migrations/20260814_cing_artillery_gameplay_session_lifecycle.sql",
+      "sha256": "477bf213c1314464650aa982278cf46950a4f22f778508016e402bdd5d2eab65",
+      "introduced_commit": "6d2f1ad473b844e7e0fdb6aa4f0816dfa188e415",
+      "order": 7
+    },
+    {
+      "path": "db/migrations/20260814_cing_artillery_matchmaking_foundation.sql",
+      "sha256": "0448edf2afa5375b7d46f0c1fade7acccfb17ef9ab1290bad3c46862a32dedb2",
+      "introduced_commit": "c98422814cda0dec51f42c1e49c811b885ed1430",
+      "order": 8
+    },
+    {
+      "path": "db/migrations/20260814_cing_artillery_match_runtime_foundation.sql",
+      "sha256": "1019d9a0e940abc5d5260d64945fc5cda08ea6fbe7c9951d8ee0e47353459b6e",
+      "introduced_commit": "db659f3f6b6c01cd16e92a33345603896b6eab3b",
+      "order": 9
+    },
+    {
+      "path": "db/migrations/20260816_cing_artillery_combat_state_foundation.sql",
+      "sha256": "cfd922e93becf63c83e80e85f56637466a9b1e514f51d8bc3d77c114a85b2424",
+      "introduced_commit": "47a1afb9ff75d553e67b5e9a61484998f1ad8d6d",
+      "order": 10
+    },
+    {
+      "path": "db/migrations/20260816_cing_artillery_game_rules_authority.sql",
+      "sha256": "5d7075f43eb7f365ed0689d84589e61b64d8d389eea350b7dc64edc32e57cab8",
+      "introduced_commit": "95c9c4637ade9f69cd892998f3e574f3702a77dc",
+      "order": 11
+    },
+    {
+      "path": "db/migrations/20260816_cing_artillery_turn_state_foundation.sql",
+      "sha256": "d385ad153c9f62459d2a566b7f77bef60f499960dda3797e4fcb4a0aef012b63",
+      "introduced_commit": "62a568f0f2a4064cc2ca53ade0cfe60753ebcb48",
+      "order": 12
+    },
+    {
+      "path": "db/migrations/20260816_cing_artillery_character_combat_stats_authority.sql",
+      "sha256": "48d303fc5ae53b0042e333617f89b357e7a9e4a1562fb45a42b2aae01152c366",
+      "introduced_commit": "6c03ad07d56c4a04915c41f6986a457803da1d76",
+      "order": 13
+    },
+    {
+      "path": "db/migrations/20260816_cing_artillery_initiative_authority.sql",
+      "sha256": "eb56706882f7612ccf838cdcbdadda45a59d6c82935bdfd60ff793638c11a6be",
+      "introduced_commit": "8d964e09178a410610301c982b3eb8fcfcf1edb8",
+      "order": 14
+    },
+    {
+      "path": "db/migrations/20260816_cing_artillery_shot_command_authority.sql",
+      "sha256": "deadf09a22678a396ff1b96145559525f82e8afef04220b3d8ca0b9ca3b9665f",
+      "introduced_commit": "7100070ead194e32c1a83178c2e2f180fdb6dd9c",
+      "order": 15
+    },
+    {
+      "path": "db/migrations/20260816_cing_artillery_shot_execution_foundation.sql",
+      "sha256": "c2cae7a623130ba8b62f4b92819e7c8a3089fe2a51a5722ab7f18f97335188e8",
+      "introduced_commit": "12674142d281942c19ab1740421b94334f76a0ce",
+      "order": 16
+    },
+    {
+      "path": "db/migrations/20260816_cing_artillery_map_catalog_authority.sql",
+      "sha256": "5e4f8c9da43661649a0d0f28b4254ed369fdc054cd04241a24bed8ce9e5bdb6d",
+      "introduced_commit": "d63388f8ba8d39ebca855b94298d94a50be14a32",
+      "order": 17
+    },
+    {
+      "path": "db/migrations/20260816_cing_artillery_map_publication_authority.sql",
+      "sha256": "edf438306d39f7f0436ab8f202ce6ea887e20c3a6a06cb37ba1fd5bf5ab6cd06",
+      "introduced_commit": "c06dccd503166dfe0f5d181c596131a410351b82",
+      "order": 18
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_map_enable_authority.sql",
+      "sha256": "1a5f0f5abfbcfa8ed63c05f51d90024d792420729db2850fc2a0757103995bea",
+      "introduced_commit": "aa317802630e6653dbb0a4d45342d14a2d5431fb",
+      "order": 19
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_combat_world_foundation.sql",
+      "sha256": "c4f523a5a78021987cea1a7678ee102125d09fbdc0abee86cbbb66b0a6b24c87",
+      "introduced_commit": "9f06b26948eef4e87fe44029cd47b2fbc77c2d0c",
+      "order": 20
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_shot_resolution_foundation.sql",
+      "sha256": "74492f907bd8085168c8b6a6755e7d2c7773fc2ef8921c336321bbe68e8ce29d",
+      "introduced_commit": "0940314a7df58a2cb447295404dc9a8faf51f224",
+      "order": 21
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_combat_vital_state_foundation.sql",
+      "sha256": "5667b410140c71060bf844ce2c383b80507cf4abfc56aa5220cba6df62236cd9",
+      "introduced_commit": "7438a83a46a3632c656de248e971fabc5268dadb",
+      "order": 22
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_turn_advancement_authority.sql",
+      "sha256": "781732e29445a2da16c7956ee775b8be2348ca2f24d941f036c624c847130c35",
+      "introduced_commit": "4b97da3b188f5cb5d3373a505cf7419ebb094da7",
+      "order": 23
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_turn_state_acl_hardening.sql",
+      "sha256": "6112391fa2bde72d48f82a6aab848615cb1591b585eb6231a171d59fdfe52f56",
+      "introduced_commit": "4b97da3b188f5cb5d3373a505cf7419ebb094da7",
+      "order": 24
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_terminal_match_lifecycle_foundation.sql",
+      "sha256": "1c99caee7be8c425dc22cec4f1eee77e9c4691bdc11b3ed2b7fdad30a5f372f7",
+      "introduced_commit": "255fc30f1cfd932a2cb128aa70778fe2f2d8f53e",
+      "order": 25
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_terminal_transition_private.sql",
+      "sha256": "1c4e1be81183f0d5fa4b7d671ee329ae8a1cc1622567c77b3066ca340d238279",
+      "introduced_commit": "0ca11953f5c0d5a1097f1efeeaff9948af3b6a67",
+      "order": 26
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_resolution_damage_semantics_v1.sql",
+      "sha256": "08d06e8c1f951fe892b8d091749b201ee853a4104e24c0c6ced7f646e13ca1dc",
+      "introduced_commit": "f9f4afe7146e2fd3b15f092aa82730afd9372224",
+      "order": 27
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_physics_rules_v2_contract.sql",
+      "sha256": "b85184324e9ae39e5e8aabc962bc444127f442dfa5c20967fb7c28f527a88fcc",
+      "introduced_commit": "deb073ecb85238da0a2c22704f711fa268a9d0dc",
+      "order": 28
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_horizontal_fire_direction_v1.sql",
+      "sha256": "e0f013695d0c8eee08c877d75ce886badda869a5086921a22a3029581414ac08",
+      "introduced_commit": "dc0937252b157b67ab8f70658f1cf63d5b8f9031",
+      "order": 29
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_v2_angle_grid_authority.sql",
+      "sha256": "62f4519e3e3187c0e7fa1aab068169d7c23def540b7cb6b9c899d495e9e56320",
+      "introduced_commit": "917a8ccb73cf965de19625a56c358f2e7d56a651",
+      "order": 30
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_v2_trig_representation_authority.sql",
+      "sha256": "aabf66216332a560bc6466867b231975cfc96c94a622d256dc60dea49f295a4d",
+      "introduced_commit": "10ae6580ce01705d89b1ca961a56374e8ffb0de5",
+      "order": 31
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_v2_trig_v1_algorithm_authority.sql",
+      "sha256": "7b49e2e2c5c8d3c507ae4316e2a9221fed658b6b4c87539b1ccebb9ad0e8c84f",
+      "introduced_commit": "c2214c199b7b9e6ec401263d371f191aa2970ff3",
+      "order": 32
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_shot_angle_convention_v1.sql",
+      "sha256": "679020eb4f6db792ef4a3f9a1187907f7133c937ecfb73872563ec2d24b301b2",
+      "introduced_commit": "580f2d90205e10ca46f0368b2197aacb617c808d",
+      "order": 33
+    },
+    {
+      "path": "db/migrations/20260817_cing_artillery_power_numeric_v1.sql",
+      "sha256": "106121afe256bdc7e49be52b16e15c421145bed6b41904a4871960e272dbddec",
+      "introduced_commit": "d03bdf38ae7aace9ce3cd5617ac465960f9e5642",
+      "order": 34
+    },
+    {
+      "path": "db/migrations/20260818_cing_artillery_muzzle_geometry_numeric_v1.sql",
+      "sha256": "ada175f2b5abae578077aa1dca2dc5573c4a68e174d88879de42fb058867a5d5",
+      "introduced_commit": "282d65eb7798d3ee245923d64c9127ab4953cb12",
+      "order": 35
+    },
+    {
+      "path": "db/migrations/20260818_cing_artillery_acceleration_numeric_v1.sql",
+      "sha256": "c3e37dcffce625d8afda33457631f73fe18298cfacc179b848fdbb44b621bfff",
+      "introduced_commit": "048838ce07ab8abd0f5f7982b7d217cdbb8e7d8d",
+      "order": 36
+    },
+    {
+      "path": "db/migrations/20260818_cing_artillery_acceleration_numeric_safe_magnitude_v1.sql",
+      "sha256": "33cd11456384cbe2b40b458a635c6ef7c33c954a668a4cf8afafe41c97bfd0f5",
+      "introduced_commit": "f8a0d0c11460ff88b310c8adeb1418c555d4a6a7",
+      "order": 37
+    },
+    {
+      "path": "db/migrations/20260818_cing_artillery_canonical_wind_sampling_v1.sql",
+      "sha256": "24f7a01e2a09b19be0881cc164e028cc37c9c6d521ac8bb4186a24e7b054560d",
+      "introduced_commit": "49d7ef7e895915afb03cd7657776e3d48ad35f6a",
+      "order": 38
+    },
+    {
+      "path": "db/migrations/20260818_cing_artillery_trajectory_safety_quantization_v1.sql",
+      "sha256": "66c6ec4f72d5e526c7825cd4063e01c74cb48502c6d9abc629ca8dc6b21617d6",
+      "introduced_commit": "abe3615662c0862625b005ff07325cb50a65e4ba",
+      "order": 39
+    },
+    {
+      "path": "db/migrations/20260818_cing_artillery_v2_collision_geometry_numeric_v1.sql",
+      "sha256": "0db1180f135bc27294a3ab1ab9520b6e17beda56304b5d4748ab202538b95792",
+      "introduced_commit": "b2626884498ec9f4e998ab590c44fa71c12a42cb",
+      "order": 40
+    },
+    {
+      "path": "db/migrations/20260819_cing_artillery_shot_resolution_projectile_center_impact_semantics_v1.sql",
+      "sha256": "7338f6d0a99a5d4e4e8553c404c5d76d0d0dba4d19cf22a187d8bbd40da2203c",
+      "introduced_commit": "e3ac75b74a6abbf913dd4a93e2ee795b47c2d0e8",
+      "order": 41
+    },
+    {
+      "path": "db/migrations/20260819_cing_artillery_shot_resolution_exact_impact_authority_v1.sql",
+      "sha256": "3f2bfb5b785312b83f8a0f1f4ecb38e663bad2918df0468e5ab38aca5f905402",
+      "introduced_commit": "05604fd969374cb99d3f353776273f6159c8c7b0",
+      "order": 42
+    },
+    {
+      "path": "db/migrations/20260819_cing_artillery_impact_numeric_projection_policy_v1.sql",
+      "sha256": "a410fae605b1baeb83f0d9d4ae0567f4eca47185b07fa2e6c36e12dcf967fe50",
+      "introduced_commit": "7c648c4f57b00c42ca40ba9380d89dd18468dbd4",
+      "order": 43
+    },
+    {
+      "path": "db/migrations/20260819_cing_artillery_flight_horizon_exhausted_outcome_v1.sql",
+      "sha256": "74ce5d4293da4edca074e1e439f046478eb553c6f805041c3de17b1161966231",
+      "introduced_commit": "7e6d3420884045c2ce5cfd51cfe6cedcc5f7bdcb",
+      "order": 44
+    },
+    {
+      "path": "db/migrations/20260819_cing_artillery_fenced_resolution_commit_contract.sql",
+      "sha256": "b65c1806a7908b2d56e51a5f0e54b8489711a02aff3021e92b9ccdd50f1f4be1",
+      "introduced_commit": "46cdc48d95ecbf4816b3aaf49feb6c94c902fba8",
+      "order": 45
+    },
+    {
+      "path": "db/migrations/20260819_cing_artillery_fenced_resolution_commit_retry_contract_v2.sql",
+      "sha256": "dcc5f8596ceb50bef9c06c6b24261f030dd261cff29a331201ce01d4a71f024a",
+      "introduced_commit": "f23373ad058e9643f29cb7ceddc650a4afc6ec9c",
+      "order": 46
+    },
+    {
+      "path": "db/migrations/20260819_y_cing_artillery_contact_parameter_private_v1.sql",
+      "sha256": "f71dc8b664afbb0e003a4f767b3312ef8779b030b6753bccea1b36cc932d2c3e",
+      "introduced_commit": "54c54b31134ab08e5c6fe0a323bceb389b50042c",
+      "order": 47
+    },
+    {
+      "path": "db/migrations/20260819_yy_cing_artillery_impact_numeric_projection_private_v1.sql",
+      "sha256": "88f6bbc8d15a6491897ba3f111c58befdfe6173ae8e45c5bb991f6941f2030f3",
+      "introduced_commit": "ec730185de8789d029d6c05bd0b68d433c4723a9",
+      "order": 48
+    },
+    {
+      "path": "db/migrations/20260819_yyy_cing_artillery_exact_blast_geometry_private_v1.sql",
+      "sha256": "68840ce45e9fe62d6f4679cda56a95ddf074b4700650502959ebf70732c3b576",
+      "introduced_commit": "53674b6803920eb12f04f75c29b8f37a5d4a6288",
+      "order": 49
+    },
+    {
+      "path": "db/migrations/20260819_yyyy_cing_artillery_damage_rules_rational_snapshot_v1.sql",
+      "sha256": "a5862cf8bf74e3fa279f9c1f1fd8005d09dcbe669b9e7a90095e4e026ab899fe",
+      "introduced_commit": "112e7670b54087bb1de063bc5b86998e0fb73b86",
+      "order": 50
+    },
+    {
+      "path": "db/migrations/20260819_yyyyy_cing_artillery_canonical_damage_private_v1.sql",
+      "sha256": "67b84e14efe4d87556a2aceeb638a46fd5006386880ff8542587fe89cf743593",
+      "introduced_commit": "6e608ea1bdc131a9aa8fbc3e1b52b02ac2ea8319",
+      "order": 51
+    },
+    {
+      "path": "db/migrations/20260819_yyyyyy_cing_artillery_segment_event_private_v1.sql",
+      "sha256": "61e168d23e1eb0a10dd0af1faa4de6068e8999c37158f619832bda5d71dfbf46",
+      "introduced_commit": "7928d999d5e61392cd54e3baeee1cf19406ece72",
+      "order": 52
+    },
+    {
+      "path": "db/migrations/20260819_z_cing_artillery_fenced_resolution_commit_authority_v1.sql",
+      "sha256": "1be5cffbe67ab7620ca76f7405903d87141b5b1c87d2deb0c30948e6ca25c298",
+      "introduced_commit": "42f031c45209a313adb1a5426d7d52bb36b8cfc1",
+      "order": 53
+    }
+  ]
+}
