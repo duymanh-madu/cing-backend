@@ -488,7 +488,6 @@ ON FUNCTION
     integer,
     numeric,
     numeric,
-    numeric,
     uuid,
     numeric
   )
@@ -514,7 +513,6 @@ ON FUNCTION
     numeric,
     numeric,
     integer,
-    numeric,
     numeric,
     numeric,
     uuid,
