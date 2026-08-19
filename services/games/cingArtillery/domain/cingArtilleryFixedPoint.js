@@ -167,6 +167,136 @@ function parseCanonicalNumberDecimal(
   };
 }
 
+function gcdPositiveBigInt(
+  left,
+  right
+) {
+  let a =
+    left < 0n
+      ? -left
+      : left;
+
+  let b =
+    right < 0n
+      ? -right
+      : right;
+
+
+  while (
+    b !==
+      0n
+  ) {
+    const remainder =
+      a %
+      b;
+
+    a =
+      b;
+
+    b =
+      remainder;
+  }
+
+
+  return a;
+}
+
+
+function toReducedRationalBigIntV1(
+  value,
+  field = "value"
+) {
+  const {
+    sign,
+    coefficient,
+    decimalExponent,
+  } =
+    parseCanonicalNumberDecimal(
+      value,
+      field
+    );
+
+
+  let numerator;
+  let denominator;
+
+
+  if (
+    decimalExponent >=
+      0
+  ) {
+    numerator =
+      sign *
+      coefficient *
+      pow10BigInt(
+        decimalExponent
+      );
+
+    denominator =
+      1n;
+  } else {
+    numerator =
+      sign *
+      coefficient;
+
+    denominator =
+      pow10BigInt(
+        -decimalExponent
+      );
+  }
+
+
+  if (
+    numerator ===
+      0n
+  ) {
+    return Object.freeze({
+      numerator:
+        0n,
+
+      denominator:
+        1n,
+    });
+  }
+
+
+  const divisor =
+    gcdPositiveBigInt(
+      numerator,
+      denominator
+    );
+
+
+  const reducedNumerator =
+    numerator /
+    divisor;
+
+  const reducedDenominator =
+    denominator /
+    divisor;
+
+
+  if (
+    reducedDenominator <=
+      0n
+  ) {
+    throw buildError({
+      message:
+        `Fixed-point Cing Artillery tạo rational denominator không hợp lệ: ${field}`,
+    });
+  }
+
+
+  return Object.freeze({
+    numerator:
+      reducedNumerator,
+
+    denominator:
+      reducedDenominator,
+  });
+}
+
+
 function toScaledBigInt(
   value,
   scale,
@@ -394,6 +524,7 @@ function absBigInt(
 module.exports = {
   MAX_SAFE_SCALED_MAGNITUDE,
 
+  toReducedRationalBigIntV1,
   toScaledBigInt,
 
   floorDivBigInt,

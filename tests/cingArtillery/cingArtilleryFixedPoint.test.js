@@ -9,6 +9,7 @@ const assert =
 const {
   MAX_SAFE_SCALED_MAGNITUDE,
 
+  toReducedRationalBigIntV1,
   toScaledBigInt,
 
   floorDivBigInt,
@@ -268,6 +269,234 @@ test(
     assert.equal(
       absBigInt(-7n),
       7n
+    );
+  }
+);
+
+
+test(
+  "canonical decimal converts to reduced rational without external scale",
+  () => {
+    assert.deepEqual(
+      toReducedRationalBigIntV1(
+        0.3,
+        "ratio"
+      ),
+      {
+        numerator:
+          3n,
+
+        denominator:
+          10n,
+      }
+    );
+
+
+    assert.deepEqual(
+      toReducedRationalBigIntV1(
+        300,
+        "base_damage"
+      ),
+      {
+        numerator:
+          300n,
+
+        denominator:
+          1n,
+      }
+    );
+  }
+);
+
+
+test(
+  "reduced rational preserves exact canonical decimal semantics",
+  () => {
+    assert.deepEqual(
+      toReducedRationalBigIntV1(
+        1.25,
+        "value"
+      ),
+      {
+        numerator:
+          5n,
+
+        denominator:
+          4n,
+      }
+    );
+
+
+    assert.deepEqual(
+      toReducedRationalBigIntV1(
+        -0.125,
+        "value"
+      ),
+      {
+        numerator:
+          -1n,
+
+        denominator:
+          8n,
+      }
+    );
+  }
+);
+
+
+test(
+  "scientific notation becomes exact reduced rational",
+  () => {
+    assert.deepEqual(
+      toReducedRationalBigIntV1(
+        1e-3,
+        "value"
+      ),
+      {
+        numerator:
+          1n,
+
+        denominator:
+          1000n,
+      }
+    );
+
+
+    assert.deepEqual(
+      toReducedRationalBigIntV1(
+        1e3,
+        "value"
+      ),
+      {
+        numerator:
+          1000n,
+
+        denominator:
+          1n,
+      }
+    );
+  }
+);
+
+
+test(
+  "zero canonicalizes to rational zero over one",
+  () => {
+    assert.deepEqual(
+      toReducedRationalBigIntV1(
+        0,
+        "value"
+      ),
+      {
+        numerator:
+          0n,
+
+        denominator:
+          1n,
+      }
+    );
+
+
+    assert.deepEqual(
+      toReducedRationalBigIntV1(
+        -0,
+        "value"
+      ),
+      {
+        numerator:
+          0n,
+
+        denominator:
+          1n,
+      }
+    );
+  }
+);
+
+
+test(
+  "canonical Number identity is preserved rather than rounded to friendly decimal",
+  () => {
+    const result =
+      toReducedRationalBigIntV1(
+        0.30000000000000004,
+        "value"
+      );
+
+
+    assert.deepEqual(
+      result,
+      {
+        numerator:
+          7500000000000001n,
+
+        denominator:
+          25000000000000000n,
+      }
+    );
+
+
+    assert.notDeepEqual(
+      result,
+      {
+        numerator:
+          3n,
+
+        denominator:
+          10n,
+      }
+    );
+  }
+);
+
+
+test(
+  "non-finite values fail closed through shared canonical decimal parser",
+  () => {
+    for (
+      const value
+      of [
+        NaN,
+        Infinity,
+        -Infinity,
+      ]
+    ) {
+      assert.throws(
+        () =>
+          toReducedRationalBigIntV1(
+            value,
+            "value"
+          )
+      );
+    }
+  }
+);
+
+
+test(
+  "reduced rational result is immutable",
+  () => {
+    const result =
+      toReducedRationalBigIntV1(
+        0.25,
+        "value"
+      );
+
+
+    assert.ok(
+      Object.isFrozen(
+        result
+      )
+    );
+
+    assert.equal(
+      result.numerator,
+      1n
+    );
+
+    assert.equal(
+      result.denominator,
+      4n
     );
   }
 );
