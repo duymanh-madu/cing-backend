@@ -605,17 +605,17 @@ DECLARE
   v_l_kind text;
   v_r_kind text;
 
-  v_ln numeric;
-  v_ld numeric;
-  v_la numeric;
-  v_lb numeric;
-  v_lD numeric;
+  v_left_numerator numeric;
+  v_left_denominator numeric;
+  v_left_a numeric;
+  v_left_b numeric;
+  v_left_discriminant numeric;
 
-  v_rn numeric;
-  v_rd numeric;
-  v_ra numeric;
-  v_rb numeric;
-  v_rD numeric;
+  v_right_numerator numeric;
+  v_right_denominator numeric;
+  v_right_a numeric;
+  v_right_b numeric;
+  v_right_discriminant numeric;
 
   v_s numeric;
   v_left_squared numeric;
@@ -649,10 +649,10 @@ BEGIN
        'rational'
   THEN
     BEGIN
-      v_ln :=
+      v_left_numerator :=
         (p_left ->> 'numerator')::numeric;
 
-      v_ld :=
+      v_left_denominator :=
         (p_left ->> 'denominator')::numeric;
     EXCEPTION
       WHEN OTHERS THEN
@@ -665,8 +665,8 @@ BEGIN
 
     IF public.cing_artillery_validate_contact_parameter_private_v1(
          'rational',
-         v_ln,
-         v_ld,
+         v_left_numerator,
+         v_left_denominator,
          NULL,
          NULL,
          NULL
@@ -684,13 +684,13 @@ BEGIN
           'quadratic_lower_root'
   THEN
     BEGIN
-      v_la :=
+      v_left_a :=
         (p_left ->> 'a')::numeric;
 
-      v_lb :=
+      v_left_b :=
         (p_left ->> 'b')::numeric;
 
-      v_lD :=
+      v_left_discriminant :=
         (p_left ->> 'discriminant')::numeric;
     EXCEPTION
       WHEN OTHERS THEN
@@ -705,9 +705,9 @@ BEGIN
          'quadratic_lower_root',
          NULL,
          NULL,
-         v_la,
-         v_lb,
-         v_lD
+         v_left_a,
+         v_left_b,
+         v_left_discriminant
        )
        IS NOT TRUE
     THEN
@@ -731,10 +731,10 @@ BEGIN
        'rational'
   THEN
     BEGIN
-      v_rn :=
+      v_right_numerator :=
         (p_right ->> 'numerator')::numeric;
 
-      v_rd :=
+      v_right_denominator :=
         (p_right ->> 'denominator')::numeric;
     EXCEPTION
       WHEN OTHERS THEN
@@ -747,8 +747,8 @@ BEGIN
 
     IF public.cing_artillery_validate_contact_parameter_private_v1(
          'rational',
-         v_rn,
-         v_rd,
+         v_right_numerator,
+         v_right_denominator,
          NULL,
          NULL,
          NULL
@@ -766,13 +766,13 @@ BEGIN
           'quadratic_lower_root'
   THEN
     BEGIN
-      v_ra :=
+      v_right_a :=
         (p_right ->> 'a')::numeric;
 
-      v_rb :=
+      v_right_b :=
         (p_right ->> 'b')::numeric;
 
-      v_rD :=
+      v_right_discriminant :=
         (p_right ->> 'discriminant')::numeric;
     EXCEPTION
       WHEN OTHERS THEN
@@ -787,9 +787,9 @@ BEGIN
          'quadratic_lower_root',
          NULL,
          NULL,
-         v_ra,
-         v_rb,
-         v_rD
+         v_right_a,
+         v_right_b,
+         v_right_discriminant
        )
        IS NOT TRUE
     THEN
@@ -815,12 +815,12 @@ BEGIN
          'rational'
   THEN
     v_left_squared :=
-      v_ln *
-      v_rd;
+      v_left_numerator *
+      v_right_denominator;
 
     v_right_squared :=
-      v_rn *
-      v_ld;
+      v_right_numerator *
+      v_left_denominator;
 
     IF v_left_squared <
          v_right_squared
@@ -842,12 +842,12 @@ BEGIN
          'rational'
   THEN
     v_s :=
-      -v_lb *
-      v_rd
+      -v_left_b *
+      v_right_denominator
       -
       2 *
-      v_la *
-      v_rn;
+      v_left_a *
+      v_right_numerator;
 
     IF v_s < 0 THEN
       RETURN -1;
@@ -858,9 +858,9 @@ BEGIN
       v_s;
 
     v_right_squared :=
-      v_rd *
-      v_rd *
-      v_lD;
+      v_right_denominator *
+      v_right_denominator *
+      v_left_discriminant;
 
     IF v_left_squared <
          v_right_squared
@@ -892,21 +892,21 @@ BEGIN
 
 
   v_c :=
-    v_la *
-    v_rb
+    v_left_a *
+    v_right_b
     -
-    v_ra *
-    v_lb;
+    v_right_a *
+    v_left_b;
 
   v_x :=
-    v_la *
-    v_la *
-    v_rD;
+    v_left_a *
+    v_left_a *
+    v_right_discriminant;
 
   v_y :=
-    v_ra *
-    v_ra *
-    v_lD;
+    v_right_a *
+    v_right_a *
+    v_left_discriminant;
 
   RETURN
     public.cing_artillery_sign_integer_plus_sqrt_minus_sqrt_private_v1(

@@ -89,21 +89,21 @@ DECLARE
 
   v_radius numeric;
 
-  v_A numeric;
-  v_B numeric;
-  v_C numeric;
+  v_poly_a numeric;
+  v_poly_b numeric;
+  v_poly_c numeric;
 
-  v_p numeric;
-  v_q numeric;
+  v_contact_numerator numeric;
+  v_contact_denominator numeric;
 
   v_scaled_value numeric;
 
-  v_a numeric;
-  v_b numeric;
-  v_D numeric;
+  v_contact_a numeric;
+  v_contact_b numeric;
+  v_contact_discriminant numeric;
 
-  v_P numeric;
-  v_Q numeric;
+  v_radical_constant numeric;
+  v_radical_sqrt_coefficient numeric;
 
   v_sign integer;
 BEGIN
@@ -168,18 +168,18 @@ BEGIN
    *   F(t) = 0  -> tangent
    *   F(t) > 0  -> outside
    */
-  v_A :=
+  v_poly_a :=
     v_dx * v_dx +
     v_dy * v_dy;
 
-  v_B :=
+  v_poly_b :=
     2 *
     (
       v_ux * v_dx +
       v_uy * v_dy
     );
 
-  v_C :=
+  v_poly_c :=
     v_ux * v_ux +
     v_uy * v_uy -
     v_radius * v_radius;
@@ -188,19 +188,19 @@ BEGIN
   IF p_contact_kind =
        'rational'
   THEN
-    v_p :=
+    v_contact_numerator :=
       p_contact_numerator;
 
-    v_q :=
+    v_contact_denominator :=
       p_contact_denominator;
 
 
     v_scaled_value :=
-      v_A * v_p * v_p
+      v_poly_a * v_contact_numerator * v_contact_numerator
       +
-      v_B * v_p * v_q
+      v_poly_b * v_contact_numerator * v_contact_denominator
       +
-      v_C * v_q * v_q;
+      v_poly_c * v_contact_denominator * v_contact_denominator;
 
 
     IF v_scaled_value < 0 THEN
@@ -226,13 +226,13 @@ BEGIN
   END IF;
 
 
-  v_a :=
+  v_contact_a :=
     p_contact_a;
 
-  v_b :=
+  v_contact_b :=
     p_contact_b;
 
-  v_D :=
+  v_contact_discriminant :=
     p_contact_discriminant;
 
 
@@ -256,36 +256,36 @@ BEGIN
    *   Q =
    *     2*(A*b - a*B)
    */
-  v_P :=
-    v_A *
+  v_radical_constant :=
+    v_poly_a *
       (
-        v_b * v_b +
-        v_D
+        v_contact_b * v_contact_b +
+        v_contact_discriminant
       )
     -
     2 *
-      v_a *
-      v_B *
-      v_b
+      v_contact_a *
+      v_poly_b *
+      v_contact_b
     +
     4 *
-      v_a *
-      v_a *
-      v_C;
+      v_contact_a *
+      v_contact_a *
+      v_poly_c;
 
-  v_Q :=
+  v_radical_sqrt_coefficient :=
     2 *
     (
-      v_A * v_b -
-      v_a * v_B
+      v_poly_a * v_contact_b -
+      v_contact_a * v_poly_b
     );
 
 
   v_sign :=
     public.cing_artillery_sign_integer_plus_sqrt_private_v1(
-      v_P,
-      v_Q,
-      v_D
+      v_radical_constant,
+      v_radical_sqrt_coefficient,
+      v_contact_discriminant
     );
 
 
