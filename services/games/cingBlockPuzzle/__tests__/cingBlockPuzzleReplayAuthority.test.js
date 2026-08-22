@@ -20,7 +20,7 @@ const {
 );
 
 const {
-  MAX_REPLAY_MOVES_V1,
+  MAX_REPLAY_MOVES,
   canonicalReplayJson,
   serverReplayFingerprint,
   verifyReplayAuthority,
@@ -480,13 +480,13 @@ test(
   () => {
     assert.equal(
       Number.isSafeInteger(
-        MAX_REPLAY_MOVES_V1
+        MAX_REPLAY_MOVES
       ),
       true
     );
 
     assert.ok(
-      MAX_REPLAY_MOVES_V1 > 0
+      MAX_REPLAY_MOVES > 0
     );
   }
 );

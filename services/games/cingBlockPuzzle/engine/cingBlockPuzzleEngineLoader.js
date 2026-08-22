@@ -6,55 +6,163 @@ const {
 } =
   require("url");
 
+const CONTRACT_V1 =
+  Object.freeze({
+    engineVersion: 1,
+    rulesVersion: 1,
+    scoreVersion: 1,
+    replayVersion: 1,
+  });
+
+const CONTRACT_V2 =
+  Object.freeze({
+    engineVersion: 2,
+    rulesVersion: 2,
+    scoreVersion: 2,
+    replayVersion: 2,
+  });
+
 let engineV1Promise = null;
+let engineV2Promise = null;
+
+function loadEngineModule(
+  version
+) {
+  const modulePath =
+    path.join(
+      __dirname,
+      `v${version}`,
+      "index.js"
+    );
+
+  return import(
+    pathToFileURL(
+      modulePath
+    ).href
+  );
+}
 
 function loadEngineV1() {
   if (!engineV1Promise) {
-    const modulePath =
-      path.join(
-        __dirname,
-        "v1",
-        "index.js"
-      );
-
     engineV1Promise =
-      import(
-        pathToFileURL(
-          modulePath
-        ).href
-      );
+      loadEngineModule(1);
   }
 
   return engineV1Promise;
 }
 
-async function loadEngineForVersion({
+function loadEngineV2() {
+  if (!engineV2Promise) {
+    engineV2Promise =
+      loadEngineModule(2);
+  }
+
+  return engineV2Promise;
+}
+
+function matchesContract(
+  contract,
+  supported
+) {
+  return (
+    contract.engineVersion ===
+      supported.engineVersion &&
+    contract.rulesVersion ===
+      supported.rulesVersion &&
+    contract.scoreVersion ===
+      supported.scoreVersion &&
+    contract.replayVersion ===
+      supported.replayVersion
+  );
+}
+
+function isSupportedEngineContract({
   engineVersion,
   rulesVersion,
   scoreVersion,
   replayVersion,
 }) {
+  const contract = {
+    engineVersion:
+      Number(engineVersion),
+
+    rulesVersion:
+      Number(rulesVersion),
+
+    scoreVersion:
+      Number(scoreVersion),
+
+    replayVersion:
+      Number(replayVersion),
+  };
+
+  return (
+    matchesContract(
+      contract,
+      CONTRACT_V1
+    ) ||
+    matchesContract(
+      contract,
+      CONTRACT_V2
+    )
+  );
+}
+
+async function
+loadEngineForVersion({
+  engineVersion,
+  rulesVersion,
+  scoreVersion,
+  replayVersion,
+}) {
+  const contract = {
+    engineVersion:
+      Number(engineVersion),
+
+    rulesVersion:
+      Number(rulesVersion),
+
+    scoreVersion:
+      Number(scoreVersion),
+
+    replayVersion:
+      Number(replayVersion),
+  };
+
   if (
-    engineVersion !== 1 ||
-    rulesVersion !== 1 ||
-    scoreVersion !== 1 ||
-    replayVersion !== 1
+    matchesContract(
+      contract,
+      CONTRACT_V1
+    )
   ) {
-    const error =
-      new Error(
-        "Unsupported Cing Block Puzzle deterministic engine contract"
-      );
-
-    error.code =
-      "BLOCK_PUZZLE_UNSUPPORTED_ENGINE_CONTRACT";
-
-    throw error;
+    return loadEngineV1();
   }
 
-  return loadEngineV1();
+  if (
+    matchesContract(
+      contract,
+      CONTRACT_V2
+    )
+  ) {
+    return loadEngineV2();
+  }
+
+  const error =
+    new Error(
+      "Unsupported Cing Block Puzzle deterministic engine contract"
+    );
+
+  error.code =
+    "BLOCK_PUZZLE_UNSUPPORTED_ENGINE_CONTRACT";
+
+  throw error;
 }
 
 module.exports = {
+  CONTRACT_V1,
+  CONTRACT_V2,
   loadEngineV1,
+  loadEngineV2,
+  isSupportedEngineContract,
   loadEngineForVersion,
 };

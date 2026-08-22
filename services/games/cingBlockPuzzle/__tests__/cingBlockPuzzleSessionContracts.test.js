@@ -259,3 +259,66 @@ test(
     );
   }
 );
+
+test(
+  "session issuer remains V1 until DB activation checkpoint",
+  () => {
+    assert.equal(
+      ENGINE_VERSION,
+      1
+    );
+
+    assert.equal(
+      RULES_VERSION,
+      1
+    );
+
+    assert.equal(
+      SCORE_VERSION,
+      1
+    );
+
+    assert.equal(
+      REPLAY_VERSION,
+      1
+    );
+  }
+);
+
+test(
+  "session validator accepts exact V2 tuple without changing issuer",
+  () => {
+    const session =
+      normalizeSessionRow(
+        validRow({
+          engine_version: 2,
+          rules_version: 2,
+          score_version: 2,
+          replay_version: 2,
+        })
+      );
+
+    assert.equal(
+      session.engine_version,
+      2
+    );
+  }
+);
+
+test(
+  "session validator rejects mixed V1 V2 tuple",
+  () => {
+    assert.throws(
+      () =>
+        normalizeSessionRow(
+          validRow({
+            engine_version: 2,
+            rules_version: 1,
+            score_version: 2,
+            replay_version: 2,
+          })
+        ),
+      /version không hợp lệ/
+    );
+  }
+);

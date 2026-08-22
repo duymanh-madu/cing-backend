@@ -7,7 +7,7 @@ const {
   "../engine/cingBlockPuzzleEngineLoader"
 );
 
-const MAX_REPLAY_MOVES_V1 =
+const MAX_REPLAY_MOVES =
   10000;
 
 function canonicalReplayJson(
@@ -95,11 +95,11 @@ async function verifyReplayAuthority({
       transcript.moves
     ) ||
     transcript.moves.length >
-      MAX_REPLAY_MOVES_V1
+      MAX_REPLAY_MOVES
   ) {
     const error =
       new Error(
-        "Replay vượt giới hạn V1"
+        "Replay vượt giới hạn cho phép"
       );
 
     error.code =
@@ -220,7 +220,7 @@ async function verifyReplayAuthority({
 }
 
 module.exports = {
-  MAX_REPLAY_MOVES_V1,
+  MAX_REPLAY_MOVES,
   canonicalReplayJson,
   serverReplayFingerprint,
   verifyReplayAuthority,

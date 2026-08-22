@@ -1,11 +1,13 @@
 const {
   GAME_KEY,
-  ENGINE_VERSION,
-  RULES_VERSION,
-  SCORE_VERSION,
-  REPLAY_VERSION,
 } = require(
   "./cingBlockPuzzleSessionContracts"
+);
+
+const {
+  isSupportedEngineContract,
+} = require(
+  "../engine/cingBlockPuzzleEngineLoader"
 );
 
 const UUID_V4_RE =
@@ -214,14 +216,19 @@ function normalizeSubmissionSessionRow(
   }
 
   if (
-    session.engine_version !==
-      ENGINE_VERSION ||
-    session.rules_version !==
-      RULES_VERSION ||
-    session.score_version !==
-      SCORE_VERSION ||
-    session.replay_version !==
-      REPLAY_VERSION
+    !isSupportedEngineContract({
+      engineVersion:
+        session.engine_version,
+
+      rulesVersion:
+        session.rules_version,
+
+      scoreVersion:
+        session.score_version,
+
+      replayVersion:
+        session.replay_version,
+    })
   ) {
     throw new Error(
       "Cing Block Puzzle submission version không hợp lệ"

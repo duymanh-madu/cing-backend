@@ -9,6 +9,12 @@ const REPLAY_VERSION = 1;
 const SESSION_TTL_SECONDS =
   24 * 60 * 60;
 
+const {
+  isSupportedEngineContract,
+} = require(
+  "../engine/cingBlockPuzzleEngineLoader"
+);
+
 function assertStartSessionLifecycle(
   row,
   nowMs = Date.now()
@@ -168,14 +174,19 @@ function normalizeSessionRow(row) {
   }
 
   if (
-    session.engine_version !==
-      ENGINE_VERSION ||
-    session.rules_version !==
-      RULES_VERSION ||
-    session.score_version !==
-      SCORE_VERSION ||
-    session.replay_version !==
-      REPLAY_VERSION
+    !isSupportedEngineContract({
+      engineVersion:
+        session.engine_version,
+
+      rulesVersion:
+        session.rules_version,
+
+      scoreVersion:
+        session.score_version,
+
+      replayVersion:
+        session.replay_version,
+    })
   ) {
     throw new Error(
       "Cing Block Puzzle session version không hợp lệ"

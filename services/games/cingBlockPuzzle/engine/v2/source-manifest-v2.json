@@ -1,0 +1,21 @@
+{
+  "game_key": "cing-block-puzzle",
+  "engine_version": 2,
+  "rules_version": 2,
+  "score_version": 2,
+  "replay_version": 2,
+  "algorithm": "sha256",
+  "files": {
+    "constants.js": "404a431264164a8da4b2355d2d941f5c9a5bea0887c5657226de3540378e792c",
+    "rng.js": "6c7fb05b7a7e3bd98fef234dfcd232a5d7263be00cf75c932c51bb9da1603eea",
+    "pieces.js": "e0cff5b1aab1163dcec00eb9923f9b12e703fc29de886c6ce08aacb1b5391677",
+    "board.js": "f4db5bf4135be684b798892c98fb4d21f6a5860e29edc9e798fdcaffb6f51723",
+    "placement.js": "54f877c84c20cae7efc55f85203b8927585c028c52e254926246dc3a92ead984",
+    "lineClear.js": "bc5f7c439af01dd58572960810852460e6189e19fb472a217036d6ad30a03c71",
+    "scoring.js": "32637ff7c9591deb143ba1fe2d3dc09413d7912287f8053c6db22e22a48ed465",
+    "gameOver.js": "6e9bc1ddb81a1eba18bf4af318badd62e24d40cbc8af9563323e4076df4e2c6a",
+    "gameState.js": "ce46272c8bd1834fb53f5cdee15260cfdf4b749c4c7ab87f61978b0ae47cfbcc",
+    "replay.js": "ee1aba6e0f3be3ae271c53e6ebcc0f98f8b22b357f68ab724931f48e1bd53225",
+    "index.js": "43fe723010683a745eb66ec23f27ed091364afe1445c21022f256a13c4ace67c"
+  }
+}
