@@ -9,6 +9,83 @@ const REPLAY_VERSION = 1;
 const SESSION_TTL_SECONDS =
   24 * 60 * 60;
 
+function assertStartSessionLifecycle(
+  row,
+  nowMs = Date.now()
+) {
+  if (
+    !row ||
+    typeof row !== "object"
+  ) {
+    return;
+  }
+
+  const status =
+    String(
+      row.status || ""
+    );
+
+  const expiresAtMs =
+    new Date(
+      row.expires_at
+    ).getTime();
+
+  if (
+    status === "expired" ||
+    (
+      status === "active" &&
+      Number.isFinite(
+        expiresAtMs
+      ) &&
+      Number.isFinite(
+        nowMs
+      ) &&
+      nowMs >=
+        expiresAtMs
+    )
+  ) {
+    const error =
+      new Error(
+        "Ván chơi đã hết hạn"
+      );
+
+    error.code =
+      "BLOCK_PUZZLE_SESSION_EXPIRED";
+
+    error.statusCode =
+      409;
+
+    throw error;
+  }
+
+  /*
+   * An idempotent start retry may return the
+   * original DB row in any terminal status.
+   *
+   * Starting is allowed to recover only an
+   * authoritative active session. A submitted
+   * session must continue through submit/replay
+   * idempotency, never through start authority.
+   */
+  if (
+    status &&
+    status !== "active"
+  ) {
+    const error =
+      new Error(
+        "Trạng thái ván chơi không hợp lệ để bắt đầu"
+      );
+
+    error.code =
+      "BLOCK_PUZZLE_SESSION_STATUS_INVALID";
+
+    error.statusCode =
+      409;
+
+    throw error;
+  }
+}
+
 function normalizeSessionRow(row) {
   if (
     !row ||
@@ -142,5 +219,6 @@ module.exports = {
   SCORE_VERSION,
   REPLAY_VERSION,
   SESSION_TTL_SECONDS,
+  assertStartSessionLifecycle,
   normalizeSessionRow,
 };

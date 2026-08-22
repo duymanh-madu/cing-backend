@@ -19,6 +19,7 @@ const {
   SCORE_VERSION,
   REPLAY_VERSION,
   SESSION_TTL_SECONDS,
+  assertStartSessionLifecycle,
   normalizeSessionRow,
 } = require(
   "./domain/cingBlockPuzzleSessionContracts"
@@ -169,6 +170,16 @@ async function startGameplaySession({
 
     throw error;
   }
+
+  /*
+   * The atomic RPC intentionally returns the
+   * original row for same user + request_id.
+   * Guard its lifecycle before applying the
+   * new-active-session normalization contract.
+   */
+  assertStartSessionLifecycle(
+    row
+  );
 
   const session =
     normalizeSessionRow(
