@@ -407,8 +407,21 @@ test(
           requireEnded:
             false,
         }),
+      (error) => {
+        assert.equal(
+          error?.code,
+          "BLOCK_PUZZLE_INVALID_REPLAY"
+        );
 
-      /piece instance mismatch/
+        assert.match(
+          String(
+            error?.cause?.message || ""
+          ),
+          /piece instance mismatch/
+        );
+
+        return true;
+      }
     );
   }
 );

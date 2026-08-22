@@ -139,14 +139,41 @@ async function verifyReplayAuthority({
       replayVersion,
     });
 
-  engine.validateReplayTranscript(
-    transcript
-  );
+  let replayed;
 
-  const replayed =
-    engine.replayTranscript(
+  try {
+    engine.validateReplayTranscript(
       transcript
     );
+
+    replayed =
+      engine.replayTranscript(
+        transcript
+      );
+  } catch (cause) {
+    if (
+      String(
+        cause?.code || ""
+      ).startsWith(
+        "BLOCK_PUZZLE_"
+      )
+    ) {
+      throw cause;
+    }
+
+    const error =
+      new Error(
+        "Replay transcript không hợp lệ"
+      );
+
+    error.code =
+      "BLOCK_PUZZLE_INVALID_REPLAY";
+
+    error.cause =
+      cause;
+
+    throw error;
+  }
 
   const state =
     replayed.state;

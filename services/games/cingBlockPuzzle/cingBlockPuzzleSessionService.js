@@ -218,5 +218,6 @@ async function startGameplaySession({
 }
 
 module.exports = {
+  resolveAuthenticatedUserId,
   startGameplaySession,
 };
