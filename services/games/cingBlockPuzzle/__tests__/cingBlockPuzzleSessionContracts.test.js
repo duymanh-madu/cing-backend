@@ -64,7 +64,7 @@ function validRow(
 }
 
 test(
-  "session constants match deterministic engine v1 contract",
+  "session issuer matches deterministic engine v2 contract",
   () => {
     assert.equal(
       GAME_KEY,
@@ -73,22 +73,22 @@ test(
 
     assert.equal(
       ENGINE_VERSION,
-      1
+      2
     );
 
     assert.equal(
       RULES_VERSION,
-      1
+      2
     );
 
     assert.equal(
       SCORE_VERSION,
-      1
+      2
     );
 
     assert.equal(
       REPLAY_VERSION,
-      1
+      2
     );
 
     assert.equal(
@@ -190,9 +190,10 @@ test(
         normalizeSessionRow(
           validRow({
             engine_version:
-              2,
+              3,
           })
         ),
+
       /version không hợp lệ/
     );
   }
@@ -261,46 +262,61 @@ test(
 );
 
 test(
-  "session issuer remains V1 until DB activation checkpoint",
+  "session issuer activates exact V2 contract after DB capability checkpoint",
   () => {
     assert.equal(
       ENGINE_VERSION,
-      1
+      2
     );
 
     assert.equal(
       RULES_VERSION,
-      1
+      2
     );
 
     assert.equal(
       SCORE_VERSION,
-      1
+      2
     );
 
     assert.equal(
       REPLAY_VERSION,
-      1
+      2
     );
   }
 );
 
 test(
-  "session validator accepts exact V2 tuple without changing issuer",
+  "session validator preserves exact V1 contract for active legacy recovery",
   () => {
     const session =
       normalizeSessionRow(
         validRow({
-          engine_version: 2,
-          rules_version: 2,
-          score_version: 2,
-          replay_version: 2,
+          engine_version: 1,
+          rules_version: 1,
+          score_version: 1,
+          replay_version: 1,
         })
       );
 
     assert.equal(
       session.engine_version,
-      2
+      1
+    );
+
+    assert.equal(
+      session.rules_version,
+      1
+    );
+
+    assert.equal(
+      session.score_version,
+      1
+    );
+
+    assert.equal(
+      session.replay_version,
+      1
     );
   }
 );
