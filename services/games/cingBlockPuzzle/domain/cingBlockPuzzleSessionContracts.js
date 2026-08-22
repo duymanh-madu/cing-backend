@@ -1,0 +1,146 @@
+const GAME_KEY =
+  "cing-block-puzzle";
+
+const ENGINE_VERSION = 1;
+const RULES_VERSION = 1;
+const SCORE_VERSION = 1;
+const REPLAY_VERSION = 1;
+
+const SESSION_TTL_SECONDS =
+  24 * 60 * 60;
+
+function normalizeSessionRow(row) {
+  if (
+    !row ||
+    typeof row !== "object"
+  ) {
+    throw new TypeError(
+      "Cing Block Puzzle session row không hợp lệ"
+    );
+  }
+
+  const session = {
+    id:
+      String(row.id || ""),
+
+    request_id:
+      String(row.request_id || ""),
+
+    user_id:
+      String(row.user_id || ""),
+
+    game_key:
+      String(row.game_key || ""),
+
+    seed:
+      Number(row.seed),
+
+    engine_version:
+      Number(row.engine_version),
+
+    rules_version:
+      Number(row.rules_version),
+
+    score_version:
+      Number(row.score_version),
+
+    replay_version:
+      Number(row.replay_version),
+
+    play_cost:
+      Number(row.play_cost),
+
+    status:
+      String(row.status || ""),
+
+    created_at:
+      row.created_at,
+
+    expires_at:
+      row.expires_at,
+  };
+
+  if (
+    !session.id ||
+    !session.request_id ||
+    !session.user_id
+  ) {
+    throw new Error(
+      "Cing Block Puzzle session identity không hợp lệ"
+    );
+  }
+
+  if (
+    session.game_key !== GAME_KEY
+  ) {
+    throw new Error(
+      "Cing Block Puzzle session game_key không hợp lệ"
+    );
+  }
+
+  if (
+    !Number.isSafeInteger(
+      session.seed
+    ) ||
+    session.seed < 1 ||
+    session.seed > 0xffffffff
+  ) {
+    throw new Error(
+      "Cing Block Puzzle session seed không hợp lệ"
+    );
+  }
+
+  if (
+    session.engine_version !==
+      ENGINE_VERSION ||
+    session.rules_version !==
+      RULES_VERSION ||
+    session.score_version !==
+      SCORE_VERSION ||
+    session.replay_version !==
+      REPLAY_VERSION
+  ) {
+    throw new Error(
+      "Cing Block Puzzle session version không hợp lệ"
+    );
+  }
+
+  if (
+    session.play_cost !== 1
+  ) {
+    throw new Error(
+      "Cing Block Puzzle session play cost không hợp lệ"
+    );
+  }
+
+  if (
+    session.status !== "active"
+  ) {
+    throw new Error(
+      "Cing Block Puzzle session mới phải active"
+    );
+  }
+
+  if (
+    !session.created_at ||
+    !session.expires_at
+  ) {
+    throw new Error(
+      "Cing Block Puzzle session lifecycle timestamp không hợp lệ"
+    );
+  }
+
+  return Object.freeze(
+    session
+  );
+}
+
+module.exports = {
+  GAME_KEY,
+  ENGINE_VERSION,
+  RULES_VERSION,
+  SCORE_VERSION,
+  REPLAY_VERSION,
+  SESSION_TTL_SECONDS,
+  normalizeSessionRow,
+};

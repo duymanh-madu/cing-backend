@@ -91,6 +91,11 @@ router.use(
 );
 
 router.use(
+  "/game/cing-block-puzzle",
+  require("./cingBlockPuzzleRoutes")
+);
+
+router.use(
   "/levels",
   require("./levelRoutes")
 );
