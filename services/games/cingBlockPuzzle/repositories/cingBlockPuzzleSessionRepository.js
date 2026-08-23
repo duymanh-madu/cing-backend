@@ -5,7 +5,10 @@ const START_SESSION_RPC =
   "cing_block_puzzle_start_session_atomic";
 
 const SUBMIT_SESSION_RPC =
-  "cing_block_puzzle_submit_session_atomic";
+  "cing_block_puzzle_submit_session_atomic_v2";
+
+const PURCHASE_CONTINUE_RPC =
+  "cing_block_puzzle_purchase_continue_atomic";
 
 async function startSessionAtomic({
   sessionId,
@@ -102,6 +105,7 @@ async function getSessionForSubmission(
         "verified_score",
         "replay_fingerprint",
         "move_count",
+        "continue_count",
       ].join(",")
     )
     .eq(
@@ -125,6 +129,7 @@ async function submitSessionAtomic({
   moveCount,
   bestCombo,
   totalLinesCleared,
+  continuesUsed,
 }) {
   const {
     data,
@@ -152,6 +157,9 @@ async function submitSessionAtomic({
 
       p_total_lines_cleared:
         totalLinesCleared,
+
+      p_continues_used:
+        continuesUsed,
     }
   );
 
@@ -176,8 +184,60 @@ async function submitSessionAtomic({
   return row;
 }
 
+async function purchaseContinueAtomic({
+  purchaseId,
+  requestId,
+  sessionId,
+  userId,
+  expectedContinueIndex,
+}) {
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    PURCHASE_CONTINUE_RPC,
+    {
+      p_purchase_id:
+        purchaseId,
+
+      p_request_id:
+        requestId,
+
+      p_session_id:
+        sessionId,
+
+      p_user_id:
+        userId,
+
+      p_expected_continue_index:
+        expectedContinueIndex,
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (
+    !row ||
+    typeof row !== "object"
+  ) {
+    throw new Error(
+      "Cing Block Puzzle continue-purchase RPC returned invalid payload"
+    );
+  }
+
+  return row;
+}
+
 module.exports = {
   startSessionAtomic,
   getSessionForSubmission,
   submitSessionAtomic,
+  purchaseContinueAtomic,
 };

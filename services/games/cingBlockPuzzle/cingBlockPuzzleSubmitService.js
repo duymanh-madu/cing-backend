@@ -295,6 +295,24 @@ async function submitGameplaySession({
       verified
     );
 
+  if (
+    authority.continues_used !==
+      session.continue_count
+  ) {
+    const error =
+      new Error(
+        "Replay continue không khớp giao dịch mua mạng"
+      );
+
+    error.code =
+      "BLOCK_PUZZLE_CONTINUE_PURCHASE_MISMATCH";
+
+    error.statusCode =
+      409;
+
+    throw error;
+  }
+
   let rpcRow;
 
   try {
@@ -319,6 +337,9 @@ async function submitGameplaySession({
 
         totalLinesCleared:
           authority.total_lines_cleared,
+
+        continuesUsed:
+          authority.continues_used,
       });
   } catch (error) {
     throw mapSubmitRpcError(

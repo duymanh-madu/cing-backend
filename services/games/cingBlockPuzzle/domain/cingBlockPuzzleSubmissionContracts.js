@@ -181,6 +181,11 @@ function normalizeSubmissionSessionRow(
 
     move_count:
       row.move_count ?? null,
+
+    continue_count:
+      Number(
+        row.continue_count ?? 0
+      ),
   };
 
   if (
@@ -232,6 +237,18 @@ function normalizeSubmissionSessionRow(
   ) {
     throw new Error(
       "Cing Block Puzzle submission version không hợp lệ"
+    );
+  }
+
+  if (
+    !Number.isSafeInteger(
+      session.continue_count
+    ) ||
+    session.continue_count < 0 ||
+    session.continue_count > 3
+  ) {
+    throw new Error(
+      "Cing Block Puzzle submission continue_count không hợp lệ"
     );
   }
 
@@ -360,6 +377,11 @@ function normalizeVerifiedReplayResult(
         result.replay_fingerprint ||
         ""
       ),
+
+    continues_used:
+      Number(
+        result.continues_used || 0
+      ),
   };
 
   for (const [
@@ -390,6 +412,18 @@ function normalizeVerifiedReplayResult(
         `Cing Block Puzzle ${field} vượt DB contract`
       );
     }
+  }
+
+  if (
+    !Number.isSafeInteger(
+      values.continues_used
+    ) ||
+    values.continues_used < 0 ||
+    values.continues_used > 3
+  ) {
+    throw new Error(
+      "Cing Block Puzzle continues_used vượt DB contract"
+    );
   }
 
   if (

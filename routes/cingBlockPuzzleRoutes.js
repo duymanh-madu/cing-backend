@@ -24,6 +24,12 @@ const {
   "../services/games/cingBlockPuzzle/cingBlockPuzzleSubmitService"
 );
 
+const {
+  purchaseGameplayContinue,
+} = require(
+  "../services/games/cingBlockPuzzle/cingBlockPuzzleContinueService"
+);
+
 const router =
   express.Router();
 
@@ -77,6 +83,39 @@ router.post(
         error,
         "BLOCK_PUZZLE_SESSION_START_FAILED",
         "Không thể bắt đầu ván chơi"
+      );
+    }
+  }
+);
+
+router.post(
+  "/session/:session_id/continue",
+  authMiddleware,
+  gameScoreLimiter,
+  async (req, res) => {
+    try {
+      const data =
+        await purchaseGameplayContinue({
+          customer:
+            req.customer,
+
+          sessionId:
+            req.params.session_id,
+
+          body:
+            req.body,
+        });
+
+      return res.json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      return sendBlockPuzzleError(
+        res,
+        error,
+        "BLOCK_PUZZLE_CONTINUE_PURCHASE_FAILED",
+        "Không thể mua mạng"
       );
     }
   }
