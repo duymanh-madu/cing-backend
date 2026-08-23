@@ -7,13 +7,65 @@ const {
   "../engine/cingBlockPuzzleEngineLoader"
 );
 
-const MAX_REPLAY_MOVES =
-  10000;
+const MAX_REPLAY_MOVES = 10000;
+const MAX_REPLAY_EVENTS = 10000;
+
+function canonicalMove(move) {
+  return {
+    pieceInstanceId:
+      move.pieceInstanceId,
+
+    shapeId:
+      move.shapeId,
+
+    trayIndex:
+      move.trayIndex,
+
+    row:
+      move.row,
+
+    col:
+      move.col,
+  };
+}
+
+function canonicalV3Event(event) {
+  if (
+    event?.type ===
+      "continue"
+  ) {
+    return {
+      type: "continue",
+
+      continueIndex:
+        event.continueIndex,
+    };
+  }
+
+  return {
+    type: "move",
+
+    pieceInstanceId:
+      event?.pieceInstanceId,
+
+    shapeId:
+      event?.shapeId,
+
+    trayIndex:
+      event?.trayIndex,
+
+    row:
+      event?.row,
+
+    col:
+      event?.col,
+  };
+}
 
 function canonicalReplayJson(
   transcript
 ) {
-  return JSON.stringify({
+  const base = {
     replayVersion:
       transcript.replayVersion,
 
@@ -28,25 +80,27 @@ function canonicalReplayJson(
 
     seed:
       transcript.seed,
+  };
+
+  if (
+    transcript.replayVersion === 3
+  ) {
+    return JSON.stringify({
+      ...base,
+
+      events:
+        transcript.events.map(
+          canonicalV3Event
+        ),
+    });
+  }
+
+  return JSON.stringify({
+    ...base,
 
     moves:
       transcript.moves.map(
-        (move) => ({
-          pieceInstanceId:
-            move.pieceInstanceId,
-
-          shapeId:
-            move.shapeId,
-
-          trayIndex:
-            move.trayIndex,
-
-          row:
-            move.row,
-
-          col:
-            move.col,
-        })
+        canonicalMove
       ),
   });
 }
@@ -65,29 +119,31 @@ function serverReplayFingerprint(
     .digest("hex");
 }
 
-async function verifyReplayAuthority({
-  transcript,
-  expectedSeed,
-  engineVersion,
-  rulesVersion,
-  scoreVersion,
-  replayVersion,
-  requireEnded = true,
-}) {
+function assertReplayResourceBound(
+  transcript
+) {
   if (
-    !transcript ||
-    typeof transcript !== "object" ||
-    Array.isArray(transcript)
+    transcript.replayVersion === 3
   ) {
-    const error =
-      new Error(
-        "Replay transcript không hợp lệ"
-      );
+    if (
+      !Array.isArray(
+        transcript.events
+      ) ||
+      transcript.events.length >
+        MAX_REPLAY_EVENTS
+    ) {
+      const error =
+        new Error(
+          "Replay vượt giới hạn cho phép"
+        );
 
-    error.code =
-      "BLOCK_PUZZLE_INVALID_REPLAY";
+      error.code =
+        "BLOCK_PUZZLE_REPLAY_LIMIT_EXCEEDED";
 
-    throw error;
+      throw error;
+    }
+
+    return;
   }
 
   if (
@@ -107,6 +163,37 @@ async function verifyReplayAuthority({
 
     throw error;
   }
+}
+
+async function verifyReplayAuthority({
+  transcript,
+  expectedSeed,
+  engineVersion,
+  rulesVersion,
+  scoreVersion,
+  replayVersion,
+  requireEnded = true,
+}) {
+  if (
+    !transcript ||
+    typeof transcript !==
+      "object" ||
+    Array.isArray(transcript)
+  ) {
+    const error =
+      new Error(
+        "Replay transcript không hợp lệ"
+      );
+
+    error.code =
+      "BLOCK_PUZZLE_INVALID_REPLAY";
+
+    throw error;
+  }
+
+  assertReplayResourceBound(
+    transcript
+  );
 
   if (
     transcript.seed !==
@@ -211,6 +298,11 @@ async function verifyReplayAuthority({
     total_lines_cleared:
       state.totalLinesCleared,
 
+    continues_used:
+      Number(
+        state.continuesUsed || 0
+      ),
+
     ended:
       state.ended,
 
@@ -221,6 +313,7 @@ async function verifyReplayAuthority({
 
 module.exports = {
   MAX_REPLAY_MOVES,
+  MAX_REPLAY_EVENTS,
   canonicalReplayJson,
   serverReplayFingerprint,
   verifyReplayAuthority,
