@@ -4,7 +4,7 @@ const GAME_KEY =
 const ENGINE_VERSION = 2;
 const RULES_VERSION = 2;
 const SCORE_VERSION = 2;
-const REPLAY_VERSION = 2;
+const REPLAY_VERSION = 3;
 
 const SESSION_TTL_SECONDS =
   24 * 60 * 60;
