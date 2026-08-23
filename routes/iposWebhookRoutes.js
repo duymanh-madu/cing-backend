@@ -1,3 +1,9 @@
+const {
+  applyExternalPointSnapshotGuarded,
+} = require(
+  "../services/loyalty/loyaltyExternalPointSnapshotService"
+);
+
 const express = require("express");
 const supabase = require("../supabase");
 const router = express.Router();
@@ -340,8 +346,35 @@ router.post("/callback", async (req, res) => {
 
         const localPoints = Number(localPlayer?.total_points || 0);
 
+        let guardedPointSnapshot =
+          null;
+
+        if (!skipPointOverwrite) {
+          guardedPointSnapshot =
+            await applyExternalPointSnapshotGuarded({
+              userId:
+                p0,
+
+              externalPoints:
+                Math.floor(
+                  d.point || 0
+                ),
+            });
+
+          if (
+            guardedPointSnapshot
+              .protected
+          ) {
+            skipPointOverwrite =
+              true;
+          }
+        }
+
         if (skipPointOverwrite) {
-          memberData.points = localPoints;
+          memberData.points =
+            guardedPointSnapshot
+              ?.total_points ??
+            localPoints;
           console.log(`[IPOS WEBHOOK] Skip point overwrite for after-hours app order ${foodbookCodeForPointSource} / ${p0}`);
         } else {
           const crmPoints = Math.floor(d.point || 0);
@@ -496,10 +529,10 @@ router.post("/callback", async (req, res) => {
             }
           }
 
-          await supabase.from("players")
-            .update({ total_points: crmPoints })
-            .eq("user_id", p0);
-
+          /*
+           * players.total_points was already applied atomically by
+           * cing_loyalty_apply_external_point_snapshot_guarded.
+           */
           await supabase.from("point_balance_baselines")
             .update({ baseline_points: crmPoints, baseline_at: new Date().toISOString() })
             .eq("user_id", p0);

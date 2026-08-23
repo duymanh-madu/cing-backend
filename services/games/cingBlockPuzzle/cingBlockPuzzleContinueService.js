@@ -2,6 +2,12 @@ const crypto =
   require("crypto");
 
 const {
+  publishContinuePurchaseCommitted,
+} = require(
+  "./cingBlockPuzzleContinuePostCommitService"
+);
+
+const {
   resolveAuthenticatedUserId,
 } = require(
   "./cingBlockPuzzleSessionService"
@@ -122,6 +128,61 @@ function mapPurchaseError(
 
       error.statusCode =
         statusCode;
+
+      if (
+        code ===
+          "BLOCK_PUZZLE_INSUFFICIENT_POINTS"
+      ) {
+        let detail = null;
+
+        try {
+          detail =
+            JSON.parse(
+              String(
+                error?.details ||
+                error?.detail ||
+                ""
+              )
+            );
+        } catch {}
+
+        const requiredPoints =
+          Number(
+            detail?.required_points
+          );
+
+        const currentPoints =
+          Number(
+            detail?.current_points
+          );
+
+        if (
+          Number.isSafeInteger(
+            requiredPoints
+          ) &&
+          requiredPoints > 0 &&
+          Number.isSafeInteger(
+            currentPoints
+          ) &&
+          currentPoints >= 0
+        ) {
+          error.message =
+            `Bạn không đủ điểm để mua mạng này. ` +
+            `Cần ${requiredPoints} điểm, ` +
+            `bạn hiện có ${currentPoints} điểm.`;
+
+          error.data = {
+            required_points:
+              requiredPoints,
+
+            current_points:
+              currentPoints,
+          };
+        } else {
+          error.message =
+            "Bạn không đủ điểm để mua mạng này.";
+        }
+      }
 
       return error;
     }
@@ -346,6 +407,12 @@ async function purchaseGameplayContinue({
    * durable post-commit delivery worker using this purchase
    * row as the idempotent delivery source.
    */
+  await publishContinuePurchaseCommitted({
+    userId,
+    balanceAfter:
+      persisted.balance_after,
+  });
+
   return persisted;
 }
 

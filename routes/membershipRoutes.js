@@ -6,6 +6,12 @@ const {
   getPartnerProgress,
 } = require("../services/partnerProgressService");
 
+const {
+  applyExternalPointSnapshotGuarded,
+} = require(
+  "../services/loyalty/loyaltyExternalPointSnapshotService"
+);
+
 const CACHE_TTL = 300; // 5 phut fallback TTL
 
 function mapTierKey(name) {
@@ -115,38 +121,133 @@ router.get("/:phone", async (req, res) => {
       if (customer?.birthday) memberData.birthday = customer.birthday;
     } catch(e) {}
 
-    // 3. Luu vao Redis 5 phut
-    await redisClient.setex(cacheKey, CACHE_TTL, JSON.stringify(memberData));
-
-    // Sync iPOS points vao players table — không ghi đè zalo_name nếu user đã custom
+    /*
+     * Point snapshot governance.
+     *
+     * This RPC shares players FOR UPDATE with local point mutations.
+     * A pending Continue MINUS therefore prevents stale CRM points
+     * from restoring the old balance.
+     */
     try {
-      const supabase = require("../supabase");
-      // Kiểm tra user đã custom chưa
-      const { data: existing } = await supabase.from("players")
-        .select("profile_changed_at")
+      const snapshot =
+        await applyExternalPointSnapshotGuarded({
+          userId:
+            phone,
+
+          externalPoints:
+            Math.floor(
+              memberData.points || 0
+            ),
+        });
+
+      memberData.points =
+        snapshot.total_points;
+    } catch (error) {
+      /*
+       * Fail closed for displayed points:
+       * prefer current local balance over an ungoverned CRM snapshot.
+       */
+      const supabase =
+        require("../supabase");
+
+      const {
+        data: localPlayer,
+      } = await supabase
+        .from("players")
+        .select("total_points")
         .eq("user_id", phone)
         .maybeSingle();
-      const syncData = {
-        user_id: phone, phone,
-        total_points: Math.floor(memberData.points || 0),
-        crm_tier: memberData.tierKey,
-      };
-      // Chỉ sync tên từ iPOS nếu user chưa tự đổi tên
-      if (!existing?.profile_changed_at) {
-        // Chỉ sync tên CRM/Zalo nếu user chưa từng tự đổi profile
-        const { data: existingPlayer } = await supabase
-          .from("players")
-          .select("profile_changed_at")
-          .eq("user_id", phone)
-          .maybeSingle();
 
-        if (!existingPlayer?.profile_changed_at) {
-          syncData.zalo_name = memberData.name;
-        }
+      if (
+        localPlayer &&
+        Number.isFinite(
+          Number(
+            localPlayer.total_points
+          )
+        )
+      ) {
+        memberData.points =
+          Math.floor(
+            Number(
+              localPlayer.total_points
+            )
+          );
+      } else {
+        throw error;
       }
-      await supabase.from("players").upsert(syncData, { onConflict: "user_id" });
-    } catch(e) { console.warn("[MEMBERSHIP] Sync failed:", e.message); }
-    return res.json({ success: true, data: memberData, source: "ipos" });
+    }
+
+    // Cache only after governed point resolution.
+    await redisClient.setex(
+      cacheKey,
+      CACHE_TTL,
+      JSON.stringify(
+        memberData
+      )
+    );
+
+    /*
+     * Profile/tier projection only.
+     * total_points was already governed transactionally above.
+     */
+    try {
+      const supabase =
+        require("../supabase");
+
+      const {
+        data: existing,
+      } = await supabase
+        .from("players")
+        .select(
+          "profile_changed_at"
+        )
+        .eq(
+          "user_id",
+          phone
+        )
+        .maybeSingle();
+
+      const syncData = {
+        user_id:
+          phone,
+
+        phone,
+
+        crm_tier:
+          memberData.tierKey,
+      };
+
+      if (
+        !existing
+          ?.profile_changed_at
+      ) {
+        syncData.zalo_name =
+          memberData.name;
+      }
+
+      await supabase
+        .from("players")
+        .upsert(
+          syncData,
+          {
+            onConflict:
+              "user_id",
+          }
+        );
+    } catch (error) {
+      console.warn(
+        "[MEMBERSHIP] profile/tier sync failed:",
+        error.message
+      );
+    }
+
+    return res.json({
+      success: true,
+      data:
+        memberData,
+      source:
+        "ipos",
+    });
   } catch (err) {
     console.error("membership route error:", err);
     res.status(500).json({ success: false, message: err.message });

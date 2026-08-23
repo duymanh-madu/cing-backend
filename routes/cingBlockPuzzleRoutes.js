@@ -44,19 +44,30 @@ function sendBlockPuzzleError(
       error?.statusCode
     ) || 500;
 
+  const payload = {
+    success: false,
+
+    code:
+      error?.code ||
+      fallbackCode,
+
+    message:
+      error?.message ||
+      fallbackMessage,
+  };
+
+  if (
+    error?.data &&
+    typeof error.data ===
+      "object"
+  ) {
+    payload.data =
+      error.data;
+  }
+
   return res
     .status(statusCode)
-    .json({
-      success: false,
-
-      code:
-        error?.code ||
-        fallbackCode,
-
-      message:
-        error?.message ||
-        fallbackMessage,
-    });
+    .json(payload);
 }
 
 router.post(

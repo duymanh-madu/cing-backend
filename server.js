@@ -992,6 +992,28 @@ try {
 
 /**
  * =====================================================
+ * CING BLOCK PUZZLE CONTINUE IPOS SYNC WORKER
+ * Durable retry for gameplay Continue point deductions.
+ * =====================================================
+ */
+try {
+  const {
+    startCingBlockPuzzleContinueIposSyncWorker,
+  } = require(
+    "./services/games/cingBlockPuzzle/workers/cingBlockPuzzleContinueIposSyncWorker"
+  );
+
+  startCingBlockPuzzleContinueIposSyncWorker();
+} catch (e) {
+  console.warn(
+    "[BLOCK PUZZLE CONTINUE IPOS] worker start failed:",
+    e.message
+  );
+}
+
+
+/**
+ * =====================================================
  * TRANSACTION INTEGRITY WORKER
  * Detect paid orders missing CRM/iPOS sync and auto-recover.
  * =====================================================
