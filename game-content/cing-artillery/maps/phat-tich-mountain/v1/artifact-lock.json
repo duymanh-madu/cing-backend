@@ -1,0 +1,34 @@
+{
+  "lock_version": 1,
+  "game": "Cing Piu Piu",
+  "technical_namespace": "cing_artillery",
+  "map_key": "phat-tich-mountain",
+  "map_version": 1,
+  "display_name": "Núi Phật Tích",
+  "combat_identity": "vertical_artillery",
+  "backend_artifacts": {
+    "generator": {
+      "path": "services/games/cingArtillery/content/maps/phatTichMountainV1.js",
+      "sha256": "92d9373d9ca963b6d420d4fd6083a911fb52802de4e5d79f16780e2cb7ce9a6b"
+    },
+    "contract_test": {
+      "path": "services/games/cingArtillery/__tests__/cingArtilleryPhatTichMountainV1.test.js",
+      "sha256": "cad30986a81eeaa3de35776b482933c8dae7a3d8680c289ec50849ee0f4ef2da"
+    },
+    "metadata": {
+      "path": "game-content/cing-artillery/maps/phat-tich-mountain/v1/map.json",
+      "sha256": "02ab2b697b6a51ebce09b21dd822a63b4d49773ea8fa7db1a5302b02c26613a7"
+    },
+    "collision": {
+      "path": "game-content/cing-artillery/maps/phat-tich-mountain/v1/collision.bitmask_v1.bin",
+      "format": "bitmask_v1",
+      "sha256": "de0fc5a7e98e0395cddc98d6112ca1c6273baa71ab495e0ab468b2e05cf048f3"
+    }
+  },
+  "frontend_render": {
+    "path": "public/game-assets/cing-piu-piu/maps/phat-tich-mountain/v1/map.svg",
+    "sha256": "e13e60d71cf0f84a613ac5ca5deda99435cd240f90392ba70551a4fd8bc148fb",
+    "introduced_commit": "05b23a38171a5a923fb9a7dfd15f14148fd4cd19"
+  },
+  "render_asset_key": "/game-assets/cing-piu-piu/maps/phat-tich-mountain/v1/map.svg"
+}

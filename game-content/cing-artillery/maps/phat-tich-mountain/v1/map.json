@@ -1,0 +1,52 @@
+{
+  "content_version": 1,
+  "map_key": "phat-tich-mountain",
+  "map_version": 1,
+  "display_name": "Núi Phật Tích",
+  "cultural_region": "Kinh Bắc",
+  "cultural_reference": "Phật Tích",
+  "combat_identity": "vertical_artillery",
+  "combat_traits": [
+    "stepped_mountain_terraces",
+    "central_high_ridge",
+    "low_angle_obstruction",
+    "multiple_spawn_elevations",
+    "asymmetric_openings",
+    "high_arc_skill_pressure"
+  ],
+  "width_px": 960,
+  "height_px": 540,
+  "collision_format": "bitmask_v1",
+  "collision_mask_sha256": "de0fc5a7e98e0395cddc98d6112ca1c6273baa71ab495e0ab468b2e05cf048f3",
+  "render_asset_key": "/game-assets/cing-piu-piu/maps/phat-tich-mountain/v1/map.svg",
+  "selection_weight": 1,
+  "spawn_pairs": [
+    {
+      "spawn_key": "upper_terraces",
+      "side_a_x": 178,
+      "side_b_x": 816,
+      "enabled": true,
+      "selection_weight": 1,
+      "side_a_y": 304,
+      "side_b_y": 316
+    },
+    {
+      "spawn_key": "outer_to_inner",
+      "side_a_x": 96,
+      "side_b_x": 754,
+      "enabled": true,
+      "selection_weight": 1,
+      "side_a_y": 336,
+      "side_b_y": 332
+    },
+    {
+      "spawn_key": "inner_to_outer",
+      "side_a_x": 248,
+      "side_b_x": 882,
+      "enabled": true,
+      "selection_weight": 1,
+      "side_a_y": 322,
+      "side_b_y": 341
+    }
+  ]
+}
