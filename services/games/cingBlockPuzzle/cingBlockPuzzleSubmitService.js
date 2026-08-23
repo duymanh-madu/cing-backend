@@ -354,6 +354,44 @@ async function submitGameplaySession({
     throw error;
   }
 
+  /*
+   * Post-commit leaderboard notification.
+   *
+   * The PostgreSQL authority has already durably
+   * committed the verified score at this point.
+   * Top-1 detection must therefore run only after
+   * the authority response has passed every identity
+   * and replay consistency assertion above.
+   *
+   * Do NOT suppress this on an idempotent retry:
+   * a previous request may have committed successfully
+   * and then lost the process before this post-commit
+   * side effect ran. The shared top1_cache provides the
+   * duplicate-notification fence and makes retry safe.
+   *
+   * Notification failure must never roll back or turn a
+   * successfully committed gameplay submission into an
+   * HTTP failure.
+   */
+  try {
+    const {
+      checkAndNotifyTop1Changes,
+    } = require(
+      "../../leaderboardResetService"
+    );
+
+    await checkAndNotifyTop1Changes(
+      global._ioInstance ||
+      global.io
+    );
+  } catch (error) {
+    console.warn(
+      "[BLOCK PUZZLE TOP1]",
+      error?.message ||
+      error
+    );
+  }
+
   return persisted;
 }
 
