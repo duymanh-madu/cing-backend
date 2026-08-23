@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "game": "Cing Piu Piu",
   "technical_namespace": "cing_artillery",
-  "source_head": "a1d88f527de00510bca13183c9c98892a774ae1e",
+  "source_head": "ff5f7b36fbd38e66b27b0cbe401bf70e75a6998e",
   "database_authority": "Supabase PostgreSQL",
   "realtime_runtime_target": "Mắt Bão cing-game-server",
   "railway_realtime_runtime": false,
@@ -335,7 +335,7 @@
     },
     {
       "path": "db/migrations/20260820_cing_artillery_execution_worker_activation_authority_v1.sql",
-      "sha256": "df729ddd0cddba209e4ff82893e97ab759d8a054bb626995dd55eaba84a2a596",
+      "sha256": "fcecafd7d652c788d7a674d337fd29fbbbc0d80727c85ed693f28744a4234e9d",
       "introduced_commit": "a1d88f527de00510bca13183c9c98892a774ae1e",
       "order": 55
     }
