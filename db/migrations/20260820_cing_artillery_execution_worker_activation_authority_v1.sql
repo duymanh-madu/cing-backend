@@ -95,19 +95,36 @@ BEGIN
 
   IF v_worker IS NULL
      OR jsonb_typeof(v_worker) <> 'object'
+  THEN
+    RAISE EXCEPTION
+      USING
+        ERRCODE = 'P0001',
+        MESSAGE =
+          'CING_ARTILLERY_EXECUTION_WORKER_CONFIG_INVALID';
+  END IF;
+
+  IF NOT (
+       v_worker ? 'version'
+       AND v_worker ? 'enabled'
+     )
+     OR (
+       SELECT count(*)
+       FROM jsonb_object_keys(v_worker)
+     ) <> 2
+  THEN
+    RAISE EXCEPTION
+      USING
+        ERRCODE = 'P0001',
+        MESSAGE =
+          'CING_ARTILLERY_EXECUTION_WORKER_CONFIG_INVALID';
+  END IF;
+
+  IF jsonb_typeof(
+       v_worker -> 'version'
+     ) <> 'number'
      OR jsonb_typeof(
-          v_worker -> 'version'
-        ) <> 'number'
-     OR jsonb_typeof(
-          v_worker -> 'enabled'
-        ) <> 'boolean'
-     OR jsonb_object_length(
-          v_worker
-        ) <> 2
-     OR NOT (
-          v_worker ? 'version'
-          AND v_worker ? 'enabled'
-        )
+       v_worker -> 'enabled'
+     ) <> 'boolean'
   THEN
     RAISE EXCEPTION
       USING
@@ -188,19 +205,36 @@ BEGIN
 
   IF v_worker IS NULL
      OR jsonb_typeof(v_worker) <> 'object'
+  THEN
+    RAISE EXCEPTION
+      USING
+        ERRCODE = 'P0001',
+        MESSAGE =
+          'CING_ARTILLERY_EXECUTION_WORKER_CONFIG_INVALID';
+  END IF;
+
+  IF NOT (
+       v_worker ? 'version'
+       AND v_worker ? 'enabled'
+     )
+     OR (
+       SELECT count(*)
+       FROM jsonb_object_keys(v_worker)
+     ) <> 2
+  THEN
+    RAISE EXCEPTION
+      USING
+        ERRCODE = 'P0001',
+        MESSAGE =
+          'CING_ARTILLERY_EXECUTION_WORKER_CONFIG_INVALID';
+  END IF;
+
+  IF jsonb_typeof(
+       v_worker -> 'version'
+     ) <> 'number'
      OR jsonb_typeof(
-          v_worker -> 'version'
-        ) <> 'number'
-     OR jsonb_typeof(
-          v_worker -> 'enabled'
-        ) <> 'boolean'
-     OR jsonb_object_length(
-          v_worker
-        ) <> 2
-     OR NOT (
-          v_worker ? 'version'
-          AND v_worker ? 'enabled'
-        )
+       v_worker -> 'enabled'
+     ) <> 'boolean'
   THEN
     RAISE EXCEPTION
       USING
