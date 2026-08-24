@@ -29,7 +29,7 @@ function canonicalMove(move) {
   };
 }
 
-function canonicalV3Event(event) {
+function canonicalEvent(event) {
   if (
     event?.type ===
       "continue"
@@ -62,6 +62,15 @@ function canonicalV3Event(event) {
   };
 }
 
+function usesEventReplay(
+  replayVersion
+) {
+  return (
+    replayVersion === 3 ||
+    replayVersion === 4
+  );
+}
+
 function canonicalReplayJson(
   transcript
 ) {
@@ -83,14 +92,16 @@ function canonicalReplayJson(
   };
 
   if (
-    transcript.replayVersion === 3
+    usesEventReplay(
+      transcript.replayVersion
+    )
   ) {
     return JSON.stringify({
       ...base,
 
       events:
         transcript.events.map(
-          canonicalV3Event
+          canonicalEvent
         ),
     });
   }
@@ -123,7 +134,9 @@ function assertReplayResourceBound(
   transcript
 ) {
   if (
-    transcript.replayVersion === 3
+    usesEventReplay(
+      transcript.replayVersion
+    )
   ) {
     if (
       !Array.isArray(

@@ -174,14 +174,28 @@ function normalizeContinueSessionRow(
     );
   }
 
+  const replayV3 =
+    session.engine_version === 2 &&
+    session.rules_version === 2 &&
+    session.score_version === 2 &&
+    session.replay_version === 3;
+
+  const replayV4 =
+    session.engine_version === 3 &&
+    session.rules_version === 3 &&
+    session.score_version === 3 &&
+    session.replay_version === 4;
+
   if (
-    session.engine_version !== 2 ||
-    session.rules_version !== 2 ||
-    session.score_version !== 2 ||
-    session.replay_version !== 3
+    !replayV3 &&
+    !replayV4
   ) {
+    /*
+     * Legacy public error code is retained
+     * for API and SQL compatibility.
+     */
     throw createError(
-      "Mạng chơi chỉ hỗ trợ Replay V3",
+      "Mạng chơi chỉ hỗ trợ contract Continue hiện hành",
       "BLOCK_PUZZLE_CONTINUE_REQUIRES_REPLAY_V3",
       409
     );
