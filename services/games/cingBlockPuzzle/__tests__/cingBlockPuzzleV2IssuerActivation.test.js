@@ -30,7 +30,7 @@ const source =
   );
 
 test(
-  "new Block Puzzle session issuer is exact deterministic replay V3",
+  "new Block Puzzle session issuer is exact deterministic V4",
   () => {
     assert.deepEqual(
       {
@@ -47,10 +47,10 @@ test(
           REPLAY_VERSION,
       },
       {
-        engineVersion: 2,
-        rulesVersion: 2,
-        scoreVersion: 2,
-        replayVersion: 3,
+        engineVersion: 3,
+        rulesVersion: 3,
+        scoreVersion: 3,
+        replayVersion: 4,
       }
     );
   }
@@ -82,7 +82,7 @@ test(
 );
 
 test(
-  "legacy V1 session remains valid after replay V3 issuer activation",
+  "legacy V1 session remains valid after V4 issuer activation",
   () => {
     const session =
       normalizeSessionRow({

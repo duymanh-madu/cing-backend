@@ -25,14 +25,6 @@ const migration =
     "utf8"
   );
 
-const issuer =
-  fs.readFileSync(
-    path.join(
-      __dirname,
-      "../domain/cingBlockPuzzleSessionContracts.js"
-    ),
-    "utf8"
-  );
 
 test(
   "V4 capability adds exact 3 3 3 4 session tuple while preserving legacy tuples",
@@ -149,31 +141,26 @@ test(
 );
 
 test(
-  "V4 capability does not activate application issuer",
+  "V4 capability migration does not own application issuer activation",
   () => {
-    assert.match(
-      issuer,
-      /const ENGINE_VERSION = 2;/
-    );
-
-    assert.match(
-      issuer,
-      /const RULES_VERSION = 2;/
-    );
-
-    assert.match(
-      issuer,
-      /const SCORE_VERSION = 2;/
-    );
-
-    assert.match(
-      issuer,
-      /const REPLAY_VERSION = 3;/
+    assert.doesNotMatch(
+      migration,
+      /cingBlockPuzzleSessionContracts/
     );
 
     assert.doesNotMatch(
-      issuer,
-      /const ENGINE_VERSION = 3;/
+      migration,
+      /ENGINE_VERSION/
+    );
+
+    assert.doesNotMatch(
+      migration,
+      /REPLAY_VERSION/
+    );
+
+    assert.match(
+      migration,
+      /This migration DOES NOT activate V4 issuance/
     );
   }
 );

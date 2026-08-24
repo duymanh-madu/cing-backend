@@ -64,7 +64,7 @@ function validRow(
 }
 
 test(
-  "session issuer matches deterministic engine replay v3 contract",
+  "session issuer matches deterministic V4 contract",
   () => {
     assert.equal(
       GAME_KEY,
@@ -73,22 +73,22 @@ test(
 
     assert.equal(
       ENGINE_VERSION,
-      2
+      3
     );
 
     assert.equal(
       RULES_VERSION,
-      2
+      3
     );
 
     assert.equal(
       SCORE_VERSION,
-      2
+      3
     );
 
     assert.equal(
       REPLAY_VERSION,
-      3
+      4
     );
 
     assert.equal(
@@ -190,7 +190,7 @@ test(
         normalizeSessionRow(
           validRow({
             engine_version:
-              3,
+              4,
           })
         ),
 
@@ -262,26 +262,26 @@ test(
 );
 
 test(
-  "session issuer activates exact replay V3 contract after DB capability checkpoint",
+  "session issuer activates exact V4 contract after DB capability checkpoint",
   () => {
     assert.equal(
       ENGINE_VERSION,
-      2
+      3
     );
 
     assert.equal(
       RULES_VERSION,
-      2
+      3
     );
 
     assert.equal(
       SCORE_VERSION,
-      2
+      3
     );
 
     assert.equal(
       REPLAY_VERSION,
-      3
+      4
     );
   }
 );
@@ -370,6 +370,41 @@ test(
           })
         ),
       /version không hợp lệ/
+    );
+  }
+);
+
+test(
+  "session validator preserves exact V3 contract for active legacy recovery",
+  () => {
+    const session =
+      normalizeSessionRow(
+        validRow({
+          engine_version: 2,
+          rules_version: 2,
+          score_version: 2,
+          replay_version: 3,
+        })
+      );
+
+    assert.equal(
+      session.engine_version,
+      2
+    );
+
+    assert.equal(
+      session.rules_version,
+      2
+    );
+
+    assert.equal(
+      session.score_version,
+      2
+    );
+
+    assert.equal(
+      session.replay_version,
+      3
     );
   }
 );
