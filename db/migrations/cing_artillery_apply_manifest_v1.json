@@ -2,12 +2,12 @@
   "manifest_version": 1,
   "game": "Cing Piu Piu",
   "technical_namespace": "cing_artillery",
-  "source_head": "0d66dbad7129c370b555e8baefb564af7fbcaa18",
+  "source_head": "201608e1d8b296fd90562ebf3131d62d6acc1491",
   "database_authority": "Supabase PostgreSQL",
   "realtime_runtime_target": "Mắt Bão cing-game-server",
   "railway_realtime_runtime": false,
   "ordering_policy": "Explicit reviewed semantic order derived from Git first-introduction topological history; never infer apply order from migration filenames.",
-  "migration_count": 63,
+  "migration_count": 64,
   "migrations": [
     {
       "path": "db/migrations/20260814_cing_artillery_domain_foundation.sql",
@@ -386,6 +386,12 @@
       "path": "db/migrations/20260824_cing_artillery_effective_gameplay_access_authority_v1.sql",
       "sha256": "a891e0c05c9c759671d25052c4ad54c645ca1be2d3c21ca0ab78f9c4814f9b16",
       "introduced_commit": "0d66dbad7129c370b555e8baefb564af7fbcaa18"
+    },
+    {
+      "order": 64,
+      "path": "db/migrations/20260824_cing_artillery_admission_side_door_authority_v1.sql",
+      "sha256": "a7503e342aa511e98b5b71c41717fab3842e2bd4a98138d02475e11998651cb0",
+      "introduced_commit": "201608e1d8b296fd90562ebf3131d62d6acc1491"
     }
   ]
 }
