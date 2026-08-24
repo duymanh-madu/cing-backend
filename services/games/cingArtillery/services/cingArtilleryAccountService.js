@@ -1,18 +1,9 @@
-const crypto =
-  require(
-    "crypto"
-  );
+"use strict";
 
 const accountRepository =
   require(
     "../repositories/cingArtilleryAccountRepository"
   );
-
-const {
-  CING_ARTILLERY_ACCOUNT_STATUS,
-} = require(
-  "../domain/cingArtilleryConstants"
-);
 
 const {
   assertUserId,
@@ -21,11 +12,86 @@ const {
   "../domain/cingArtilleryContracts"
 );
 
-const {
-  requireCingArtilleryEnabled,
-} = require(
-  "./cingArtilleryFeatureGateService"
-);
+function buildError({
+  message,
+  code,
+  statusCode,
+}) {
+  const error =
+    new Error(
+      message
+    );
+
+  error.code =
+    code;
+
+  error.statusCode =
+    statusCode;
+
+  return error;
+}
+
+function mapAccountAdmissionError(
+  error
+) {
+  const message =
+    String(
+      error?.message || ""
+    );
+
+  if (
+    message.includes(
+      "cing_artillery_disabled"
+    )
+  ) {
+    return buildError({
+      message:
+        "Cing Artillery hiện chưa được mở",
+
+      code:
+        "CING_ARTILLERY_DISABLED",
+
+      statusCode:
+        503,
+    });
+  }
+
+  if (
+    message.includes(
+      "cing_artillery_invalid_user_id"
+    )
+  ) {
+    return buildError({
+      message:
+        "User identity Cing Artillery không hợp lệ",
+
+      code:
+        "CING_ARTILLERY_USER_ID_INVALID",
+
+      statusCode:
+        400,
+    });
+  }
+
+  if (
+    message.includes(
+      "cing_artillery_account_creation_failed"
+    )
+  ) {
+    return buildError({
+      message:
+        "Không thể khởi tạo tài khoản Cing Artillery",
+
+      code:
+        "CING_ARTILLERY_ACCOUNT_CREATION_FAILED",
+
+      statusCode:
+        500,
+    });
+  }
+
+  return error;
+}
 
 async function getAccountByUserId(
   rawUserId
@@ -49,66 +115,25 @@ async function getAccountByUserId(
 async function ensureAccount(
   rawUserId
 ) {
-  await requireCingArtilleryEnabled();
-
   const userId =
     assertUserId(
       rawUserId
     );
 
-  const existing =
-    await accountRepository
-      .findByUserId(
-        userId
-      );
-
-  if (existing) {
-    return normalizeAccountRecord(
-      existing
-    );
-  }
-
   try {
-    const created =
+    const account =
       await accountRepository
-        .create({
-          id:
-            crypto.randomUUID(),
-
-          userId,
-
-          status:
-            CING_ARTILLERY_ACCOUNT_STATUS
-              .ACTIVE,
-        });
+        .getOrCreateAuthorized(
+          userId
+        );
 
     return normalizeAccountRecord(
-      created
+      account
     );
   } catch (error) {
-    /*
-     * Concurrent initialization:
-     * unique(user_id) is the source of truth.
-     * Re-read instead of producing duplicate accounts.
-     */
-    if (
-      error?.code ===
-      "23505"
-    ) {
-      const account =
-        await accountRepository
-          .findByUserId(
-            userId
-          );
-
-      if (account) {
-        return normalizeAccountRecord(
-          account
-        );
-      }
-    }
-
-    throw error;
+    throw mapAccountAdmissionError(
+      error
+    );
   }
 }
 

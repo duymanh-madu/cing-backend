@@ -96,6 +96,11 @@ router.use(
 );
 
 router.use(
+  "/game/cing-piu-piu",
+  require("./cingArtilleryRoutes")
+);
+
+router.use(
   "/levels",
   require("./levelRoutes")
 );

@@ -1,3 +1,5 @@
+"use strict";
+
 const supabase =
   require(
     "../../../../supabase"
@@ -16,6 +18,9 @@ const SESSION_FIELDS =
     "created_at",
     "updated_at",
   ].join(",");
+
+const GET_OR_CREATE_AUTHORIZED_RPC =
+  "cing_artillery_get_or_create_gameplay_session_authorized_v1";
 
 async function findActiveByAccountId(
   accountId
@@ -45,26 +50,19 @@ async function findActiveByAccountId(
   return data || null;
 }
 
-async function createActive({
-  id,
-  accountId,
-}) {
+async function getOrCreateAuthorized(
+  accountId
+) {
   const {
     data,
     error,
   } = await supabase
-    .from(TABLE)
-    .insert({
-      id,
-
-      account_id:
-        accountId,
-
-      status:
-        "active",
-    })
-    .select(
-      SESSION_FIELDS
+    .rpc(
+      GET_OR_CREATE_AUTHORIZED_RPC,
+      {
+        p_account_id:
+          accountId,
+      }
     )
     .single();
 
@@ -107,7 +105,10 @@ async function endAtomic({
 }
 
 module.exports = {
+  TABLE,
+  SESSION_FIELDS,
+  GET_OR_CREATE_AUTHORIZED_RPC,
   findActiveByAccountId,
-  createActive,
+  getOrCreateAuthorized,
   endAtomic,
 };

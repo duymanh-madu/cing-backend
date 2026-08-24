@@ -14,9 +14,9 @@ const cosmeticRepository =
   );
 
 const {
-  requireCingArtilleryEnabled,
+  requireEffectiveGameplayAccess,
 } = require(
-  "./cingArtilleryFeatureGateService"
+  "./cingArtilleryEffectiveGameplayAccessService"
 );
 
 const {
@@ -46,12 +46,14 @@ async function getRuntimeProfile(
    * Atomic onboarding remains the only first-login
    * write boundary for the Cing Artillery domain.
    */
-  await requireCingArtilleryEnabled();
-
   const userId =
     assertUserId(
       rawUserId
     );
+
+  await requireEffectiveGameplayAccess(
+    userId
+  );
 
   const account =
     await accountRepository

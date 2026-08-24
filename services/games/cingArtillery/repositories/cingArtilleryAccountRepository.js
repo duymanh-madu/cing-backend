@@ -1,3 +1,5 @@
+"use strict";
+
 const supabase =
   require(
     "../../../../supabase"
@@ -14,6 +16,9 @@ const ACCOUNT_FIELDS =
     "created_at",
     "updated_at",
   ].join(",");
+
+const GET_OR_CREATE_AUTHORIZED_RPC =
+  "cing_artillery_get_or_create_account_authorized_v1";
 
 async function findByUserId(
   userId
@@ -39,24 +44,19 @@ async function findByUserId(
   return data || null;
 }
 
-async function create({
-  id,
-  userId,
-  status,
-}) {
+async function getOrCreateAuthorized(
+  userId
+) {
   const {
     data,
     error,
   } = await supabase
-    .from(TABLE)
-    .insert({
-      id,
-      user_id:
-        userId,
-      status,
-    })
-    .select(
-      ACCOUNT_FIELDS
+    .rpc(
+      GET_OR_CREATE_AUTHORIZED_RPC,
+      {
+        p_user_id:
+          userId,
+      }
     )
     .single();
 
@@ -68,6 +68,9 @@ async function create({
 }
 
 module.exports = {
+  TABLE,
+  ACCOUNT_FIELDS,
+  GET_OR_CREATE_AUTHORIZED_RPC,
   findByUserId,
-  create,
+  getOrCreateAuthorized,
 };

@@ -1,8 +1,3 @@
-const crypto =
-  require(
-    "crypto"
-  );
-
 const gameEntryService =
   require(
     "./cingArtilleryGameEntryService"
@@ -130,22 +125,104 @@ async function getActiveGameplaySession(
   );
 }
 
+function mapGameplaySessionAdmissionError(
+  error
+) {
+  const message =
+    String(
+      error?.message || ""
+    );
+
+  if (
+    message.includes(
+      "cing_artillery_disabled"
+    )
+  ) {
+    return buildError({
+      message:
+        "Cing Artillery hiện chưa được mở",
+
+      code:
+        "CING_ARTILLERY_DISABLED",
+
+      statusCode:
+        503,
+    });
+  }
+
+  if (
+    message.includes(
+      "cing_artillery_account_not_found"
+    )
+  ) {
+    return buildError({
+      message:
+        "Không tìm thấy tài khoản Cing Artillery",
+
+      code:
+        "CING_ARTILLERY_ACCOUNT_NOT_FOUND",
+
+      statusCode:
+        404,
+    });
+  }
+
+  if (
+    message.includes(
+      "cing_artillery_account_not_active"
+    )
+  ) {
+    return buildError({
+      message:
+        "Tài khoản Cing Artillery hiện không hoạt động",
+
+      code:
+        "CING_ARTILLERY_ACCOUNT_NOT_ACTIVE",
+
+      statusCode:
+        403,
+    });
+  }
+
+  if (
+    message.includes(
+      "cing_artillery_invalid_account_id"
+    )
+  ) {
+    return buildError({
+      message:
+        "Account identity Cing Artillery không hợp lệ",
+
+      code:
+        "CING_ARTILLERY_ACCOUNT_ID_INVALID",
+
+      statusCode:
+        400,
+    });
+  }
+
+  return error;
+}
+
 async function getOrCreateGameplaySession(
   rawUserId
 ) {
   /*
-   * Private gameplay-session write boundary.
+   * Private gameplay-session admission boundary.
    *
-   * Game-entry readiness must be established before
-   * any durable gameplay session is created.
+   * Game-entry readiness is resolved first.
+   * PostgreSQL then owns the authoritative
+   * get-or-create transaction:
    *
-   * This service intentionally does not:
-   *   enqueue matchmaking
-   *   assign opponents
-   *   join realtime rooms
-   *   initialize combat state
-   *   update scores/ranking
-   *   mutate economy/rewards
+   *   account FOR UPDATE
+   *     -> account active
+   *     -> effective gameplay access
+   *     -> existing active session lookup
+   *     -> active session INSERT when absent
+   *
+   * The RPC returns only the canonical session.
+   * Node intentionally does not infer whether this
+   * request created or reused that row.
    */
   const request =
     assertCreateGameplaySessionRequest({
@@ -164,76 +241,20 @@ async function getOrCreateGameplaySession(
   const accountId =
     decision.profile.account.id;
 
-  const existing =
-    await gameplaySessionRepository
-      .findActiveByAccountId(
-        accountId
-      );
-
-  if (existing) {
-    return {
-      created:
-        false,
-
-      session:
-        normalizeGameplaySessionRecord(
-          existing
-        ),
-    };
-  }
-
   try {
-    const created =
+    const session =
       await gameplaySessionRepository
-        .createActive({
-          id:
-            crypto.randomUUID(),
+        .getOrCreateAuthorized(
+          accountId
+        );
 
-          accountId,
-        });
-
-    return {
-      created:
-        true,
-
-      session:
-        normalizeGameplaySessionRecord(
-          created
-        ),
-    };
+    return normalizeGameplaySessionRecord(
+      session
+    );
   } catch (error) {
-    /*
-     * Concurrent session creation is resolved by
-     * PostgreSQL partial unique index:
-     *
-     *   one active session per account.
-     *
-     * Re-read the canonical active row after 23505.
-     */
-    if (
-      error?.code ===
-      "23505"
-    ) {
-      const session =
-        await gameplaySessionRepository
-          .findActiveByAccountId(
-            accountId
-          );
-
-      if (session) {
-        return {
-          created:
-            false,
-
-          session:
-            normalizeGameplaySessionRecord(
-              session
-            ),
-        };
-      }
-    }
-
-    throw error;
+    throw mapGameplaySessionAdmissionError(
+      error
+    );
   }
 }
 

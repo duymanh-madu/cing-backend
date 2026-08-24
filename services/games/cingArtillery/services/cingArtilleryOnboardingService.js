@@ -4,9 +4,9 @@ const onboardingRepository =
   );
 
 const {
-  requireCingArtilleryEnabled,
+  requireEffectiveGameplayAccess,
 } = require(
-  "./cingArtilleryFeatureGateService"
+  "./cingArtilleryEffectiveGameplayAccessService"
 );
 
 const {
@@ -165,7 +165,9 @@ async function onboardCharacter({
    * PostgreSQL also checks enabled=false/true inside the RPC,
    * so the repository cannot accidentally bypass dark mode.
    */
-  await requireCingArtilleryEnabled();
+  await requireEffectiveGameplayAccess(
+    userId
+  );
 
   const request =
     assertOnboardingRequest({

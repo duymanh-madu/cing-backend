@@ -23,6 +23,16 @@ const characterLoadoutService =
     "./services/cingArtilleryCharacterLoadoutService"
   );
 
+const onboardingService =
+  require(
+    "./services/cingArtilleryOnboardingService"
+  );
+
+const effectiveGameplayAccessService =
+  require(
+    "./services/cingArtilleryEffectiveGameplayAccessService"
+  );
+
 const runtimeProfileService =
   require(
     "./services/cingArtilleryRuntimeProfileService"
@@ -74,6 +84,8 @@ module.exports = {
   accountService,
   featureGateService,
   characterLoadoutService,
+  onboardingService,
+  effectiveGameplayAccessService,
   runtimeProfileService,
   gameEntryService,
   gameplaySessionService,
