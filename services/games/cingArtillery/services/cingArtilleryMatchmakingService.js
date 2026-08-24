@@ -13,6 +13,11 @@ const matchmakingRepository =
     "../repositories/cingArtilleryMatchmakingRepository"
   );
 
+const matchRuntimeService =
+  require(
+    "./cingArtilleryMatchRuntimeService"
+  );
+
 const {
   normalizeGameplaySessionRecord,
 } = require(
@@ -260,16 +265,29 @@ async function enterMatchmaking({
   }
 
   try {
-    return normalizeMatchmakingDecision(
-      await matchmakingRepository
-        .enterAtomic({
-          accountId:
-            accountId,
+    const decision =
+      normalizeMatchmakingDecision(
+        await matchmakingRepository
+          .enterAtomic({
+            accountId:
+              accountId,
 
-          gameplaySessionId:
-            request.gameplaySessionId,
-        })
-    );
+            gameplaySessionId:
+              request.gameplaySessionId,
+          })
+      );
+
+    if (
+      decision.status ===
+        "matched"
+    ) {
+      await matchRuntimeService
+        .getOrCreateMatchRuntime(
+          decision.match_id
+        );
+    }
+
+    return decision;
   } catch (error) {
     throw mapMatchmakingError(
       error

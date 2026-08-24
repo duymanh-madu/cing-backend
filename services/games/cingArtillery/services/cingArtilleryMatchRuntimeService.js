@@ -4,12 +4,6 @@ const matchRuntimeRepository =
   );
 
 const {
-  requireCingArtilleryEnabled,
-} = require(
-  "./cingArtilleryFeatureGateService"
-);
-
-const {
   assertMatchId,
   normalizeMatchRuntimeRecord,
 } = require(
@@ -187,8 +181,6 @@ async function getOrCreateMatchRuntime(
    * This service intentionally does not own realtime,
    * combat, scoring, economy, or public transport.
    */
-  await requireCingArtilleryEnabled();
-
   const matchId =
     assertMatchId(
       rawMatchId
