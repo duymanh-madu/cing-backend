@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "game": "Cing Piu Piu",
   "technical_namespace": "cing_artillery",
-  "source_head": "87d9fa9f7afabadf317cb5c5bf76d5af582f3a1a",
+  "source_head": "ab6e0c66e7dda087f37030ad6f28036995dc2bcd",
   "database_authority": "Supabase PostgreSQL",
   "realtime_runtime_target": "Mắt Bão cing-game-server",
   "railway_realtime_runtime": false,
@@ -428,6 +428,12 @@
       "path": "db/migrations/20260825_cing_artillery_expired_turn_timeout_progression_v1.sql",
       "sha256": "e540a03d3292aa1c4acb3cc9ed8aef1f2eb7a2537a9f9ff631a545a8243f6d03",
       "introduced_commit": "87d9fa9f7afabadf317cb5c5bf76d5af582f3a1a"
+    },
+    {
+      "order": 71,
+      "path": "db/migrations/20260825_cing_artillery_rules_v2_private_alpha_publication_v1.sql",
+      "sha256": "99650318322c776f30e0f7b1bc41d05e2da5fcb1a5c733f19072dce78dac45e2",
+      "introduced_commit": "ab6e0c66e7dda087f37030ad6f28036995dc2bcd"
     }
   ]
 }
