@@ -446,6 +446,12 @@
       "path": "db/migrations/20260825_cing_artillery_abandoned_turn_initiative_compatibility_v1.sql",
       "sha256": "8d3c6b5e73065c4dd2d84edf3588f688bb4f26c3f8220f9bfff11ce57b21496c",
       "introduced_commit": "efe3346fec990dcda11464929289ae5cdacf3510"
+    },
+    {
+      "order": 74,
+      "path": "db/migrations/20260825_cing_artillery_hp_depleted_gameplay_session_completion_v1.sql",
+      "sha256": "17a05fb0680c597610c7ef06bba42b2558b69182da576ff8ecd7d604bb2e6bb2",
+      "introduced_commit": "bf25a882c274ae7b823eab1346f74bc9336bfb98"
     }
   ]
 }
