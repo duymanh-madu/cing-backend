@@ -452,6 +452,12 @@
       "path": "db/migrations/20260825_cing_artillery_hp_depleted_gameplay_session_completion_v1.sql",
       "sha256": "17a05fb0680c597610c7ef06bba42b2558b69182da576ff8ecd7d604bb2e6bb2",
       "introduced_commit": "bf25a882c274ae7b823eab1346f74bc9336bfb98"
+    },
+    {
+      "order": 75,
+      "path": "db/migrations/20260825_cing_artillery_hp_depleted_historical_session_repair_v1.sql",
+      "sha256": "723710f3ed52b4ba048b332dd5ecb9b534cdf767e712beca477b9666515a0afa",
+      "introduced_commit": "1b5ec94c91f500811e17747808a4baf774ab2cac"
     }
   ]
 }
