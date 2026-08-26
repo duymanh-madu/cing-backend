@@ -12,6 +12,13 @@ const {
   "../services/wallet/cingWalletTopupSessionService"
 );
 
+const {
+  getWalletOverview,
+  getWalletTransactions,
+} = require(
+  "../services/wallet/cingWalletReadService"
+);
+
 const router =
   express.Router();
 
@@ -58,6 +65,89 @@ function sendWalletError(
  * - payment provider
  * - payment method
  */
+/*
+ * =====================================================
+ * GET /api/wallet
+ * =====================================================
+ *
+ * Returns authenticated customer's effective Wallet
+ * balance plus the first statement page.
+ *
+ * No user_id is accepted from query/body/params.
+ */
+router.get(
+  "/",
+  authMiddleware,
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const data =
+        await getWalletOverview({
+          customer:
+            req.customer,
+
+          historyLimit:
+            req.query?.limit,
+        });
+
+      return res.json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      return sendWalletError(
+        res,
+        error
+      );
+    }
+  }
+);
+
+
+/*
+ * =====================================================
+ * GET /api/wallet/transactions
+ * =====================================================
+ *
+ * Stable keyset-paginated statement for authenticated
+ * customer only.
+ */
+router.get(
+  "/transactions",
+  authMiddleware,
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const data =
+        await getWalletTransactions({
+          customer:
+            req.customer,
+
+          limit:
+            req.query?.limit,
+
+          cursor:
+            req.query?.cursor,
+        });
+
+      return res.json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      return sendWalletError(
+        res,
+        error
+      );
+    }
+  }
+);
+
+
 router.post(
   "/topup/session",
   authMiddleware,
