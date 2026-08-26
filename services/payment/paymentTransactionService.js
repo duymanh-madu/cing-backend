@@ -21,6 +21,8 @@ async function createTransaction({
 
   payment_method,
 
+  payment_purpose = "order",
+
   amount,
 
   cart_snapshot,
@@ -52,6 +54,8 @@ async function createTransaction({
       payment_provider,
 
       payment_method,
+
+      payment_purpose,
 
       amount,
 

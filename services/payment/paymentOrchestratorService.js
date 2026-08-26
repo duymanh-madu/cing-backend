@@ -39,6 +39,11 @@ async function createPaymentSession(
   payload
 ) {
 
+  const paymentPurpose =
+    payload.payment_purpose === "wallet_topup"
+      ? "wallet_topup"
+      : "order";
+
   const expired_at =
     new Date(
       Date.now() +
@@ -57,6 +62,9 @@ async function createPaymentSession(
 
       payment_method:
         payload.payment_method,
+
+      payment_purpose:
+        paymentPurpose,
 
       amount:
         payload.total_amount,
@@ -89,7 +97,9 @@ async function createPaymentSession(
         payload.total_amount,
 
       description:
-        `Thanh toán đơn hàng ${transaction.transaction_code}`,
+        paymentPurpose === "wallet_topup"
+          ? `Nạp tiền Cing Wallet ${transaction.transaction_code}`
+          : `Thanh toán đơn hàng ${transaction.transaction_code}`,
 
       cartSnapshot:
         payload.cart_snapshot,

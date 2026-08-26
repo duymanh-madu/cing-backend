@@ -71,9 +71,11 @@ router.post(
 
       const result =
 
-        await createPaymentSession(
-          req.body
-        );
+        await createPaymentSession({
+          ...req.body,
+          payment_purpose:
+            "order",
+        });
 
       return res.json(
         result

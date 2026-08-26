@@ -212,6 +212,9 @@ router.post(
 
           payment_method,
 
+          payment_purpose:
+            "order",
+
           amount:
 
             validationResult.total_amount,
