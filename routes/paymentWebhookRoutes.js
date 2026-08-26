@@ -6,6 +6,9 @@ const { pushOrderToIPOS } = require("../services/iposOrderService");
 const { calculateOrderPoints } = require("../services/membershipBenefitsService");
 const redisClient = require("../services/infrastructure/cache/redisClient");
 const { normalizePhone } = require("../utils/phoneIdentity");
+const {
+  verifyMomoSettlement,
+} = require("../services/payment/momoSettlementVerifier");
 
 const ZALO_CHECKOUT_PRIVATE_KEY =
   process.env.ZALO_CHECKOUT_PRIVATE_KEY ||
@@ -632,42 +635,309 @@ const momoIpnHandler = async (
   req,
   res
 ) => {
-  const {
-    resultCode,
-    orderId,
-    transId,
-    amount,
-    message,
-  } = req.body;
+  let verified;
+
+  try {
+    verified =
+      verifyMomoSettlement(
+        req.body
+      );
+  } catch (error) {
+    console.warn(
+      "[MOMO IPN] Verification rejected:",
+      error.message
+    );
+
+    return res.status(400).json({
+      success: false,
+      error:
+        "INVALID_MOMO_SETTLEMENT",
+    });
+  }
 
   console.log(
-    "[MOMO IPN]",
+    "[MOMO IPN] verified",
     {
-      resultCode,
-      orderId,
-      transId,
-      amount,
+      resultCode:
+        verified.resultCode,
+      orderId:
+        verified.transactionCode,
+      transId:
+        verified.providerTransactionId,
+      amount:
+        verified.amount,
     }
   );
 
+  const {
+    data: payment,
+    error: paymentError,
+  } = await supabase
+    .from(
+      "payment_transactions"
+    )
+    .select(
+      [
+        "id",
+        "transaction_code",
+        "payment_provider",
+        "payment_purpose",
+        "payment_status",
+        "amount",
+        "provider_transaction_id",
+        "settlement_verified_at",
+        "settlement_reference",
+        "order_created",
+      ].join(",")
+    )
+    .eq(
+      "transaction_code",
+      verified.transactionCode
+    )
+    .maybeSingle();
+
+  if (paymentError) {
+    console.error(
+      "[MOMO IPN] Payment lookup failed:",
+      paymentError.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      error:
+        "PAYMENT_LOOKUP_FAILED",
+    });
+  }
+
+  if (!payment) {
+    return res.status(404).json({
+      success: false,
+      error:
+        "PAYMENT_NOT_FOUND",
+    });
+  }
+
+  if (
+    payment.payment_provider !==
+    "momo"
+  ) {
+    return res.status(409).json({
+      success: false,
+      error:
+        "PAYMENT_PROVIDER_MISMATCH",
+    });
+  }
+
+  const storedAmount =
+    Number(
+      payment.amount
+    );
+
+  if (
+    !Number.isSafeInteger(
+      storedAmount
+    ) ||
+    storedAmount !==
+      verified.amount
+  ) {
+    return res.status(409).json({
+      success: false,
+      error:
+        "PAYMENT_AMOUNT_MISMATCH",
+    });
+  }
+
   /*
-   * Preserve existing MoMo acknowledgement timing.
+   * provider_transaction_id may contain the provider requestId
+   * while the payment is still pending.
    *
-   * Provider verification will be inserted at the provider
-   * entry boundary in the next authority checkpoint.
+   * The final settlement identity is transId. Rebinding is
+   * forbidden only after a durable verified settlement already
+   * exists.
    */
-  res.json({
-    success: true,
-  });
+  if (
+    payment.settlement_verified_at &&
+    (
+      !payment.settlement_reference ||
+      String(
+        payment.settlement_reference
+      ) !==
+        String(
+          verified.providerTransactionId
+        )
+    )
+  ) {
+    return res.status(409).json({
+      success: false,
+      error:
+        "PROVIDER_TRANSACTION_MISMATCH",
+    });
+  }
+
+  const now =
+    new Date().toISOString();
+
+  /*
+   * A valid signed callback may represent either success
+   * or provider-declared failure.
+   *
+   * Both are authentic provider results, but only success
+   * receives settlement proof and enters paid processing.
+   */
+  if (!verified.succeeded) {
+    const {
+      error: failedUpdateError,
+    } = await supabase
+      .from(
+        "payment_transactions"
+      )
+      .update({
+        payment_status:
+          "failed",
+        provider_transaction_id:
+          String(
+            verified.providerTransactionId
+          ),
+        callback_received:
+          true,
+        webhook_verified:
+          true,
+        failure_reason:
+          verified.payload.message ||
+          `MoMo resultCode ${verified.resultCode}`,
+      })
+      .eq(
+        "id",
+        payment.id
+      );
+
+    if (failedUpdateError) {
+      console.error(
+        "[MOMO IPN] Failed result persistence error:",
+        failedUpdateError.message
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "PAYMENT_FAILED_RESULT_PERSISTENCE_FAILED",
+      });
+    }
+
+    /*
+     * Authentic provider failure is now durable.
+     *
+     * MoMo IPN contract requires HTTP 204 No Content.
+     */
+    return res
+      .status(204)
+      .send();
+  }
+
+  const {
+    error: verifiedUpdateError,
+  } = await supabase
+    .from(
+      "payment_transactions"
+    )
+    .update({
+      payment_status:
+        "paid",
+      provider_transaction_id:
+        String(
+          verified.providerTransactionId
+        ),
+      callback_received:
+        true,
+      webhook_verified:
+        true,
+      paid_at:
+        now,
+      settlement_verified_at:
+        now,
+      settlement_verification_method:
+        verified.verificationMethod,
+      settlement_reference:
+        String(
+          verified.settlementReference
+        ),
+    })
+    .eq(
+      "id",
+      payment.id
+    );
+
+  if (verifiedUpdateError) {
+    console.error(
+      "[MOMO IPN] Settlement proof persistence failed:",
+      verifiedUpdateError.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      error:
+        "SETTLEMENT_PROOF_PERSISTENCE_FAILED",
+    });
+  }
+
+  /*
+   * Wallet top-up is deliberately still closed.
+   *
+   * A verified payment may exist, but until bounded Wallet
+   * settlement authority is implemented, it must never enter
+   * the commerce order pipeline.
+   */
+  if (
+    payment.payment_purpose ===
+    "wallet_topup"
+  ) {
+    return res.status(503).json({
+      success: false,
+      error:
+        "WALLET_TOPUP_SETTLEMENT_NOT_ENABLED",
+    });
+  }
+
+  if (
+    payment.payment_purpose !==
+    "order"
+  ) {
+    return res.status(409).json({
+      success: false,
+      error:
+        "PAYMENT_PURPOSE_INVALID",
+    });
+  }
+
+  /*
+   * Durable provider proof is now committed.
+   *
+   * ACK MoMo before the long commerce pipeline so iPOS,
+   * CRM, loyalty, notifications, or realtime latency cannot
+   * cause provider timeout/retry.
+   *
+   * This intentionally preserves the production timing
+   * behavior that existed before Verified Webhook V1.
+   */
+  res
+    .status(204)
+    .send();
 
   await processNormalizedPaymentResult({
     req,
-    resultCode,
-    orderId,
-    transId,
-    amount,
-    message,
+    resultCode:
+      0,
+    orderId:
+      verified.transactionCode,
+    transId:
+      verified.providerTransactionId,
+    amount:
+      verified.amount,
+    message:
+      verified.payload.message,
   });
+
+  return;
 };
 
 router.post("/momo", momoIpnHandler);

@@ -67,11 +67,32 @@ test(
 );
 
 test(
-  "MoMo entry delegates to normalized processor after acknowledgement",
+  "MoMo entry delegates successful normalized results to shared processing",
   () => {
+    const momoStart =
+      route.indexOf(
+        "const momoIpnHandler"
+      );
+
+    const zaloStart =
+      route.indexOf(
+        "async function processZaloCheckoutAsPaid"
+      );
+
+    assert.ok(
+      momoStart >= 0 &&
+      zaloStart > momoStart
+    );
+
+    const momoSection =
+      route.slice(
+        momoStart,
+        zaloStart
+      );
+
     assert.match(
-      route,
-      /const momoIpnHandler[\s\S]*res\.json\(\{[\s\S]*success:\s*true[\s\S]*\}\);[\s\S]*await processNormalizedPaymentResult/
+      momoSection,
+      /await processNormalizedPaymentResult\(\{[\s\S]*resultCode:[\s\S]*0/
     );
   }
 );
@@ -97,15 +118,36 @@ test(
 );
 
 test(
-  "provider verification is deliberately not wired in this refactor",
+  "provider verification remains outside the shared paid-order processor",
   () => {
+    const sharedStart =
+      route.indexOf(
+        "async function processPaidOrderSettlement"
+      );
+
+    const normalizedStart =
+      route.indexOf(
+        "async function processNormalizedPaymentResult"
+      );
+
+    assert.ok(
+      sharedStart >= 0 &&
+      normalizedStart > sharedStart
+    );
+
+    const sharedSection =
+      route.slice(
+        sharedStart,
+        normalizedStart
+      );
+
     assert.doesNotMatch(
-      route,
+      sharedSection,
       /verifyMomoSettlement\(/
     );
 
     assert.doesNotMatch(
-      route,
+      sharedSection,
       /settlement_verified_at/
     );
   }
