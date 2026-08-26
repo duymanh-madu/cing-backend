@@ -108,21 +108,12 @@ async function awardGamePlaysForPaidOrder({ phone, order }) {
 }
 
 
-const momoIpnHandler = async (req, res) => {
-  const { resultCode, orderId, transId, amount, message } = req.body;
-  console.log("[MOMO IPN]", { resultCode, orderId, transId, amount });
-
-  // Trả 200 ngay — không để MoMo timeout rồi retry
-  res.json({ success: true });
-
-  if (resultCode !== 0) {
-    await supabase
-      .from("payment_transactions")
-      .update({ payment_status: "failed", failure_reason: message })
-      .eq("transaction_code", orderId);
-    return;
-  }
-
+async function processPaidOrderSettlement({
+  req,
+  orderId,
+  transId,
+  amount,
+}) {
   try {
     const { data: payment } = await supabase
       .from("payment_transactions")
@@ -591,6 +582,92 @@ const momoIpnHandler = async (req, res) => {
   } catch (err) {
     console.error("[MOMO IPN] Unhandled error:", err.message);
   }
+
+}
+
+async function processNormalizedPaymentResult({
+  req,
+  resultCode,
+  orderId,
+  transId,
+  amount,
+  message,
+}) {
+  if (resultCode !== 0) {
+    await supabase
+      .from("payment_transactions")
+      .update({
+        payment_status:
+          "failed",
+        failure_reason:
+          message,
+      })
+      .eq(
+        "transaction_code",
+        orderId
+      );
+
+    return {
+      success: true,
+      processed: false,
+      payment_failed: true,
+    };
+  }
+
+  await processPaidOrderSettlement({
+    req,
+    orderId,
+    transId,
+    amount,
+  });
+
+  return {
+    success: true,
+    processed: true,
+    payment_failed: false,
+  };
+}
+
+const momoIpnHandler = async (
+  req,
+  res
+) => {
+  const {
+    resultCode,
+    orderId,
+    transId,
+    amount,
+    message,
+  } = req.body;
+
+  console.log(
+    "[MOMO IPN]",
+    {
+      resultCode,
+      orderId,
+      transId,
+      amount,
+    }
+  );
+
+  /*
+   * Preserve existing MoMo acknowledgement timing.
+   *
+   * Provider verification will be inserted at the provider
+   * entry boundary in the next authority checkpoint.
+   */
+  res.json({
+    success: true,
+  });
+
+  await processNormalizedPaymentResult({
+    req,
+    resultCode,
+    orderId,
+    transId,
+    amount,
+    message,
+  });
 };
 
 router.post("/momo", momoIpnHandler);
@@ -698,21 +775,17 @@ async function processZaloCheckoutAsPaid(req, res) {
       });
     }
 
-    const fakeReq = Object.create(req);
-    fakeReq.body = {
-      resultCode: resultCode === 1 ? 0 : -1,
+    await processNormalizedPaymentResult({
+      req,
+      resultCode:
+        resultCode === 1
+          ? 0
+          : -1,
       orderId,
       transId,
       amount,
       message,
-    };
-
-    const fakeRes = {
-      json: () => {},
-      status: () => fakeRes,
-    };
-
-    await momoIpnHandler(fakeReq, fakeRes);
+    });
 
     return res.json({
       returnCode: 1,
