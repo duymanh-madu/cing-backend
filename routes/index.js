@@ -157,6 +157,11 @@ router.use(
   require("./paymentRoutes")
 );
 
+router.use(
+  "/wallet",
+  require("./walletRoutes")
+);
+
 
 
 router.use(
