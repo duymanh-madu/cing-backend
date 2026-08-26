@@ -881,21 +881,57 @@ const momoIpnHandler = async (
   }
 
   /*
-   * Wallet top-up is deliberately still closed.
+   * Wallet top-up has its own bounded PostgreSQL authority.
    *
-   * A verified payment may exist, but until bounded Wallet
-   * settlement authority is implemented, it must never enter
-   * the commerce order pipeline.
+   * Provider settlement proof is already durable at this point.
+   * The database RPC derives user + amount exclusively from the
+   * authoritative payment row, serializes concurrent settlement,
+   * performs the Wallet ledger/balance mutation atomically, and
+   * marks settlement_consumed_at in the same transaction.
+   *
+   * Do NOT ACK MoMo before this RPC succeeds. If settlement fails,
+   * MoMo must be allowed to retry. The RPC is durably idempotent,
+   * so a retry after successful commit cannot credit twice.
+   *
+   * Wallet top-up must never enter the commerce order pipeline.
    */
   if (
     payment.payment_purpose ===
     "wallet_topup"
   ) {
-    return res.status(503).json({
-      success: false,
-      error:
-        "WALLET_TOPUP_SETTLEMENT_NOT_ENABLED",
-    });
+    const {
+      error: walletTopupSettlementError,
+    } = await supabase.rpc(
+      "cing_wallet_settle_verified_topup_atomic",
+      {
+        p_payment_transaction_id:
+          payment.id,
+      }
+    );
+
+    if (
+      walletTopupSettlementError
+    ) {
+      console.error(
+        "[MOMO IPN] Wallet top-up settlement failed:",
+        walletTopupSettlementError.message
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "WALLET_TOPUP_SETTLEMENT_FAILED",
+      });
+    }
+
+    /*
+     * External payment + Wallet credit are now durable.
+     *
+     * MoMo IPN contract: HTTP 204 No Content.
+     */
+    return res
+      .status(204)
+      .send();
   }
 
   if (

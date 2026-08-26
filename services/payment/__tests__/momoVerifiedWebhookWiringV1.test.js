@@ -174,15 +174,125 @@ test(
 );
 
 test(
-  "wallet top-up remains blocked from commerce order pipeline",
+  "verified wallet top-up settles through bounded Wallet authority and never commerce",
   () => {
-    assert.match(
-      route,
-      /payment\.payment_purpose ===\s*"wallet_topup"[\s\S]*WALLET_TOPUP_SETTLEMENT_NOT_ENABLED/
+    const momoStart =
+      route.indexOf(
+        "const momoIpnHandler"
+      );
+
+    const zaloStart =
+      route.indexOf(
+        "async function processZaloCheckoutAsPaid"
+      );
+
+    assert.ok(
+      momoStart >= 0 &&
+      zaloStart > momoStart
+    );
+
+    const momoSection =
+      route.slice(
+        momoStart,
+        zaloStart
+      );
+
+    const proofPos =
+      momoSection.indexOf(
+        "settlement_verified_at:"
+      );
+
+    const walletBranchPos =
+      momoSection.indexOf(
+        'payment.payment_purpose ===\n    "wallet_topup"',
+        proofPos
+      );
+
+    const walletRpcPos =
+      momoSection.indexOf(
+        '"cing_wallet_settle_verified_topup_atomic"',
+        walletBranchPos
+      );
+
+    const walletAckPos =
+      momoSection.indexOf(
+        ".status(204)",
+        walletRpcPos
+      );
+
+    const commerceGuardPos =
+      momoSection.indexOf(
+        'payment.payment_purpose !==\n    "order"',
+        walletAckPos
+      );
+
+    const commerceProcessPos =
+      momoSection.indexOf(
+        "await processNormalizedPaymentResult({",
+        commerceGuardPos
+      );
+
+    assert.ok(
+      proofPos >= 0,
+      "durable provider settlement proof must exist"
+    );
+
+    assert.ok(
+      walletBranchPos > proofPos,
+      "wallet top-up dispatch must happen after provider proof persistence"
+    );
+
+    assert.ok(
+      walletRpcPos > walletBranchPos,
+      "wallet top-up must invoke bounded PostgreSQL settlement authority"
     );
 
     assert.match(
-      route,
+      momoSection.slice(
+        walletBranchPos,
+        walletAckPos
+      ),
+      /p_payment_transaction_id:\s*payment\.id/
+    );
+
+    assert.match(
+      momoSection.slice(
+        walletRpcPos,
+        walletAckPos
+      ),
+      /WALLET_TOPUP_SETTLEMENT_FAILED/
+    );
+
+    assert.ok(
+      walletAckPos > walletRpcPos,
+      "MoMo ACK must happen only after Wallet settlement RPC succeeds"
+    );
+
+    assert.ok(
+      commerceGuardPos > walletAckPos,
+      "wallet top-up must return before commerce-purpose handling"
+    );
+
+    assert.ok(
+      commerceProcessPos > commerceGuardPos,
+      "commerce processing remains order-only"
+    );
+
+    assert.doesNotMatch(
+      momoSection.slice(
+        walletBranchPos,
+        commerceGuardPos
+      ),
+      /processNormalizedPaymentResult\(/
+    );
+
+    assert.doesNotMatch(
+      momoSection,
+      /WALLET_TOPUP_SETTLEMENT_NOT_ENABLED/
+    );
+
+    assert.match(
+      momoSection,
       /payment\.payment_purpose !==\s*"order"[\s\S]*PAYMENT_PURPOSE_INVALID/
     );
   }
