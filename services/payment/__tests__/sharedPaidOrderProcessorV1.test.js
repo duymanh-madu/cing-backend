@@ -59,7 +59,7 @@ test(
       'updatePartnerMonthlySpending',
       'runGamePlaysEffectBestEffort',
       'runPointsDeductEffectBestEffort',
-      'addPoints',
+      'runPointsEarnEffectBestEffort',
       'leaderboard.updated',
     ];
 

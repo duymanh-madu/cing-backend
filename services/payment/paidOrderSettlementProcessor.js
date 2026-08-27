@@ -1,8 +1,6 @@
 const supabase = require("../../supabase");
 const { pushOrderToIPOS } =
   require("../iposOrderService");
-const { calculateOrderPoints } =
-  require("../membershipBenefitsService");
 const redisClient =
   require("../infrastructure/cache/redisClient");
 const { normalizePhone } =
@@ -193,6 +191,293 @@ async function runPointsDeductEffectBestEffort(
 }
 
 
+const POINTS_EARN_TIERS =
+  new Set([
+    "member",
+    "loyal",
+    "silver",
+    "gold",
+    "diamond",
+    "partner",
+    "loyal_partner",
+  ]);
+
+
+function normalizePointsEarnTier(
+  value
+) {
+  const tier =
+    String(
+      value ||
+      "member"
+    )
+      .trim()
+      .toLowerCase();
+
+  if (
+    !POINTS_EARN_TIERS.has(
+      tier
+    )
+  ) {
+    throw commerceCompletionError(
+      "COMMERCE_POINTS_EARN_TIER_INVALID",
+      `Invalid points earn tier: ${tier}`
+    );
+  }
+
+  return tier;
+}
+
+
+async function resolveCurrentPointsEarnTier(
+  order
+) {
+  const playerPhone =
+    normalizePhone(
+      order.customer_phone
+    );
+
+  const {
+    data: player,
+    error,
+  } = await supabase
+    .from("players")
+    .select("crm_tier")
+    .eq(
+      "user_id",
+      playerPhone ||
+        order.customer_phone
+    )
+    .maybeSingle();
+
+  if (error) {
+    throw commerceCompletionError(
+      "COMMERCE_POINTS_EARN_TIER_LOOKUP_FAILED",
+      error.message
+    );
+  }
+
+  return normalizePointsEarnTier(
+    player?.crm_tier ||
+      "member"
+  );
+}
+
+
+async function getPointsEarnInputSnapshot(
+  orderNumericId
+) {
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    "cing_commerce_get_order_effect_input_v2",
+    {
+      p_order_id:
+        orderNumericId,
+      p_effect_key:
+        "points_earn",
+    }
+  );
+
+  if (error) {
+    throw commerceCompletionError(
+      "COMMERCE_POINTS_EARN_INPUT_READ_FAILED",
+      error.message
+    );
+  }
+
+  if (data == null) {
+    return null;
+  }
+
+  if (
+    typeof data !== "object" ||
+    Array.isArray(data) ||
+    Object.keys(data).length !== 1 ||
+    !Object.prototype.hasOwnProperty.call(
+      data,
+      "tier_key"
+    )
+  ) {
+    throw commerceCompletionError(
+      "COMMERCE_POINTS_EARN_INPUT_INVALID"
+    );
+  }
+
+  return {
+    tier_key:
+      normalizePointsEarnTier(
+        data.tier_key
+      ),
+  };
+}
+
+
+async function materializePointsEarnInputSnapshot(
+  order
+) {
+  const tierKey =
+    await resolveCurrentPointsEarnTier(
+      order
+    );
+
+  const {
+    error,
+  } = await supabase.rpc(
+    "cing_commerce_ensure_order_effect_input_v2",
+    {
+      p_order_id:
+        order.id,
+      p_effect_key:
+        "points_earn",
+      p_input_payload: {
+        tier_key:
+          tierKey,
+      },
+    }
+  );
+
+  if (error) {
+    throw commerceCompletionError(
+      "COMMERCE_POINTS_EARN_INPUT_MATERIALIZE_FAILED",
+      error.message
+    );
+  }
+
+  /*
+   * Read back through the bounded V2 authority instead of trusting
+   * mutable in-memory input. The returned snapshot is the immutable
+   * execution contract for this effect.
+   */
+  const snapshot =
+    await getPointsEarnInputSnapshot(
+      order.id
+    );
+
+  if (!snapshot) {
+    throw commerceCompletionError(
+      "COMMERCE_POINTS_EARN_INPUT_MISSING_AFTER_MATERIALIZE"
+    );
+  }
+
+  return snapshot;
+}
+
+
+async function runPointsEarnEffect(
+  orderNumericId,
+  tierKey
+) {
+  return executeCommerceOrderEffect({
+    orderId:
+      orderNumericId,
+
+    effectKey:
+      "points_earn",
+
+    execute:
+      async () => {
+        const {
+          data,
+          error,
+        } = await supabase.rpc(
+          "cing_commerce_apply_order_points_earn_v1",
+          {
+            p_order_id:
+              orderNumericId,
+            p_tier_key:
+              tierKey,
+          }
+        );
+
+        if (error) {
+          throw commerceCompletionError(
+            "COMMERCE_POINTS_EARN_AUTHORITY_FAILED",
+            error.message
+          );
+        }
+
+        return data;
+      },
+  });
+}
+
+
+async function runPointsEarnEffectBestEffort(
+  order,
+  {
+    materializeIfMissing = false,
+  } = {}
+) {
+  if (!order?.id) {
+    return {
+      success: false,
+      skipped: true,
+      reason:
+        "missing_order_id",
+    };
+  }
+
+  try {
+    /*
+     * Original after-hours settlement may materialize eligibility
+     * and tier exactly once.
+     *
+     * Replay NEVER resolves current crm_tier. It can execute only
+     * from an already-materialized immutable V2 snapshot.
+     */
+    const snapshot =
+      materializeIfMissing
+        ? await materializePointsEarnInputSnapshot(
+            order
+          )
+        : await getPointsEarnInputSnapshot(
+            order.id
+          );
+
+    if (!snapshot) {
+      return {
+        success: true,
+        executed: false,
+        skipped: true,
+        reason:
+          "not_materialized",
+      };
+    }
+
+    const result =
+      await runPointsEarnEffect(
+        order.id,
+        snapshot.tier_key
+      );
+
+    console.log(
+      "[COMMERCE] points_earn effect:",
+      order.order_code,
+      result?.executed
+        ? "executed"
+        : result?.reason ||
+          "skipped"
+    );
+
+    return result;
+  } catch (error) {
+    console.warn(
+      "[COMMERCE] points_earn effect failed:",
+      order.order_code,
+      error.message
+    );
+
+    return {
+      success: false,
+      failed: true,
+      error:
+        error.message,
+    };
+  }
+}
+
 function commerceCompletionError(
   code,
   message = code
@@ -257,6 +542,10 @@ async function buildReplayCompletionWithEffects({
   );
 
   await runPointsDeductEffectBestEffort(
+    order
+  );
+
+  await runPointsEarnEffectBestEffort(
     order
   );
 
@@ -995,44 +1284,22 @@ async function processPaidOrderSettlement({
       order
     );
 
-    // ─── 5. Cộng điểm theo tier ────────────────────────────────────
-    // Trước 23h: iPOS/CRM tự cộng điểm đơn online, app chỉ đọc lại.
-    // Sau 23h: app cộng local ngay để user thấy điểm tức thì,
-    // nhưng KHÔNG gọi update_point ADD riêng sang iPOS vì iPOS đã tự ghi điểm theo đơn online.
+    // ─── 5. Cộng điểm theo tier qua durable Commerce effect authority ───
+    // Eligibility is materialized only on the original after-hours path.
+    // Replay never derives eligibility from its own wall-clock time.
     if (isAfterHours) {
-      try {
-        const { addPoints } = require("../loyaltyPointService");
-        const playerPhone = normalizePhone(order.customer_phone);
-        const { data: player } = await supabase
-          .from("players")
-          .select("crm_tier")
-          .eq("user_id", playerPhone || order.customer_phone)
-          .single();
-        const tierKey     = player?.crm_tier || "member";
-        const finalAmount = order.total_amount || 0;
-        const pointsToAdd = calculateOrderPoints(finalAmount, tierKey);
-        if (pointsToAdd > 0) {
-          const pointPhone = normalizePhone(order.customer_phone);
-          await addPoints({
-            phone:   pointPhone || order.customer_phone,
-            user_id: pointPhone || order.customer_phone,
-            points:  pointsToAdd,
-            reason:  `Tích điểm đơn hàng ${order.order_code} (${tierKey})`,
-            order_id: order.id,
-            syncIpos: false,
-            metadata: {
-              source: "after_hours_app_order",
-              order_code: order.order_code,
-              tier: tierKey,
-            },
-          });
-          console.log("[MOMO IPN] Added after-hours local points", pointsToAdd, "for", order.user_id, "tier:", tierKey);
+      await runPointsEarnEffectBestEffort(
+        order,
+        {
+          materializeIfMissing:
+            true,
         }
-      } catch (e) {
-        console.warn("[MOMO IPN] Point addition failed:", e.message);
-      }
+      );
     } else {
-      console.log("[MOMO IPN] Skip local order points before 23h; CRM/iPOS owns points:", order.order_code);
+      console.log(
+        "[MOMO IPN] Skip local order points before 23h; CRM/iPOS owns points:",
+        order.order_code
+      );
     }
 
     // ─── 5b. Trước 23h sync từ CRM/iPOS; sau 23h app đã instant sync ────────

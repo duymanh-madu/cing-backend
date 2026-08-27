@@ -140,14 +140,14 @@ test(
 );
 
 test(
-  "points earn remains on legacy path at this checkpoint",
+  "points earn has advanced beyond the legacy deduction checkpoint",
   () => {
-    assert.match(
+    assert.doesNotMatch(
       processor,
       /\baddPoints\b/
     );
 
-    assert.doesNotMatch(
+    assert.match(
       processor,
       /runPointsEarnEffect/
     );
