@@ -1,6 +1,21 @@
 const express = require("express");
 const router = express.Router();
 
+const authMiddleware =
+  require("./../middlewares/authMiddleware");
+
+const {
+  normalizePhone,
+} = require(
+  "../utils/phoneIdentity"
+);
+
+const {
+  settleWalletOrderPayment,
+} = require(
+  "../services/wallet/cingWalletOrderPaymentService"
+);
+
 function normalizeOrderType(value, shippingAddress = "") {
   const raw = String(value || "").trim().toLowerCase();
 
@@ -137,12 +152,13 @@ router.post(
 
   "/create",
 
+  authMiddleware,
+
   async (req, res) => {
 
     try {
 
       const {
-        user_id,
         customer_name,
         customer_phone,
         shipping_address,
@@ -155,6 +171,23 @@ router.post(
         payment_method,
         payment_provider,
       } = req.body;
+
+      const canonicalUserId =
+        normalizePhone(
+          req.customer?.phone || ""
+        );
+
+      if (!canonicalUserId) {
+        return res
+          .status(401)
+          .json({
+            success: false,
+            code:
+              "COMMERCE_CUSTOMER_IDENTITY_REQUIRED",
+            error:
+              "Không xác định được tài khoản thành viên",
+          });
+      }
 
       /**
        * ============================================
@@ -206,7 +239,8 @@ router.post(
 
         await createPaymentSession({
 
-          user_id,
+          user_id:
+            canonicalUserId,
 
           payment_provider,
 
@@ -215,17 +249,18 @@ router.post(
           payment_purpose:
             "order",
 
-          amount:
-
+          total_amount:
             validationResult.total_amount,
 
           cart_snapshot: {
 
-            user_id,
+            user_id:
+              canonicalUserId,
 
             customer_name,
 
-            customer_phone,
+            customer_phone:
+              canonicalUserId,
 
             shipping_address,
             order_type: getIncomingOrderType(req, shipping_address),
@@ -255,6 +290,54 @@ router.post(
           },
 
         });
+
+      if (
+        payment_method ===
+          "cing_wallet"
+      ) {
+        const paymentTransactionId =
+          paymentResult?.payment?.id;
+
+        if (!paymentTransactionId) {
+          const error =
+            new Error(
+              "WALLET_PAYMENT_TRANSACTION_ID_REQUIRED"
+            );
+
+          error.code =
+            "WALLET_PAYMENT_TRANSACTION_ID_REQUIRED";
+
+          throw error;
+        }
+
+        const walletSettlement =
+          await settleWalletOrderPayment({
+            req,
+            paymentTransactionId,
+          });
+
+        return res.json({
+          success: true,
+          checkout_validated:
+            true,
+          subtotal:
+            validationResult.subtotal,
+          shipping_fee:
+            validationResult.shipping_fee,
+          total_amount:
+            validationResult.total_amount,
+          distance_km:
+            validationResult.distance_km,
+          free_shipping:
+            validationResult.free_shipping,
+          duration_text:
+            validationResult.duration_text,
+          payment:
+            paymentResult,
+          wallet_settlement:
+            walletSettlement,
+        });
+      }
 
       /**
        * RESPONSE

@@ -80,6 +80,28 @@ async function createPaymentSession(
     "active_payments"
   );
 
+  /*
+   * Cing Wallet is an internal settlement rail.
+   *
+   * The checkout layer needs the durable canonical payment
+   * transaction ID before invoking PostgreSQL Wallet settlement.
+   * It must never dispatch Cing Wallet to an external provider.
+   */
+  if (
+    payload.payment_method ===
+      "cing_wallet"
+  ) {
+    return {
+      success: true,
+      payment:
+        transaction,
+      paymentUrl: null,
+      qrContent: null,
+      zaloOrder: null,
+      expired_at,
+    };
+  }
+
   const provider =
 
     getPaymentProvider(

@@ -139,17 +139,41 @@ async function settleWalletOrderPayment({
    * by PostgreSQL. It must not independently debit Wallet or
    * reconstruct amount/user identity from the request.
    */
-  await processPaidOrderSettlement({
-    req,
-    orderId:
-      transactionCode,
-    transId:
-      settlementReference,
-    amount,
-  });
+  const commerceCompletion =
+    await processPaidOrderSettlement({
+      req,
+      orderId:
+        transactionCode,
+      transId:
+        settlementReference,
+      amount,
+    });
+
+  if (
+    commerceCompletion?.success !==
+      true ||
+    commerceCompletion?.completed !==
+      true ||
+    !commerceCompletion?.order_id
+  ) {
+    const error =
+      new Error(
+        "CING_WALLET_ORDER_COMMERCE_COMPLETION_REQUIRED"
+      );
+
+    error.code =
+      "CING_WALLET_ORDER_COMMERCE_COMPLETION_REQUIRED";
+
+    throw error;
+  }
 
   return {
     success: true,
+    completed: true,
+    order_id:
+      commerceCompletion.order_id,
+    order_code:
+      commerceCompletion.order_code,
     payment_transaction_id:
       authoritativePaymentTransactionId,
     transaction_code:

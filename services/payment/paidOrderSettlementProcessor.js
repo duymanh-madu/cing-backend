@@ -80,51 +80,354 @@ async function awardGamePlaysForPaidOrder({ phone, order }) {
 }
 
 
+function commerceCompletionError(
+  code,
+  message = code
+) {
+  const error =
+    new Error(message);
+
+  error.code =
+    code;
+
+  return error;
+}
+
+
+function buildCompletionResult({
+  payment,
+  order,
+  replayed = false,
+}) {
+  if (
+    !payment?.id ||
+    !order?.id ||
+    String(
+      order.payment_transaction_id
+    ) !==
+      String(payment.id)
+  ) {
+    throw commerceCompletionError(
+      "COMMERCE_COMPLETION_ORDER_LINK_INVALID"
+    );
+  }
+
+  return {
+    success: true,
+    completed: true,
+    replayed:
+      Boolean(replayed),
+    payment_transaction_id:
+      payment.id,
+    order_id:
+      order.id,
+    order_code:
+      order.order_code,
+    order,
+  };
+}
+
+
+async function findDurableOrderForPayment(
+  payment
+) {
+  if (!payment?.id) {
+    return null;
+  }
+
+  /*
+   * Prefer the canonical payment pointer when present.
+   */
+  if (payment.order_id != null) {
+    const {
+      data: pointedOrder,
+      error: pointedError,
+    } = await supabase
+      .from("orders")
+      .select("*")
+      .eq(
+        "id",
+        payment.order_id
+      )
+      .maybeSingle();
+
+    if (pointedError) {
+      throw commerceCompletionError(
+        "COMMERCE_COMPLETION_ORDER_LOOKUP_FAILED",
+        pointedError.message
+      );
+    }
+
+    if (!pointedOrder) {
+      throw commerceCompletionError(
+        "COMMERCE_COMPLETION_PAYMENT_POINTER_MISSING"
+      );
+    }
+
+    if (
+      String(
+        pointedOrder.payment_transaction_id
+      ) !==
+        String(payment.id)
+    ) {
+      throw commerceCompletionError(
+        "COMMERCE_COMPLETION_PAYMENT_POINTER_CONFLICT"
+      );
+    }
+
+    return pointedOrder;
+  }
+
+  /*
+   * The durable payment_transaction_id fence is also a replay
+   * authority. This allows recovery even if an earlier process
+   * created the order but failed before updating payment.order_id.
+   */
+  const {
+    data: linkedOrder,
+    error: linkedError,
+  } = await supabase
+    .from("orders")
+    .select("*")
+    .eq(
+      "payment_transaction_id",
+      payment.id
+    )
+    .maybeSingle();
+
+  if (linkedError) {
+    throw commerceCompletionError(
+      "COMMERCE_COMPLETION_ORDER_LOOKUP_FAILED",
+      linkedError.message
+    );
+  }
+
+  if (!linkedOrder) {
+    return null;
+  }
+
+  /*
+   * Heal the payment projection from the durable order link.
+   * Correctness comes from orders.payment_transaction_id;
+   * Redis is never financial/order authority.
+   */
+  const {
+    error: projectionError,
+  } = await supabase
+    .from(
+      "payment_transactions"
+    )
+    .update({
+      order_created: true,
+      order_id:
+        linkedOrder.id,
+    })
+    .eq(
+      "id",
+      payment.id
+    );
+
+  if (projectionError) {
+    throw commerceCompletionError(
+      "COMMERCE_COMPLETION_PAYMENT_PROJECTION_FAILED",
+      projectionError.message
+    );
+  }
+
+  payment.order_created =
+    true;
+
+  payment.order_id =
+    linkedOrder.id;
+
+  return linkedOrder;
+}
+
+
 async function processPaidOrderSettlement({
   req,
   orderId,
   transId,
   amount,
 }) {
+  let lockKey = null;
+  let lockAcquired = false;
+
   try {
-    const { data: payment } = await supabase
+    const {
+      data: payment,
+      error: paymentError,
+    } = await supabase
       .from("payment_transactions")
       .select("*")
-      .eq("transaction_code", orderId)
-      .single();
+      .eq(
+        "transaction_code",
+        orderId
+      )
+      .maybeSingle();
+
+    if (paymentError) {
+      throw commerceCompletionError(
+        "COMMERCE_PAYMENT_LOOKUP_FAILED",
+        paymentError.message
+      );
+    }
 
     if (!payment) {
-      console.error("[MOMO IPN] Payment not found:", orderId, "- searching all transactions...");
-      const { data: allPay } = await supabase.from("payment_transactions")
-        .select("transaction_code, payment_status, order_created")
-        .order("created_at", { ascending: false }).limit(3);
-      console.error("[MOMO IPN] Recent transactions:", JSON.stringify(allPay));
-      return;
-    }
-    if (payment.order_created === true) {
-      console.log("[MOMO IPN] Already processed:", orderId);
-      return;
+      throw commerceCompletionError(
+        "COMMERCE_PAYMENT_NOT_FOUND"
+      );
     }
 
-    // Redis lock — tránh race condition khi Momo gọi 2 lần cùng lúc
-    const lockKey = 'momo:lock:' + orderId;
-    const locked = await redisClient.set(lockKey, '1', 'NX', 'EX', 60).catch(() => null);
-    if (!locked) {
-      console.log('[MOMO IPN] Lock exists, skip duplicate:', orderId);
-      return;
+    if (
+      payment.payment_purpose &&
+      payment.payment_purpose !==
+        "order"
+    ) {
+      throw commerceCompletionError(
+        "COMMERCE_PAYMENT_PURPOSE_INVALID"
+      );
     }
 
-    // Update payment status
-    await supabase
-      .from("payment_transactions")
-      .update({
-        payment_status:          "paid",
-        provider_transaction_id: String(transId),
-        callback_received:       true,
-        webhook_verified:        true,
-        paid_at:                 new Date().toISOString(),
-      })
-      .eq("transaction_code", orderId);
+    /*
+     * Durable replay precedes Redis.
+     *
+     * payment.order_created is only a projection; the actual
+     * completion proof is the durable order linked to this
+     * payment transaction.
+     */
+    const replayOrder =
+      await findDurableOrderForPayment(
+        payment
+      );
+
+    if (replayOrder) {
+      return buildCompletionResult({
+        payment,
+        order:
+          replayOrder,
+        replayed:
+          true,
+      });
+    }
+
+    /*
+     * Redis remains contention optimization only.
+     * It must never turn an incomplete commerce settlement into
+     * a successful/no-op result.
+     */
+    lockKey =
+      "commerce:paid-order:" +
+      payment.id;
+
+    lockAcquired =
+      Boolean(
+        await redisClient
+          .set(
+            lockKey,
+            "1",
+            "NX",
+            "EX",
+            60
+          )
+          .catch(
+            () => null
+          )
+      );
+
+    if (!lockAcquired) {
+      /*
+       * Another worker may have completed between our first
+       * replay read and lock acquisition.
+       */
+      const {
+        data: refreshedPayment,
+        error: refreshedError,
+      } = await supabase
+        .from(
+          "payment_transactions"
+        )
+        .select("*")
+        .eq(
+          "id",
+          payment.id
+        )
+        .maybeSingle();
+
+      if (refreshedError) {
+        throw commerceCompletionError(
+          "COMMERCE_PAYMENT_REPLAY_REFRESH_FAILED",
+          refreshedError.message
+        );
+      }
+
+      const concurrentOrder =
+        await findDurableOrderForPayment(
+          refreshedPayment ||
+            payment
+        );
+
+      if (concurrentOrder) {
+        return buildCompletionResult({
+          payment:
+            refreshedPayment ||
+            payment,
+          order:
+            concurrentOrder,
+          replayed:
+            true,
+        });
+      }
+
+      throw commerceCompletionError(
+        "COMMERCE_COMPLETION_IN_PROGRESS"
+      );
+    }
+
+    /*
+     * External provider settlement projection.
+     *
+     * Cing Wallet is an internal tender. Its paid status and
+     * settlement proof were already written atomically by the
+     * Wallet PostgreSQL authority and must never be rewritten as
+     * webhook/provider proof here.
+     */
+    const isInternalWallet =
+      payment.payment_method ===
+        "cing_wallet";
+
+    if (!isInternalWallet) {
+      const {
+        error: paymentUpdateError,
+      } = await supabase
+        .from(
+          "payment_transactions"
+        )
+        .update({
+          payment_status:
+            "paid",
+          provider_transaction_id:
+            String(transId),
+          callback_received:
+            true,
+          webhook_verified:
+            true,
+          paid_at:
+            new Date()
+              .toISOString(),
+        })
+        .eq(
+          "id",
+          payment.id
+        );
+
+      if (paymentUpdateError) {
+        throw commerceCompletionError(
+          "COMMERCE_PAYMENT_PAID_PROJECTION_FAILED",
+          paymentUpdateError.message
+        );
+      }
+    }
 
     const snap  = payment.cart_snapshot || {};
     const items = Array.isArray(payment.cart_snapshot)
@@ -132,8 +435,9 @@ async function processPaidOrderSettlement({
       : (snap.items || []);
 
     if (items.length === 0) {
-      console.error("[MOMO IPN] Empty cart:", orderId);
-      return;
+      throw commerceCompletionError(
+        "COMMERCE_ORDER_CART_EMPTY"
+      );
     }
 
     const orderCode = "ORD-" + Date.now();
@@ -156,7 +460,10 @@ async function processPaidOrderSettlement({
       "";
 
     // FIX: include latitude, longitude, address_detail từ cart_snapshot
-    const { data: order, error: orderErr } = await supabase
+    const {
+      data: insertedOrder,
+      error: orderErr,
+    } = await supabase
       .from("orders")
       .insert({
         order_code:             orderCode,
@@ -188,16 +495,98 @@ async function processPaidOrderSettlement({
       .select()
       .single();
 
-    if (orderErr) {
-      console.error("[MOMO IPN] Create order error:", orderErr.message);
-      return;
-    }
-    console.log("[MOMO IPN] Order created:", order.order_code);
+    let order =
+      insertedOrder;
 
-    await supabase
-      .from("payment_transactions")
-      .update({ order_created: true, order_id: order.id })
-      .eq("transaction_code", orderId);
+    if (orderErr) {
+      /*
+       * Under the durable UNIQUE(payment_transaction_id) fence,
+       * a concurrent winner may have inserted the canonical order.
+       * Resolve that order rather than creating or pretending a
+       * second completion.
+       */
+      if (
+        String(orderErr.code || "") ===
+          "23505"
+      ) {
+        const concurrentOrder =
+          await findDurableOrderForPayment(
+            payment
+          );
+
+        if (!concurrentOrder) {
+          throw commerceCompletionError(
+            "COMMERCE_ORDER_UNIQUE_CONFLICT_UNRESOLVED",
+            orderErr.message
+          );
+        }
+
+        return buildCompletionResult({
+          payment,
+          order:
+            concurrentOrder,
+          replayed:
+            true,
+        });
+      }
+
+      throw commerceCompletionError(
+        "COMMERCE_ORDER_CREATE_FAILED",
+        orderErr.message
+      );
+    }
+
+    if (
+      !order?.id ||
+      String(
+        order.payment_transaction_id
+      ) !==
+        String(payment.id)
+    ) {
+      throw commerceCompletionError(
+        "COMMERCE_ORDER_CREATE_RESULT_INVALID"
+      );
+    }
+
+    console.log(
+      "[COMMERCE] Durable order created:",
+      order.order_code
+    );
+
+    const {
+      error: paymentProjectionError,
+    } = await supabase
+      .from(
+        "payment_transactions"
+      )
+      .update({
+        order_created:
+          true,
+        order_id:
+          order.id,
+      })
+      .eq(
+        "id",
+        payment.id
+      );
+
+    if (paymentProjectionError) {
+      /*
+       * The order itself is already durable and uniquely linked.
+       * Do not create another order. Surface the projection fault;
+       * replay resolves by payment_transaction_id and heals it.
+       */
+      throw commerceCompletionError(
+        "COMMERCE_COMPLETION_PAYMENT_PROJECTION_FAILED",
+        paymentProjectionError.message
+      );
+    }
+
+    payment.order_created =
+      true;
+
+    payment.order_id =
+      order.id;
 
     // spending_synced sẽ được đánh dấu sau khi instant spending xử lý xong.
 
@@ -237,13 +626,22 @@ async function processPaidOrderSettlement({
         ...order,
         order_type: snap.order_type || (snap.shipping_address ? "DELI" : "STORE"),
         note: [snap.note || snap.customer_note || "", afterHoursNote].filter(Boolean).join(" | "),
-        payment_method: "momo",
+        payment_method:
+          order.payment_method ||
+          payment.payment_method ||
+          "momo",
       };
 
       const iposResult = await pushOrderToIPOS({
         order: orderWithMeta,
         transaction_code: orderId,
-        momo_trans_id: String(transId || ""),
+        momo_trans_id:
+          payment.payment_method ===
+            "momo"
+            ? String(
+                transId || ""
+              )
+            : "",
       });
 
       if (iposResult.success) {
@@ -551,8 +949,38 @@ async function processPaidOrderSettlement({
       });
     } catch (e) {}
 
+    /*
+     * All critical commerce completion work above has produced a
+     * durable uniquely-linked order. Downstream business effects
+     * remain independently best-effort/recoverable at this V1
+     * checkpoint.
+     */
+    return buildCompletionResult({
+      payment,
+      order,
+      replayed:
+        false,
+    });
+
   } catch (err) {
-    console.error("[MOMO IPN] Unhandled error:", err.message);
+    console.error(
+      "[COMMERCE] Paid-order completion failed:",
+      err.message
+    );
+
+    throw err;
+
+  } finally {
+    if (
+      lockAcquired &&
+      lockKey
+    ) {
+      await redisClient
+        .del(lockKey)
+        .catch(
+          () => {}
+        );
+    }
   }
 
 }
