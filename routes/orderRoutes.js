@@ -4,6 +4,9 @@ const express =
 const router =
   express.Router();
 
+const authMiddleware =
+  require("../middlewares/authMiddleware");
+
 const {
   createOrder,
 } = require(
@@ -71,6 +74,8 @@ router.post(
 
   "/create",
 
+  authMiddleware,
+
   async (req, res) => {
 
     try {
@@ -82,26 +87,32 @@ router.post(
       const body =
         req.body || {};
 
-      /**
-       * VALIDATE
-       */
+      const canonicalUserId =
+        normalizePhone(
+          req.customer?.phone || ""
+        );
 
-      if (
-        !body.user_id
-      ) {
+      if (!canonicalUserId) {
 
         return res
-          .status(400)
+          .status(401)
           .json({
 
             success: false,
 
+            code:
+              "COMMERCE_CUSTOMER_IDENTITY_REQUIRED",
+
             error:
-              "Missing user_id",
+              "Không xác định được tài khoản thành viên",
 
           });
 
       }
+
+      /**
+       * VALIDATE
+       */
 
       if (
         !Array.isArray(
@@ -130,9 +141,17 @@ router.post(
 
       const result =
 
-        await createOrder(
-          body
-        );
+        await createOrder({
+
+          ...body,
+
+          user_id:
+            canonicalUserId,
+
+          customer_phone:
+            canonicalUserId,
+
+        });
 
       return res.json(
         result

@@ -4,6 +4,17 @@ const express =
 const router =
   express.Router();
 
+const authMiddleware =
+  require(
+    "../middlewares/authMiddleware"
+  );
+
+const {
+  normalizePhone,
+} = require(
+  "../utils/phoneIdentity"
+);
+
 const {
   createPaymentSession,
 } = require(
@@ -62,6 +73,7 @@ router.get(
 
 router.post(
   "/create-session",
+  authMiddleware,
   async (
     req,
     res
@@ -69,10 +81,40 @@ router.post(
 
     try {
 
+      const canonicalUserId =
+        normalizePhone(
+          req.customer?.phone || ""
+        );
+
+      if (!canonicalUserId) {
+
+        return res
+          .status(401)
+          .json({
+
+            success: false,
+
+            code:
+              "COMMERCE_CUSTOMER_IDENTITY_REQUIRED",
+
+            error:
+              "Không xác định được tài khoản thành viên",
+
+          });
+
+      }
+
       const result =
 
         await createPaymentSession({
           ...req.body,
+
+          user_id:
+            canonicalUserId,
+
+          customer_phone:
+            canonicalUserId,
+
           payment_purpose:
             "order",
         });
