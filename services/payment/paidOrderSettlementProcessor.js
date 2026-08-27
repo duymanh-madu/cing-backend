@@ -102,6 +102,97 @@ async function runGamePlaysEffectBestEffort(
 }
 
 
+async function runPointsDeductEffect(
+  orderNumericId
+) {
+  return executeCommerceOrderEffect({
+    orderId:
+      orderNumericId,
+
+    effectKey:
+      "points_deduct",
+
+    execute:
+      async () => {
+        const {
+          data,
+          error,
+        } = await supabase.rpc(
+          "cing_commerce_apply_order_points_deduct_v1",
+          {
+            p_order_id:
+              orderNumericId,
+          }
+        );
+
+        if (error) {
+          throw commerceCompletionError(
+            "COMMERCE_POINTS_DEDUCT_AUTHORITY_FAILED",
+            error.message
+          );
+        }
+
+        /*
+         * PostgreSQL owns whether this order requires a deduction.
+         *
+         * Zero-point orders and the exact forensic legacy no-op
+         * orders are valid successful authority outcomes.
+         */
+        return data;
+      },
+  });
+}
+
+
+async function runPointsDeductEffectBestEffort(
+  order
+) {
+  if (!order?.id) {
+    return {
+      success: false,
+      skipped: true,
+      reason:
+        "missing_order_id",
+    };
+  }
+
+  try {
+    const result =
+      await runPointsDeductEffect(
+        order.id
+      );
+
+    console.log(
+      "[COMMERCE] points_deduct effect:",
+      order.order_code,
+      result?.executed
+        ? "executed"
+        : result?.reason || "skipped"
+    );
+
+    return result;
+  } catch (error) {
+    /*
+     * The canonical order remains durable when deduction execution
+     * fails. Durable effect state makes the operation reclaimable
+     * on a later commerce replay.
+     */
+    console.warn(
+      "[COMMERCE] points_deduct effect failed:",
+      order.order_code,
+      error.message
+    );
+
+    return {
+      success: false,
+      failed: true,
+      error:
+        error.message,
+    };
+  }
+}
+
+
 function commerceCompletionError(
   code,
   message = code
@@ -162,6 +253,10 @@ async function buildReplayCompletionWithEffects({
    * authority-controlled execution opportunity.
    */
   await runGamePlaysEffectBestEffort(
+    order
+  );
+
+  await runPointsDeductEffectBestEffort(
     order
   );
 
@@ -895,22 +990,10 @@ async function processPaidOrderSettlement({
       console.log("[MOMO IPN] Skip local spending before 23h; CRM/iPOS owns spending:", order.order_code);
     }
 
-    // ─── 4. Trừ điểm nếu dùng điểm ────────────────────────────────
-    const pointsUsed = snap.points_used || 0;
-    if (pointsUsed > 0) {
-      try {
-        const { deductPoints } = require("../loyaltyPointService");
-        await deductPoints({
-          phone:   resolvedPhone,
-          user_id: resolvedPhone,
-          points:  pointsUsed,
-          reason:  "Thanh toán đơn hàng " + order.order_code,
-        });
-        console.log("[MOMO IPN] Deducted", pointsUsed, "points");
-      } catch (e) {
-        console.warn("[MOMO IPN] Point deduction failed:", e.message);
-      }
-    }
+    // ─── 4. Trừ điểm qua durable Commerce effect authority ────────
+    await runPointsDeductEffectBestEffort(
+      order
+    );
 
     // ─── 5. Cộng điểm theo tier ────────────────────────────────────
     // Trước 23h: iPOS/CRM tự cộng điểm đơn online, app chỉ đọc lại.

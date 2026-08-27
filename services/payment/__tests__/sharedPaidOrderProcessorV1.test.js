@@ -58,7 +58,7 @@ test(
       'checkOrderMissions',
       'updatePartnerMonthlySpending',
       'runGamePlaysEffectBestEffort',
-      'deductPoints',
+      'runPointsDeductEffectBestEffort',
       'addPoints',
       'leaderboard.updated',
     ];
