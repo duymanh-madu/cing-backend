@@ -13,17 +13,38 @@ const route =
     "utf8"
   );
 
+const processor =
+  fs.readFileSync(
+    "services/payment/paidOrderSettlementProcessor.js",
+    "utf8"
+  );
+
 test(
   "paid order business pipeline is extracted into a shared processor",
   () => {
     assert.match(
       route,
-      /async function processPaidOrderSettlement\(\{[\s\S]*req,[\s\S]*orderId,[\s\S]*transId,[\s\S]*amount,[\s\S]*\}\)/
+      /require\("\.\.\/services\/payment\/paidOrderSettlementProcessor"\)/
     );
 
     assert.match(
       route,
-      /processPaidOrderSettlement[\s\S]*from\("orders"\)[\s\S]*pushOrderToIPOS[\s\S]*awardGamePlaysForPaidOrder/
+      /await processPaidOrderSettlement\(\{[\s\S]*req,[\s\S]*orderId,[\s\S]*transId,[\s\S]*amount,[\s\S]*\}\)/
+    );
+
+    assert.doesNotMatch(
+      route,
+      /async function processPaidOrderSettlement\(/
+    );
+
+    assert.match(
+      processor,
+      /async function processPaidOrderSettlement\(\{[\s\S]*req,[\s\S]*orderId,[\s\S]*transId,[\s\S]*amount,[\s\S]*\}\)/
+    );
+
+    assert.match(
+      processor,
+      /from\("orders"\)[\s\S]*pushOrderToIPOS[\s\S]*awardGamePlaysForPaidOrder/
     );
   }
 );
@@ -44,7 +65,7 @@ test(
 
     for (const token of required) {
       assert.match(
-        route,
+        processor,
         new RegExp(
           token.replace(
             /[.*+?^${}()|[\]\\]/g,
@@ -120,34 +141,23 @@ test(
 test(
   "provider verification remains outside the shared paid-order processor",
   () => {
-    const sharedStart =
-      route.indexOf(
-        "async function processPaidOrderSettlement"
-      );
-
-    const normalizedStart =
-      route.indexOf(
-        "async function processNormalizedPaymentResult"
-      );
-
-    assert.ok(
-      sharedStart >= 0 &&
-      normalizedStart > sharedStart
+    assert.match(
+      route,
+      /verifyMomoSettlement\(/
     );
 
-    const sharedSection =
-      route.slice(
-        sharedStart,
-        normalizedStart
-      );
+    assert.match(
+      route,
+      /async function processNormalizedPaymentResult/
+    );
 
     assert.doesNotMatch(
-      sharedSection,
+      processor,
       /verifyMomoSettlement\(/
     );
 
     assert.doesNotMatch(
-      sharedSection,
+      processor,
       /settlement_verified_at/
     );
   }
