@@ -19,6 +19,13 @@ const {
   "../services/wallet/cingWalletReadService"
 );
 
+
+const {
+  buyGamePlaysWithWallet,
+} = require(
+  "../services/wallet/cingWalletBuyGamePlaysService"
+);
+
 const router =
   express.Router();
 
@@ -174,6 +181,75 @@ router.post(
         res,
         error
       );
+    }
+  }
+);
+
+
+/*
+ * =====================================================
+ * POST /api/wallet/buy-plays
+ * =====================================================
+ *
+ * Client authority:
+ * - quantity
+ * - stable request_id
+ *
+ * Backend authority:
+ * - authenticated customer identity
+ * - canonical Wallet user_id
+ * - Wallet play unit price
+ * - total cost
+ * - Wallet balance mutation
+ * - game-play balance mutation
+ *
+ * No user_id / amount / price is accepted from client.
+ */
+router.post(
+  "/buy-plays",
+  authMiddleware,
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const data =
+        await buyGamePlaysWithWallet({
+          customer:
+            req.customer,
+
+          quantity:
+            req.body?.quantity,
+
+          requestId:
+            req.body?.request_id,
+        });
+
+      return res.json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      const statusCode =
+        Number(
+          error?.statusCode
+        ) || 500;
+
+      return res
+        .status(
+          statusCode
+        )
+        .json({
+          success: false,
+
+          code:
+            error?.code ||
+            "CING_WALLET_PLAY_PURCHASE_FAILED",
+
+          message:
+            error?.message ||
+            "Không thể mua lượt chơi bằng Cing Wallet",
+        });
     }
   }
 );
