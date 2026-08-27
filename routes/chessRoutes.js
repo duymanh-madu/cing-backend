@@ -120,39 +120,49 @@ router.post("/game-ended", async (req, res) => {
       const wins = winsToday;
       console.log(`[CHESS] game-ended winner=${winnerId} wins_today=${winsToday}`);
 
-      const { awardPlays, getMissionConfigs } = require("../services/dailyMissionService");
-      const configs = await getMissionConfigs();
-      const winCfg = configs.find(c => c.condition_type === "manual" && c.type === "win");
+      const {
+        completeManualMission,
+        getMissionConfigs,
+      } = require("../services/dailyMissionService");
 
-      const winTarget = Number(winCfg?.target_value || winCfg?.target || 5);
-      if (winCfg && wins >= winTarget) {
-        const today = new Date().toLocaleDateString("en-CA", {
-          timeZone: "Asia/Ho_Chi_Minh",
-        });
+      const configs =
+        await getMissionConfigs();
 
-        const { data: existing } = await supabase
-          .from("daily_missions")
-          .select("id")
-          .eq("user_id", winnerId)
-          .eq("mission_date", today)
-          .eq("mission_type", "win")
-          .eq("completed", true)
-          .maybeSingle();
+      const winCfg =
+        configs.find(
+          c =>
+            c.condition_type ===
+              "manual" &&
+            c.type ===
+              "win"
+        );
 
-        if (!existing) {
-          await supabase.from("daily_missions").upsert({
-            user_id: winnerId,
-            mission_date: today,
-            mission_type: "win",
-            completed: true,
-            plays_awarded: winCfg.plays,
-            completed_at: new Date().toISOString(),
-          }, {
-            onConflict: "user_id,mission_date,mission_type",
+      const winTarget =
+        Number(
+          winCfg?.condition_value ||
+          winCfg?.target_value ||
+          winCfg?.target ||
+          5
+        );
+
+      if (
+        winCfg &&
+        wins >= winTarget
+      ) {
+        const result =
+          await completeManualMission({
+            user_id:
+              winnerId,
+            mission_type:
+              "win",
+            config:
+              winCfg,
           });
 
-          await awardPlays(winnerId, winCfg.plays);
-          console.log(`[CHESS] Win mission awarded: ${winnerId} +${winCfg.plays} plays`);
+        if (result.applied) {
+          console.log(
+            `[CHESS] Win mission awarded: ${winnerId} +${result.plays_awarded} plays +${result.points_awarded} points`
+          );
         }
       }
     } catch (e) {

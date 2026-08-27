@@ -222,7 +222,6 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, score
 
   // Cong diem tich luy cho winner
   try {
-    const { awardPlays } = require("./dailyMissionService");
     // Cap nhat diem trong players table
     // Cong diem va sync ve iPOS
     await addPoints({
