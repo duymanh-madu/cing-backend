@@ -7,76 +7,98 @@ const redisClient =
   require("../infrastructure/cache/redisClient");
 const { normalizePhone } =
   require("../../utils/phoneIdentity");
+const {
+  executeCommerceOrderEffect,
+} = require(
+  "./commerceOrderEffectExecutor"
+);
 
-async function awardGamePlaysForPaidOrder({ phone, order }) {
-  const userId = normalizePhone(phone || order?.customer_phone || order?.user_id || "");
-  const orderCode = String(order?.order_code || "").trim();
-  const subtotal = Number(order?.subtotal || 0);
-  const shippingFee = Number(order?.shipping_fee || 0);
-  const totalAmount = Number(order?.total_amount || 0);
-  const amount = subtotal > 0 ? subtotal : Math.max(0, totalAmount - shippingFee);
+async function runGamePlaysEffect(
+  orderNumericId
+) {
+  return executeCommerceOrderEffect({
+    orderId:
+      orderNumericId,
 
-  if (!userId || !orderCode || amount <= 0) {
-    return { success: false, skipped: true, reason: "invalid_order" };
-  }
+    effectKey:
+      "game_plays",
 
-  const { data: existingLog } = await supabase
-    .from("analytics_events")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("event_name", "plays_added")
-    .contains("event_data", {
-      source: "order_spending",
-      order_code: orderCode,
-    })
-    .limit(1)
-    .maybeSingle();
+    execute:
+      async () => {
+        const {
+          data,
+          error,
+        } = await supabase.rpc(
+          "cing_commerce_award_order_spend_plays_v1",
+          {
+            p_order_id:
+              orderNumericId,
+          }
+        );
 
-  if (existingLog) {
-    return { success: true, skipped: true, reason: "already_awarded", order_code: orderCode };
-  }
+        if (error) {
+          throw commerceCompletionError(
+            "COMMERCE_GAME_PLAYS_AUTHORITY_FAILED",
+            error.message
+          );
+        }
 
-  const spendPerPlay = await supabase.from("app_configs")
-    .select("spend_per_play").eq("id", 1).single()
-    .then(r => Number(r.data?.spend_per_play || 20000))
-    .catch(() => 20000);
-
-  const playsToAdd = Math.floor(amount / (spendPerPlay || 20000));
-  if (playsToAdd <= 0) {
-    return { success: true, skipped: true, reason: "below_threshold", order_code: orderCode };
-  }
-
-  const { data: player } = await supabase
-    .from("players")
-    .select("game_plays, plays_from_spend")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  const newTotal = Number(player?.game_plays || 0) + playsToAdd;
-
-  const { addPlays } = require("../loyaltyPointService");
-  await addPlays({
-    user_id: userId,
-    amount: playsToAdd,
-    reason: `Tiêu dùng ${amount.toLocaleString("vi-VN")}đ — đơn ${orderCode}`,
-    new_total: newTotal,
-    metadata: {
-      source: "order_spending",
-      order_code: orderCode,
-      order_amount: amount,
-      spend_per_play: spendPerPlay,
-    },
+        /*
+         * No-row success is valid for orders below the configured
+         * spend-per-play threshold. PostgreSQL owns that decision.
+         */
+        return data;
+      },
   });
+}
 
-  await supabase.from("players")
-    .update({
-      game_plays: newTotal,
-      plays_from_spend: Number(player?.plays_from_spend || 0) + playsToAdd,
-    })
-    .eq("user_id", userId);
 
-  console.log(`[GAME] Order spend bonus: +${playsToAdd} plays for ${userId} | ${orderCode} | amount=${amount}`);
-  return { success: true, plays: playsToAdd, order_code: orderCode };
+async function runGamePlaysEffectBestEffort(
+  order
+) {
+  if (!order?.id) {
+    return {
+      success: false,
+      skipped: true,
+      reason:
+        "missing_order_id",
+    };
+  }
+
+  try {
+    const result =
+      await runGamePlaysEffect(
+        order.id
+      );
+
+    console.log(
+      "[COMMERCE] game_plays effect:",
+      order.order_code,
+      result?.executed
+        ? "executed"
+        : result?.reason || "skipped"
+    );
+
+    return result;
+  } catch (error) {
+    /*
+     * Commerce order completion remains durable even when one
+     * downstream effect fails. The effect row is marked failed
+     * by the executor and is reclaimable on durable replay.
+     */
+    console.warn(
+      "[COMMERCE] game_plays effect failed:",
+      order.order_code,
+      error.message
+    );
+
+    return {
+      success: false,
+      failed: true,
+      error:
+        error.message,
+    };
+  }
 }
 
 
@@ -125,6 +147,30 @@ function buildCompletionResult({
       order.order_code,
     order,
   };
+}
+
+
+async function buildReplayCompletionWithEffects({
+  payment,
+  order,
+}) {
+  /*
+   * A durable order proves commerce completion, but does not prove
+   * that every independently recoverable post-order effect finished.
+   *
+   * Replay therefore also gives failed/pending effects another
+   * authority-controlled execution opportunity.
+   */
+  await runGamePlaysEffectBestEffort(
+    order
+  );
+
+  return buildCompletionResult({
+    payment,
+    order,
+    replayed:
+      true,
+  });
 }
 
 
@@ -302,12 +348,10 @@ async function processPaidOrderSettlement({
       );
 
     if (replayOrder) {
-      return buildCompletionResult({
+      return buildReplayCompletionWithEffects({
         payment,
         order:
           replayOrder,
-        replayed:
-          true,
       });
     }
 
@@ -368,14 +412,12 @@ async function processPaidOrderSettlement({
         );
 
       if (concurrentOrder) {
-        return buildCompletionResult({
+        return buildReplayCompletionWithEffects({
           payment:
             refreshedPayment ||
             payment,
           order:
             concurrentOrder,
-          replayed:
-            true,
         });
       }
 
@@ -521,12 +563,10 @@ async function processPaidOrderSettlement({
           );
         }
 
-        return buildCompletionResult({
+        return buildReplayCompletionWithEffects({
           payment,
           order:
             concurrentOrder,
-          replayed:
-            true,
         });
       }
 
@@ -729,14 +769,9 @@ async function processPaidOrderSettlement({
     }
 
     // ─── 3a. Game plays by order — chạy 24/7, không phụ thuộc CRM/after-hours ───
-    try {
-      await awardGamePlaysForPaidOrder({
-        phone: resolvedPhone || order.customer_phone,
-        order,
-      });
-    } catch (e) {
-      console.warn("[MOMO IPN] Order game plays failed:", e.message);
-    }
+    await runGamePlaysEffectBestEffort(
+      order
+    );
 
     // ─── 3b. Instant spending sync vào players table ───────────────
     // Trước 23h: CRM/iPOS là nguồn chính, app không tự ghi chi tiêu.

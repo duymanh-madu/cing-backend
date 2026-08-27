@@ -44,7 +44,7 @@ test(
 
     assert.match(
       processor,
-      /from\("orders"\)[\s\S]*pushOrderToIPOS[\s\S]*awardGamePlaysForPaidOrder/
+      /from\("orders"\)[\s\S]*pushOrderToIPOS[\s\S]*runGamePlaysEffectBestEffort/
     );
   }
 );
@@ -57,7 +57,7 @@ test(
       'pushOrderToIPOS',
       'checkOrderMissions',
       'updatePartnerMonthlySpending',
-      'awardGamePlaysForPaidOrder',
+      'runGamePlaysEffectBestEffort',
       'deductPoints',
       'addPoints',
       'leaderboard.updated',
