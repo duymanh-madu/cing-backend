@@ -18,7 +18,7 @@ test(
   () => {
     assert.match(
       service,
-      /supabase\.rpc\(\s*"cing_wallet_settle_order_payment_atomic"/
+      /supabase\.rpc\(\s*"cing_wallet_settle_order_payment_handoff_atomic"/
     );
 
     assert.match(
@@ -43,7 +43,7 @@ test(
   () => {
     const rpcPos =
       service.indexOf(
-        '"cing_wallet_settle_order_payment_atomic"'
+        '"cing_wallet_settle_order_payment_handoff_atomic"'
       );
 
     const processorPos =

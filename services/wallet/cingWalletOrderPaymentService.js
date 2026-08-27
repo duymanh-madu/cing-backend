@@ -47,7 +47,7 @@ async function settleWalletOrderPayment({
    * - debits Wallet atomically,
    * - writes canonical internal settlement proof,
    * - consumes the settlement exactly once,
-   * - returns the authoritative payment row.
+   * - returns a bounded canonical commerce handoff.
    *
    * No caller-controlled user_id or amount crosses this
    * boundary.
@@ -56,7 +56,7 @@ async function settleWalletOrderPayment({
     data: settlementRows,
     error: settlementError,
   } = await supabase.rpc(
-    "cing_wallet_settle_order_payment_atomic",
+    "cing_wallet_settle_order_payment_handoff_atomic",
     {
       p_payment_transaction_id:
         authoritativePaymentTransactionId,
