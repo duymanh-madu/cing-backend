@@ -13,6 +13,12 @@ const {
 );
 
 const {
+  getCustomerTopupPromotion,
+} = require(
+  "../services/wallet/cingWalletTopupPromotionReadService"
+);
+
+const {
   getWalletOverview,
   getWalletTransactions,
 } = require(
@@ -140,6 +146,42 @@ router.get(
           cursor:
             req.query?.cursor,
         });
+
+      return res.json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      return sendWalletError(
+        res,
+        error
+      );
+    }
+  }
+);
+
+
+/*
+ * =====================================================
+ * GET /api/wallet/topup/promotion
+ * =====================================================
+ *
+ * Customer-safe projection of the currently active
+ * Wallet top-up promotion.
+ *
+ * Disabled, expired and future campaigns are hidden.
+ * No financial mutation occurs here.
+ */
+router.get(
+  "/topup/promotion",
+  authMiddleware,
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const data =
+        await getCustomerTopupPromotion();
 
       return res.json({
         success: true,
