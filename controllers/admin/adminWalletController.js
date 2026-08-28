@@ -136,16 +136,29 @@ function resolveActorId(
   const actor =
     candidates.find(
       (value) =>
-        typeof value === "string" &&
-        value.trim()
+        (
+          typeof value === "string" &&
+          value.trim()
+        ) ||
+        (
+          typeof value === "number" &&
+          Number.isSafeInteger(value)
+        )
     );
 
-  if (!actor) {
+  if (
+    actor === undefined ||
+    actor === null
+  ) {
     return null;
   }
 
   const normalized =
-    actor.trim();
+    String(actor).trim();
+
+  if (!normalized) {
+    return null;
+  }
 
   if (
     normalized.length >

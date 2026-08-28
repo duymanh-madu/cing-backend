@@ -67,7 +67,7 @@ test(
 
     assert.match(
       route,
-      /requirePermission/
+      /requirePanelPermission/
     );
   }
 );

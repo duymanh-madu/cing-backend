@@ -5,9 +5,9 @@ const router =
   express.Router();
 
 const {
-  requirePermission,
+  requirePanelPermission,
 } = require(
-  "../middlewares/adminAuthMiddleware"
+  "../middlewares/adminPanelPermissionMiddleware"
 );
 
 const {
@@ -20,7 +20,7 @@ const {
 
 router.get(
   "/promotion",
-  requirePermission(
+  requirePanelPermission(
     "wallet.promotion.read"
   ),
   getPromotion
@@ -28,7 +28,7 @@ router.get(
 
 router.put(
   "/promotion",
-  requirePermission(
+  requirePanelPermission(
     "wallet.promotion.update"
   ),
   updatePromotion
@@ -36,7 +36,7 @@ router.put(
 
 router.get(
   "/summary",
-  requirePermission(
+  requirePanelPermission(
     "wallet.reporting.read"
   ),
   getSummary
