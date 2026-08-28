@@ -265,6 +265,11 @@ router.use(
 );
 
 router.use(
+  "/admin/wallet",
+  require("./adminWalletRoutes")
+);
+
+router.use(
   "/admin/payment-failures",
   require("./adminPaymentFailureRoutes")
 );
