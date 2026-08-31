@@ -6,7 +6,7 @@ const supabase =
   );
 
 const READ_RPC_NAME =
-  "cing_artillery_read_result_stream_authorized_v1";
+  "cing_artillery_read_result_stream_authorized_v2";
 
 const HEAD_RPC_NAME =
   "cing_artillery_read_result_stream_head_authorized_v1";

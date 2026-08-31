@@ -131,6 +131,12 @@ const {
   "../domain/cingArtilleryResolutionPersistenceProjectionV1"
 );
 
+const {
+  projectTrajectoryPresentationPersistenceV1,
+} = require(
+  "../domain/cingArtilleryTrajectoryPresentationPersistenceV1"
+);
+
 
 function buildError({
   message,
@@ -965,10 +971,20 @@ function materializeDeterministicShotV1({
         : {}),
     });
 
+  const trajectoryPresentation =
+    projectTrajectoryPresentationPersistenceV1(
+      trajectory
+        .trajectory_presentation
+    );
+
+
   return Object.freeze({
     mutable_binding:
       mutableBinding,
     trajectory,
+
+    trajectory_presentation:
+      trajectoryPresentation,
     projection,
   });
 }
@@ -1063,12 +1079,19 @@ async function processClaimedShotExecutionV1({
 
   const settlement =
     await executionRepository
-      .commitResolutionFencedAtomic({
+      .commitResolutionWithTrajectoryFencedAtomic({
         executionId,
+
         claimToken,
+
         projection:
           computation.projection,
+
+        trajectoryPresentation:
+          computation
+            .trajectory_presentation,
       });
+
 
   if (!settlement) {
     throw buildError({
@@ -1083,6 +1106,10 @@ async function processClaimedShotExecutionV1({
     settlement,
     trajectory:
       computation.trajectory,
+
+    trajectory_presentation:
+      computation
+        .trajectory_presentation,
     projection:
       computation.projection,
   });

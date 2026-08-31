@@ -159,7 +159,7 @@ test(
       "deriveCombatDamageStatBindingV1",
       "materializeCanonicalShotDamageV1",
       "projectResolutionPersistenceV1",
-      "commitResolutionFencedAtomic",
+      "commitResolutionWithTrajectoryFencedAtomic",
     ];
 
     for (

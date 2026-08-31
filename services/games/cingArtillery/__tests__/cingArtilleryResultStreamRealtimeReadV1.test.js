@@ -40,7 +40,7 @@ test(
 
     assert.match(
       source,
-      /cing_artillery_read_result_stream_authorized_v1/u
+      /cing_artillery_read_result_stream_authorized_v2/u
     );
 
     assert.match(

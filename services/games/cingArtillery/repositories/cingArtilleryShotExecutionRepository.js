@@ -18,6 +18,9 @@ const MATERIALIZE_CONTEXT_RPC_NAME =
 const COMMIT_RESOLUTION_RPC_NAME =
   "cing_artillery_commit_resolution_fenced_atomic";
 
+const COMMIT_RESOLUTION_WITH_TRAJECTORY_RPC_NAME =
+  "cing_artillery_commit_resolution_with_trajectory_fenced_atomic_v1";
+
 async function claimAtomic({
   limit,
   leaseMs,
@@ -202,10 +205,103 @@ async function commitResolutionFencedAtomic({
     : data || null;
 }
 
+
+
+async function commitResolutionWithTrajectoryFencedAtomic({
+  executionId,
+  claimToken,
+  projection,
+  trajectoryPresentation,
+}) {
+  const {
+    data,
+    error,
+  } = await supabase
+    .rpc(
+      COMMIT_RESOLUTION_WITH_TRAJECTORY_RPC_NAME,
+      {
+        p_execution_id:
+          executionId,
+
+        p_claim_token:
+          claimToken,
+
+        p_physics_version:
+          projection.physics_version,
+
+        p_outcome:
+          projection.outcome,
+
+        p_impact_exact_version:
+          projection.impact_exact_version,
+
+        p_impact_physics_fixed_scale:
+          projection.impact_physics_fixed_scale,
+
+        p_impact_start_x_scaled:
+          projection.impact_start_x_scaled,
+
+        p_impact_start_y_scaled:
+          projection.impact_start_y_scaled,
+
+        p_impact_delta_x_scaled:
+          projection.impact_delta_x_scaled,
+
+        p_impact_delta_y_scaled:
+          projection.impact_delta_y_scaled,
+
+        p_impact_contact_kind:
+          projection.impact_contact_kind,
+
+        p_impact_contact_numerator:
+          projection.impact_contact_numerator,
+
+        p_impact_contact_denominator:
+          projection.impact_contact_denominator,
+
+        p_impact_contact_a:
+          projection.impact_contact_a,
+
+        p_impact_contact_b:
+          projection.impact_contact_b,
+
+        p_impact_contact_discriminant:
+          projection.impact_contact_discriminant,
+
+        p_impact_projection_version:
+          projection.impact_projection_version,
+
+        p_impact_x:
+          projection.impact_x,
+
+        p_impact_y:
+          projection.impact_y,
+
+        p_target_account_id:
+          projection.target_account_id,
+
+        p_damage:
+          projection.damage,
+
+        p_trajectory_presentation:
+          trajectoryPresentation,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data)
+    ? data[0] || null
+    : data || null;
+}
+
 module.exports = {
   claimAtomic,
   releaseAtomic,
   releaseExpiredAtomic,
   materializeContextAtomic,
   commitResolutionFencedAtomic,
+  commitResolutionWithTrajectoryFencedAtomic,
 };

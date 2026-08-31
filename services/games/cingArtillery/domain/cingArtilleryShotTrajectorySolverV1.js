@@ -120,6 +120,13 @@ const {
     "./cingArtilleryImpactNumericProjectionV1"
   );
 
+const {
+  createTrajectoryPresentationCollectorV1,
+} =
+  require(
+    "./cingArtilleryTrajectoryPresentationV1"
+  );
+
 
 const SHOT_TRAJECTORY_SOLVER_OUTCOME_V1 =
   Object.freeze({
@@ -328,6 +335,19 @@ function solveShotTrajectoryV1({
     });
 
 
+  const presentationCollector =
+    createTrajectoryPresentationCollectorV1({
+      maxStepIndex:
+        horizon.max_step_index,
+
+      physicsFixedScale,
+    });
+
+  presentationCollector.capture(
+    previousSample
+  );
+
+
   let lastSegment =
     null;
 
@@ -411,6 +431,12 @@ function solveShotTrajectoryV1({
 
           numeric_impact:
             null,
+
+          trajectory_presentation:
+            presentationCollector
+              .finalize(
+                currentSample
+              ),
         });
       }
 
@@ -479,9 +505,19 @@ function solveShotTrajectoryV1({
 
         numeric_impact:
           numericImpact,
+
+        trajectory_presentation:
+          presentationCollector
+            .finalize(
+              previousSample
+            ),
       });
     }
 
+
+    presentationCollector.capture(
+      currentSample
+    );
 
     previousSample =
       currentSample;
@@ -522,6 +558,12 @@ function solveShotTrajectoryV1({
 
     numeric_impact:
       null,
+
+    trajectory_presentation:
+      presentationCollector
+        .finalize(
+          previousSample
+        ),
   });
 }
 
