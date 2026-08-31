@@ -13,6 +13,20 @@ function normalizeRuntimeConfig(
       ? rawConfig
       : {};
 
+  const executionWorker =
+    source.execution_worker &&
+    typeof source.execution_worker === "object" &&
+    !Array.isArray(
+      source.execution_worker
+    )
+      ? source.execution_worker
+      : {};
+
+  const executionWorkerVersion =
+    Number(
+      executionWorker.version
+    );
+
   return {
     version:
       Number.isInteger(
@@ -24,6 +38,20 @@ function normalizeRuntimeConfig(
 
     enabled:
       source.enabled === true,
+
+    execution_worker: {
+      version:
+        Number.isInteger(
+          executionWorkerVersion
+        ) &&
+        executionWorkerVersion > 0
+          ? executionWorkerVersion
+          : 1,
+
+      enabled:
+        executionWorkerVersion === 1 &&
+        executionWorker.enabled === true,
+    },
   };
 }
 
@@ -42,6 +70,16 @@ async function isCingArtilleryEnabled() {
     await getCingArtilleryRuntimeConfig();
 
   return config.enabled;
+}
+
+async function isCingArtilleryExecutionWorkerEnabled() {
+  const config =
+    await getCingArtilleryRuntimeConfig();
+
+  return (
+    config.execution_worker.version === 1 &&
+    config.execution_worker.enabled === true
+  );
 }
 
 async function requireCingArtilleryEnabled() {
@@ -70,5 +108,6 @@ module.exports = {
   normalizeRuntimeConfig,
   getCingArtilleryRuntimeConfig,
   isCingArtilleryEnabled,
+  isCingArtilleryExecutionWorkerEnabled,
   requireCingArtilleryEnabled,
 };

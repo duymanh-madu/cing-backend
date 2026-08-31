@@ -211,8 +211,8 @@ function deriveLaunchVectorV1({
 
 
   /*
-   * Horizontal world orientation derives only from immutable
-   * shooter/opponent X positions.
+   * Horizontal world orientation derives from canonical current
+   * shooter/opponent X positions supplied by runtime authority.
    */
   const fireDirection =
     deriveHorizontalFireDirectionV1({

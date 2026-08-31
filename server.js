@@ -779,6 +779,24 @@ async function shutdown(
     isShuttingDown =
       true;
 
+    try {
+      const {
+        stopCingArtilleryShotExecutionProcessorWorker,
+      } = require(
+        "./services/games/cingArtillery/workers/cingArtilleryShotExecutionProcessorWorker"
+      );
+
+      stopCingArtilleryShotExecutionProcessorWorker();
+    } catch (error) {
+      logger.error(
+        "Cing Artillery shot processor stop failed",
+        {
+          message:
+            error.message,
+        }
+      );
+    }
+
     logger.info(
       "Graceful shutdown started",
       {
@@ -1054,9 +1072,33 @@ try {
   );
 
   startCingArtilleryShotExecutionWorker();
-} catch (e) {
+}
+
+
+ catch (e) {
   console.warn(
     "[CING ARTILLERY SHOT EXECUTION] worker start failed:",
+    e.message
+  );
+}
+
+/**
+ * =====================================================
+ * CING ARTILLERY SHOT EXECUTION PROCESSOR WORKER
+ * Canonical DB gate controls pending execution claims.
+ * =====================================================
+ */
+try {
+  const {
+    startCingArtilleryShotExecutionProcessorWorker,
+  } = require(
+    "./services/games/cingArtillery/workers/cingArtilleryShotExecutionProcessorWorker"
+  );
+
+  startCingArtilleryShotExecutionProcessorWorker();
+} catch (e) {
+  console.warn(
+    "[CING ARTILLERY SHOT PROCESSOR] worker start failed:",
     e.message
   );
 }
