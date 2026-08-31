@@ -21,6 +21,13 @@ const {
   "../../services/games/cingArtillery/domain/cingArtilleryRealtimeContracts"
 );
 
+const {
+  readAuthorizedResultStream,
+  readAuthorizedResultStreamHead,
+} = require(
+  "../../services/games/cingArtillery/services/cingArtilleryResultStreamService"
+);
+
 function serializeError(
   error
 ) {
@@ -268,6 +275,110 @@ function registerCingArtilleryRealtimeConnection({
 
           data:
             shotCommand,
+        });
+      } catch (error) {
+        respond(
+          serializeError(
+            error
+          )
+        );
+      }
+    }
+  );
+
+  socket.on(
+    "cing-artillery:match:result-stream-read",
+    async (
+      payload,
+      acknowledgement
+    ) => {
+      const respond =
+        typeof acknowledgement ===
+        "function"
+          ? acknowledgement
+          : () => {};
+
+      try {
+        const identity =
+          await authenticateSocket(
+            socket
+          );
+
+        const authority =
+          await authorizeMatchJoin({
+            userId:
+              identity.userId,
+            payload,
+          });
+
+        const data =
+          await readAuthorizedResultStream({
+            matchId:
+              authority.matchId,
+            matchRuntimeId:
+              authority.runtimeId,
+            accountId:
+              authority.accountId,
+            afterSequence:
+              payload?.after_sequence,
+            limit:
+              payload?.limit,
+          });
+
+        respond({
+          success:
+            true,
+          data,
+        });
+      } catch (error) {
+        respond(
+          serializeError(
+            error
+          )
+        );
+      }
+    }
+  );
+
+  socket.on(
+    "cing-artillery:match:result-stream-head",
+    async (
+      payload,
+      acknowledgement
+    ) => {
+      const respond =
+        typeof acknowledgement ===
+        "function"
+          ? acknowledgement
+          : () => {};
+
+      try {
+        const identity =
+          await authenticateSocket(
+            socket
+          );
+
+        const authority =
+          await authorizeMatchJoin({
+            userId:
+              identity.userId,
+            payload,
+          });
+
+        const data =
+          await readAuthorizedResultStreamHead({
+            matchId:
+              authority.matchId,
+            matchRuntimeId:
+              authority.runtimeId,
+            accountId:
+              authority.accountId,
+          });
+
+        respond({
+          success:
+            true,
+          data,
         });
       } catch (error) {
         respond(
