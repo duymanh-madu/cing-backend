@@ -29,6 +29,11 @@ const combatVitalService =
     "./cingArtilleryCombatVitalService"
   );
 
+const mutableAuthorityService =
+  require(
+    "./cingArtilleryMutableAuthorityService"
+  );
+
 const turnStateService =
   require(
     "./cingArtilleryTurnStateService"
@@ -463,6 +468,51 @@ async function resolveMatchCombatStartAuthority(
       code:
         "CING_ARTILLERY_REALTIME_COMBAT_VITAL_INCONSISTENT",
 
+      statusCode:
+        500,
+    });
+  }
+
+  /*
+   * Mutable terrain and mutable player-world authority are
+   * mandatory durable prerequisites of first-turn activation.
+   *
+   * PostgreSQL owns their atomic initialization through one
+   * SECURITY DEFINER bootstrap boundary. The application does
+   * not call either private initializer independently.
+   *
+   * An ACTIVE turn therefore cannot be exposed unless:
+   *
+   *   immutable combat world
+   *   mutable combat vital state
+   *   mutable combat terrain
+   *   exactly two mutable player world states
+   *
+   * are all canonical and mutually consistent.
+   */
+  const mutableAuthority =
+    await mutableAuthorityService
+      .bootstrapForCombatState(
+        combatState.id
+      );
+
+  if (
+    !mutableAuthority ||
+    mutableAuthority.ready !== true ||
+    mutableAuthority.combat_state_id !==
+      combatState.id ||
+    mutableAuthority.match_runtime_id !==
+      runtimeId ||
+    mutableAuthority.match_id !==
+      authority.matchId ||
+    mutableAuthority.player_world_count !==
+      2
+  ) {
+    throw buildError({
+      message:
+        "Canonical mutable combat authority Cing Artillery không nhất quán",
+      code:
+        "CING_ARTILLERY_REALTIME_MUTABLE_AUTHORITY_INCONSISTENT",
       statusCode:
         500,
     });
