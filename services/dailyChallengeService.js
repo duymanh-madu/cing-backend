@@ -1,7 +1,7 @@
 const supabase = require("../supabase");
 const { realtimeEventBus } = require("./realtime/realtimeEventBus");
 const { broadcastNotification } = require("./notificationService");
-const { addPoints } = require("./loyaltyPointService");
+
 
 function todayVN() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
@@ -73,19 +73,54 @@ async function getTodayChallenge(game_key = "black-pearl-rush") {
     game_key
   );
 
-  // Tao challenge moi cho ngay hom nay
-  const { data: created } = await supabase
+  // DB UNIQUE(challenge_date, game_key) owns period identity.
+  const payload = {
+    challenge_date: today,
+    game_key: cfg.game_key,
+    challenge_type:
+      cfg.challenge_type || "combo",
+    target_value:
+      cfg.target_value || 100,
+    reward_points:
+      cfg.reward_points || 50,
+    label:
+      cfg.label || null,
+  };
+
+  const {
+    data: created,
+    error: createError,
+  } = await supabase
     .from("daily_challenges")
-    .insert({
-      challenge_date: today,
-      game_key:        cfg.game_key,
-      challenge_type:  cfg.challenge_type || "combo",
-      target_value:    cfg.target_value   || 100,
-      reward_points:   cfg.reward_points  || 50,
-      label:           cfg.label          || null,
-    })
+    .insert(payload)
     .select()
     .single();
+
+  if (!createError && created) {
+    return created;
+  }
+
+  if (createError?.code === "23505") {
+    const {
+      data: canonical,
+      error: canonicalError,
+    } = await supabase
+      .from("daily_challenges")
+      .select("*")
+      .eq("challenge_date", today)
+      .eq("game_key", cfg.game_key)
+      .single();
+
+    if (canonicalError) {
+      throw canonicalError;
+    }
+
+    return canonical;
+  }
+
+  if (createError) {
+    throw createError;
+  }
 
   return created;
 }
@@ -203,35 +238,51 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, score
     return { success: false, message: `Cần đạt ${challenge.target_value} ${unitLabel}` };
   }
 
-  // Cap nhat winner
-  const { data: updated, error } = await supabase
-    .from("daily_challenges")
-    .update({
-      winner_user_id: user_id,
-      winner_name: player_name,
-      winner_avatar: avatar,
-      completed: true,
-      completed_at: new Date().toISOString(),
-    })
-    .eq("id", challenge.id)
-    .eq("completed", false) // Optimistic lock - chi 1 user thang
-    .select()
-    .single();
+  /*
+   * PostgreSQL owns exactly-once financial authority:
+   *
+   * winner
+   * + completed
+   * + players.total_points
+   * + point_transactions
+   *
+   * Notification logic below remains unchanged.
+   */
+  const { data: atomicRows, error: atomicError } =
+    await supabase.rpc(
+      "complete_daily_challenge_atomic",
+      {
+        p_challenge_id: challenge.id,
+        p_user_id: String(user_id),
+        p_player_name: player_name || null,
+        p_player_avatar: avatar || null,
+        p_progress: progressValue,
+      }
+    );
 
-  if (error || !updated) return { success: false, message: "Có người vừa nhận thưởng trước bạn!" };
+  if (atomicError) {
+    console.warn(
+      "[CHALLENGE] Atomic reward failed:",
+      atomicError.message
+    );
 
-  // Cong diem tich luy cho winner
-  try {
-    // Cap nhat diem trong players table
-    // Cong diem va sync ve iPOS
-    await addPoints({
-      phone: user_id,
-      user_id,
-      points: challenge.reward_points,
-      reason: "Phần thưởng thử thách ngày",
-    });
-  } catch(e) {
-    console.warn("[CHALLENGE] Points award failed:", e.message);
+    return {
+      success: false,
+      message: "Không thể nhận thưởng thử thách",
+    };
+  }
+
+  const atomicResult =
+    Array.isArray(atomicRows)
+      ? atomicRows[0]
+      : atomicRows;
+
+  if (!atomicResult?.applied) {
+    return {
+      success: false,
+      message: "Thử thách đã có người nhận thưởng",
+      winner: atomicResult?.winner_name || null,
+    };
   }
 
   // Broadcast toan server

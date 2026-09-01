@@ -1032,6 +1032,28 @@ try {
 
 /**
  * =====================================================
+ * DAILY CHALLENGE IPOS SYNC WORKER
+ * Durable retry for daily-challenge loyalty reward.
+ * =====================================================
+ */
+try {
+  const {
+    startDailyChallengeIposSyncWorker,
+  } = require(
+    "./services/rewards/dailyChallengeIposSyncWorker"
+  );
+
+  startDailyChallengeIposSyncWorker();
+} catch (e) {
+  console.warn(
+    "[DAILY CHALLENGE IPOS SYNC] worker start failed:",
+    e.message
+  );
+}
+
+
+/**
+ * =====================================================
  * CING BLOCK PUZZLE CONTINUE IPOS SYNC WORKER
  * Durable retry for gameplay Continue point deductions.
  * =====================================================
