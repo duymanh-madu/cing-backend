@@ -954,6 +954,9 @@ async function findMembershipLogByNote(userId, note, opts = {}) {
       success: true,
       found: !!match,
       data: match || null,
+      scanned_count: list.length,
+      page: Number(page || 1),
+      page_size: Number(page_size || 100),
     };
   } catch (error) {
     return {

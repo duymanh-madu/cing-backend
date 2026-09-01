@@ -1010,6 +1010,28 @@ try {
 
 /**
  * =====================================================
+ * PENDING REWARD IPOS SYNC WORKER
+ * Durable retry for ordinary / leaderboard rewards.
+ * =====================================================
+ */
+try {
+  const {
+    startPendingRewardIposSyncWorker,
+  } = require(
+    "./services/rewards/pendingRewardIposSyncWorker"
+  );
+
+  startPendingRewardIposSyncWorker();
+} catch (e) {
+  console.warn(
+    "[PENDING REWARD IPOS SYNC] worker start failed:",
+    e.message
+  );
+}
+
+
+/**
+ * =====================================================
  * CING BLOCK PUZZLE CONTINUE IPOS SYNC WORKER
  * Durable retry for gameplay Continue point deductions.
  * =====================================================

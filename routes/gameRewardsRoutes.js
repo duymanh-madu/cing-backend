@@ -4,7 +4,6 @@ const supabase = require("../supabase");
 const redis = require("../services/infrastructure/cache/redisClient");
 const { realtimeEventBus } = require("../services/realtime/realtimeEventBus");
 const {
-  addPoints,
   logAnalytics,
 } = require("../services/loyaltyPointService");
 
@@ -88,17 +87,10 @@ router.post("/claim/:rewardId", async (req, res) => {
     const { rewardId } = req.params;
 
     /**
-     * Đọc reward trước để phân luồng:
+     * Read reward for response / analytics metadata.
      *
-     * - Campaign Quốc khánh:
-     *   claim atomic trong PostgreSQL; local points cập nhật ngay;
-     *   sau commit mới release durable iPOS campaign sync.
-     *
-     * - Reward legacy/BXH:
-     *   giữ nguyên contract production hiện hữu qua addPoints(),
-     *   bao gồm iPOS sync hiện tại.
-     *
-     * Không thay đổi semantics của reward production ngoài campaign.
+     * Every pending reward is consumed through the same
+     * PostgreSQL exactly-once local mutation authority.
      */
     const {
       data: reward,
@@ -121,11 +113,21 @@ router.post("/claim/:rewardId", async (req, res) => {
     }
 
     /**
-     * =====================================================
-     * NATIONAL DAY CAMPAIGN REWARD
-     * =====================================================
+     * All pending rewards — campaign and leaderboard — are consumed
+     * through the same PostgreSQL atomic authority.
+     *
+     * claim_pending_reward_atomic() owns:
+     * - pending_rewards row lock
+     * - claimed fence
+     * - players row lock
+     * - local point balance mutation
+     * - point_transactions ledger
+     * - claimed/claimed_at mutation
+     *
+     * Only the request that actually consumes the reward receives
+     * already_claimed=false.
      */
-    if (reward.campaign_claim_id) {
+    {
       const { data, error } = await supabase.rpc(
         "claim_pending_reward_atomic",
         {
@@ -183,7 +185,9 @@ router.post("/claim/:rewardId", async (req, res) => {
               "Nhận quà Quốc khánh 2/9",
             new_total: totalPoints,
             source:
-              "campaign_pending_reward",
+              reward.campaign_claim_id
+                ? "campaign_pending_reward"
+                : "leaderboard_pending_reward",
             pending_reward_id:
               rewardId,
             campaign_claim_id:
@@ -191,6 +195,21 @@ router.post("/claim/:rewardId", async (req, res) => {
           }
         ).catch(() => {});
       }
+
+      /**
+       * iPOS delivery is intentionally outside the HTTP claim path.
+       *
+       * - campaign reward:
+       *   claim_pending_reward_atomic() releases the existing
+       *   campaign durable delivery.
+       *
+       * - ordinary / leaderboard reward:
+       *   the same RPC persists pending_rewards.ipos_sync_status
+       *   = 'pending' in the local claim transaction.
+       *
+       * A durable worker performs preflight/postflight verification
+       * using the immutable pending_reward UUID as its iPOS note.
+       */
 
       await invalidateMembershipCache(
         userId
@@ -211,72 +230,6 @@ router.post("/claim/:rewardId", async (req, res) => {
       });
     }
 
-    /**
-     * =====================================================
-     * LEGACY / LEADERBOARD REWARD
-     *
-     * Giữ nguyên behavior production trước campaign patch:
-     * addPoints() cộng local points + point ledger + iPOS sync
-     * + cache invalidation + realtime.
-     * =====================================================
-     */
-    if (reward.claimed) {
-      return res.json({
-        success: true,
-        already_claimed: true,
-      });
-    }
-
-    const points =
-      Number(
-        reward.points || 0
-      );
-
-    if (points <= 0) {
-      throw new Error(
-        "invalid_pending_reward_points"
-      );
-    }
-
-    const pointResult =
-      await addPoints({
-        user_id:
-          reward.user_id,
-        phone:
-          reward.user_id,
-        points,
-        reason:
-          reward.reason ||
-          "Nhận thưởng bảng xếp hạng",
-      });
-
-    const claimedAt =
-      new Date().toISOString();
-
-    const {
-      error: claimError,
-    } = await supabase
-      .from("pending_rewards")
-      .update({
-        claimed: true,
-        claimed_at: claimedAt,
-      })
-      .eq("id", rewardId)
-      .eq("claimed", false);
-
-    if (claimError) {
-      throw claimError;
-    }
-
-    return res.json({
-      success: true,
-      already_claimed: false,
-      points,
-      total_points:
-        Number(
-          pointResult?.total || 0
-        ),
-    });
   } catch (e) {
     return res.status(500).json({
       success: false,
