@@ -2,7 +2,6 @@ const express  = require("express");
 const router   = express.Router();
 const jwt      = require("jsonwebtoken");
 const supabase = require("../supabase");
-const { addPoints } = require("../services/loyaltyPointService");
 
 const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
 
@@ -38,95 +37,26 @@ router.put("/config", requireAdmin, async (req, res) => {
 });
 
 // POST /admin/leaderboard/distribute-rewards
-// Phát thưởng cho top players của 1 period/game
-router.post("/distribute-rewards", requireAdmin, async (req, res) => {
-  try {
-    const { type, period, game_key } = req.body;
-    // type = "spending" | "game"
-
-    const { data: configRow } = await supabase.from("app_configs")
-      .select("leaderboard_config").eq("id", 1).single();
-    const config = configRow?.leaderboard_config || {};
-
-    let rewards = [];
-    let topPlayers = [];
-
-    if (type === "spending") {
-      const periodConfig = config.spending?.[period];
-      if (!periodConfig?.enabled) return res.status(400).json({ success: false, error: "Period không được bật" });
-      rewards = periodConfig.rewards || [];
-
-      const col = { weekly:"crm_spend_weekly", monthly:"crm_spend_monthly",
-        quarterly:"crm_spend_quarterly", alltime:"crm_spend_alltime" }[period] || "crm_spend_alltime";
-
-      const { data } = await supabase.from("players")
-        .select("user_id, zalo_name").gt(col, 0)
-        .order(col, { ascending: false }).limit(3);
-      topPlayers = data || [];
-    }
-
-    if (type === "game") {
-      const gameConfig = config.games?.[game_key];
-      if (!gameConfig?.enabled) return res.status(400).json({ success: false, error: "Game không được bật" });
-      rewards = gameConfig.rewards || [];
-
-      if (game_key === "chess-wins") {
-        const { data } = await supabase.from("chess_stats")
-          .select("user_id, wins, losses, draws, total_games")
-          .gt("wins", 0)
-          .order("wins", { ascending: false })
-          .order("total_games", { ascending: false })
-          .limit(3);
-        topPlayers = data || [];
-      } else if (game_key === "chess-streak") {
-        const { data } = await supabase.from("chess_stats")
-          .select("user_id, best_streak, current_streak, wins, total_games")
-          .gt("best_streak", 0)
-          .order("best_streak", { ascending: false })
-          .order("wins", { ascending: false })
-          .limit(3);
-        topPlayers = data || [];
-      } else {
-        const { data } = await supabase.from("game_scores")
-          .select("user_id, player_name, score").eq("game_key", game_key)
-          .order("score", { ascending: false }).limit(3);
-        topPlayers = data || [];
-      }
-    }
-
-    // Phát thưởng
-    const results = [];
-    for (let i = 0; i < Math.min(rewards.length, topPlayers.length); i++) {
-      const player = topPlayers[i];
-      const reward = rewards[i];
-      if (!reward?.points || reward.points <= 0) continue;
-
-      await addPoints({
-        user_id: player.user_id,
-        phone:   player.user_id,
-        points:  reward.points,
-        reason:  `Phần thưởng top ${reward.rank} bảng xếp hạng ${type === "game" ? game_key : period}`,
-      });
-
-      // Lưu lịch sử phát thưởng
-      await supabase.from("notifications").insert({
-        user_id: player.user_id,
-        type:    "reward",
-        title:   `🏆 Phần thưởng Top ${reward.rank}!`,
-        message: `Bạn đạt Top ${reward.rank} bảng xếp hạng và nhận được ${reward.points} điểm thưởng!`,
-        data:    { type, period, game_key, rank: reward.rank, points: reward.points },
-        read:    false,
-      });
-
-      results.push({ rank: reward.rank, user_id: player.user_id,
-        name: player.zalo_name || player.player_name, points: reward.points });
-    }
-
-    res.json({ success: true, message: `Đã phát thưởng cho ${results.length} người`, data: results });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+//
+// Legacy direct-mutation endpoint is intentionally disabled.
+//
+// Leaderboard rewards are financial-equivalent loyalty points
+// and must only be issued as pending_rewards by the
+// DB-authoritative period reset RPCs.
+router.post(
+  "/distribute-rewards",
+  requireAdmin,
+  async (_req, res) => {
+    return res.status(409).json({
+      success: false,
+      error:
+        "DIRECT_LEADERBOARD_REWARD_DISTRIBUTION_DISABLED",
+      message:
+        "Leaderboard rewards must be issued through " +
+        "the exactly-once period reset authority.",
+    });
   }
-});
+);
 
 // POST /admin/leaderboard/reset-game-scores
 // Reset bảng xếp hạng game theo tuần
@@ -338,16 +268,30 @@ router.get("/alltime-games", requireAdmin, async (req, res) => {
 // POST /admin/leaderboard/manual-weekly-reset - trigger thủ công
 router.post("/manual-weekly-reset", requireAdmin, async (req, res) => {
   try {
-    const { manualWeeklyReset } = require('../services/leaderboardResetService');
-    // Reset last_weekly_reset để force chạy lại
-    await require('../supabase').from('app_configs')
-      .update({ last_weekly_reset: null }).eq('id', 1);
-    res.json({ success:true, message:"Reset started..." });
-    // Chạy async
-    const io = req.app.get('io');
-    manualWeeklyReset(io).then(r => console.log('[RESET] Manual done:', r));
-  } catch(e) {
-    res.status(500).json({ success:false, error:e.message });
+    const {
+      manualWeeklyReset,
+    } = require(
+      "../services/leaderboardResetService"
+    );
+
+    const io = req.app.get("io");
+
+    const result =
+      await manualWeeklyReset(io);
+
+    return res.json({
+      success: true,
+      message:
+        result?.already_issued
+          ? "Kỳ tuần này đã được phát trước đó — không phát trùng."
+          : "Reset tuần hoàn tất.",
+      result,
+    });
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      error: e.message,
+    });
   }
 });
 
