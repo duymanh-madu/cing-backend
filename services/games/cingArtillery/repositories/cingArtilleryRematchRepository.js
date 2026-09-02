@@ -1,10 +1,9 @@
 "use strict";
 
-const {
-  supabase,
-} = require(
-  "../../../../services/supabase"
-);
+const supabase =
+  require(
+    "../../../../supabase"
+  );
 
 async function requestSameOpponentRematchAtomic({
   sourceMatchId,
