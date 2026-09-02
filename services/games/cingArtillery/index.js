@@ -58,6 +58,11 @@ const matchRuntimeService =
     "./services/cingArtilleryMatchRuntimeService"
   );
 
+const rematchService =
+  require(
+    "./services/cingArtilleryRematchService"
+  );
+
 const combatStateService =
   require(
     "./services/cingArtilleryCombatStateService"
@@ -91,6 +96,7 @@ module.exports = {
   gameplaySessionService,
   matchmakingService,
   matchRuntimeService,
+  rematchService,
   combatStateService,
   turnStateService,
   shotCommandService,

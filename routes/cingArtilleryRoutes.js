@@ -13,6 +13,7 @@ const {
   onboardingService,
   gameplaySessionService,
   matchmakingService,
+  rematchService,
 } = require(
   "../services/games/cingArtillery"
 );
@@ -193,6 +194,43 @@ router.post(
         error,
         "CING_ARTILLERY_MATCHMAKING_FAILED",
         "Không thể ghép trận Cing Piu Piu"
+      );
+    }
+  }
+);
+
+router.post(
+  "/rematch",
+  authMiddleware,
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const data =
+        await rematchService
+          .requestSameOpponentRematch({
+            userId:
+              getAuthenticatedUserId(
+                req
+              ),
+
+            sourceMatchId:
+              req.body?.source_match_id,
+          });
+
+      return res.json({
+        success:
+          true,
+
+        data,
+      });
+    } catch (error) {
+      return sendCingArtilleryError(
+        res,
+        error,
+        "CING_ARTILLERY_REMATCH_FAILED",
+        "Không thể đấu lại Cing Piu Piu"
       );
     }
   }
