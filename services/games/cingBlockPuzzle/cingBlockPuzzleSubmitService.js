@@ -376,42 +376,23 @@ async function submitGameplaySession({
   }
 
   /*
-   * Post-commit leaderboard notification.
+   * The score and durable Top1 effect are committed
+   * atomically by PostgreSQL before this point.
    *
-   * The PostgreSQL authority has already durably
-   * committed the verified score at this point.
-   * Top-1 detection must therefore run only after
-   * the authority response has passed every identity
-   * and replay consistency assertion above.
-   *
-   * Do NOT suppress this on an idempotent retry:
-   * a previous request may have committed successfully
-   * and then lost the process before this post-commit
-   * side effect ran. The shared top1_cache provides the
-   * duplicate-notification fence and makes retry safe.
-   *
-   * Notification failure must never roll back or turn a
-   * successfully committed gameplay submission into an
-   * HTTP failure.
+   * Gameplay response must never wait for leaderboard
+   * scanning or notification delivery. Wake is only a
+   * latency optimization; the periodic durable worker
+   * remains the recovery authority if this process dies.
    */
   try {
     const {
-      checkAndNotifyTop1Changes,
+      wakeCingBlockPuzzleSubmitTop1Worker,
     } = require(
-      "../../leaderboardResetService"
+      "./workers/cingBlockPuzzleSubmitTop1Worker"
     );
 
-    await checkAndNotifyTop1Changes(
-      global._ioInstance ||
-      global.io
-    );
-  } catch (error) {
-    console.warn(
-      "[BLOCK PUZZLE TOP1]",
-      error?.message ||
-      error
-    );
-  }
+    wakeCingBlockPuzzleSubmitTop1Worker();
+  } catch {}
 
   return persisted;
 }

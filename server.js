@@ -1076,6 +1076,28 @@ try {
 
 /**
  * =====================================================
+ * CING BLOCK PUZZLE SUBMIT TOP1 WORKER
+ * Durable post-commit leaderboard notification.
+ * =====================================================
+ */
+try {
+  const {
+    startCingBlockPuzzleSubmitTop1Worker,
+  } = require(
+    "./services/games/cingBlockPuzzle/workers/cingBlockPuzzleSubmitTop1Worker"
+  );
+
+  startCingBlockPuzzleSubmitTop1Worker();
+} catch (e) {
+  console.warn(
+    "[BLOCK PUZZLE SUBMIT TOP1] worker start failed:",
+    e.message
+  );
+}
+
+
+/**
+ * =====================================================
  * TRANSACTION INTEGRITY WORKER
  * Detect paid orders missing CRM/iPOS sync and auto-recover.
  * =====================================================

@@ -10,7 +10,7 @@ const fs =
 const path =
   require("node:path");
 
-const source =
+const submitSource =
   fs.readFileSync(
     path.join(
       process.cwd(),
@@ -19,89 +19,108 @@ const source =
     "utf8"
   );
 
+const workerSource =
+  fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "services/games/cingBlockPuzzle/workers/cingBlockPuzzleSubmitTop1Worker.js"
+    ),
+    "utf8"
+  );
+
 test(
-  "Top1 check runs only after authoritative score submission",
+  "Top1 delivery is post-authority and off gameplay critical path",
   () => {
     const rpc =
-      source.indexOf(
+      submitSource.indexOf(
         "await submitSessionAtomic"
       );
 
-    const normalize =
-      source.indexOf(
-        "normalizeSubmitRpcResult",
-        rpc
-      );
-
     const mismatch =
-      source.indexOf(
+      submitSource.indexOf(
         "BLOCK_PUZZLE_SUBMIT_AUTHORITY_MISMATCH"
       );
 
-    const top1 =
-      source.indexOf(
-        "checkAndNotifyTop1Changes"
+    const wake =
+      submitSource.indexOf(
+        "wakeCingBlockPuzzleSubmitTop1Worker"
       );
 
-    assert.ok(rpc >= 0);
-    assert.ok(normalize > rpc);
-    assert.ok(mismatch > normalize);
-    assert.ok(top1 > mismatch);
-  }
-);
-
-test(
-  "Block Puzzle reuses canonical shared Top1 notification service",
-  () => {
-    assert.match(
-      source,
-      /require\(\s*["']\.\.\/\.\.\/leaderboardResetService["']\s*\)/
+    assert.ok(
+      rpc >= 0
     );
 
-    assert.match(
-      source,
-      /await checkAndNotifyTop1Changes\([\s\S]*global\._ioInstance[\s\S]*global\.io/
+    assert.ok(
+      mismatch > rpc
     );
-  }
-);
 
-test(
-  "idempotent submit retry is allowed to recover lost post-commit notification",
-  () => {
+    assert.ok(
+      wake > mismatch
+    );
+
     assert.doesNotMatch(
-      source,
-      /if\s*\(\s*!?\s*persisted\.idempotent\s*\)[\s\S]{0,300}checkAndNotifyTop1Changes/
-    );
-
-    assert.match(
-      source,
-      /top1_cache provides the[\s\S]*duplicate-notification fence/i
+      submitSource,
+      /await\s+checkAndNotifyTop1Changes/
     );
   }
 );
 
 test(
-  "Top1 side effect failure cannot invalidate committed gameplay submit",
+  "Block Puzzle worker reuses canonical shared Top1 notification service",
   () => {
-    const top1 =
-      source.indexOf(
-        "checkAndNotifyTop1Changes"
-      );
+    assert.match(
+      workerSource,
+      /require\(\s*["']\.\.\/\.\.\/\.\.\/leaderboardResetService["']\s*\)/
+    );
 
-    const catchIndex =
-      source.indexOf(
-        "} catch (error) {",
-        top1
+    assert.match(
+      workerSource,
+      /await checkAndNotifyTop1Changes/
+    );
+  }
+);
+
+test(
+  "idempotent submit can safely wake the same durable effect",
+  () => {
+    assert.match(
+      submitSource,
+      /wakeCingBlockPuzzleSubmitTop1Worker/
+    );
+  }
+);
+
+test(
+  "Top1 side effect cannot invalidate committed gameplay submit",
+  () => {
+    const wake =
+      submitSource.indexOf(
+        "wakeCingBlockPuzzleSubmitTop1Worker"
       );
 
     const returned =
-      source.indexOf(
+      submitSource.indexOf(
         "return persisted;",
-        top1
+        wake
       );
 
-    assert.ok(top1 >= 0);
-    assert.ok(catchIndex > top1);
-    assert.ok(returned > catchIndex);
+    assert.ok(
+      wake >= 0
+    );
+
+    assert.ok(
+      returned > wake
+    );
+
+    assert.match(
+      submitSource.slice(
+        Math.max(
+          0,
+          wake - 300
+        ),
+        returned
+      ),
+      /try[\s\S]*catch/
+    );
   }
 );

@@ -449,7 +449,12 @@ function getLastMonday() {
 /**
  * Check và notify khi có top 1 mới ở bất kỳ BXH nào
  */
-async function checkAndNotifyTop1Changes(io) {
+async function checkAndNotifyTop1Changes(
+  io,
+  {
+    throwOnError = false,
+  } = {}
+) {
   try {
     const { data: cfg } = await supabase.from('app_configs')
       .select('leaderboard_config, alltime_games_config, top1_cache')
@@ -747,7 +752,16 @@ async function checkAndNotifyTop1Changes(io) {
     } else {
       console.warn('[TOP1] No broadcast succeeded - cache not updated');
     }
-  } catch(e) { console.warn('[TOP1] Error:', e.message); }
+  } catch(e) {
+    console.warn(
+      '[TOP1] Error:',
+      e.message
+    );
+
+    if (throwOnError) {
+      throw e;
+    }
+  }
 }
 
 
