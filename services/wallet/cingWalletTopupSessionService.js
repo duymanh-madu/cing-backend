@@ -13,6 +13,12 @@ const {
   "../payment/paymentOrchestratorService"
 );
 
+const {
+  assertWalletMomoTopupEnabled,
+} = require(
+  "../payment/walletMomoTopupRuntimeGate"
+);
+
 
 /*
  * =====================================================
@@ -203,6 +209,12 @@ async function createWalletTopupSession({
   customer,
   amount,
 }) {
+  /*
+   * Deployment entitlement is checked before identity,
+   * DB lookup, transaction creation or provider call.
+   */
+  assertWalletMomoTopupEnabled();
+
   const userId =
     resolveWalletUserId(
       customer

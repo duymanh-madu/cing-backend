@@ -151,6 +151,7 @@ router.post(
 
 router.get(
   "/recover/:transactionCode",
+  authMiddleware,
   async (
     req,
     res
@@ -166,6 +167,9 @@ router.get(
             req.params
               .transactionCode,
 
+          customer:
+            req.customer,
+
         });
 
       return res.json({
@@ -179,14 +183,24 @@ router.get(
 
     } catch (error) {
 
-      return res.status(500).json({
+      return res
+        .status(
+          Number(
+            error?.statusCode
+          ) || 500
+        )
+        .json({
 
-        success: false,
+          success: false,
 
-        error:
-          error.message,
+          code:
+            error?.code ||
+            "PAYMENT_RECOVERY_FAILED",
 
-      });
+          error:
+            error.message,
+
+        });
 
     }
 
@@ -201,6 +215,7 @@ router.get(
 
 router.post(
   "/reconcile/:transactionCode",
+  authMiddleware,
   async (
     req,
     res
@@ -216,6 +231,9 @@ router.post(
             req.params
               .transactionCode,
 
+          customer:
+            req.customer,
+
         });
 
       return res.json({
@@ -229,14 +247,24 @@ router.post(
 
     } catch (error) {
 
-      return res.status(500).json({
+      return res
+        .status(
+          Number(
+            error?.statusCode
+          ) || 500
+        )
+        .json({
 
-        success: false,
+          success: false,
 
-        error:
-          error.message,
+          code:
+            error?.code ||
+            "PAYMENT_RECONCILIATION_FAILED",
 
-      });
+          error:
+            error.message,
+
+        });
 
     }
 

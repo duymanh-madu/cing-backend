@@ -1098,6 +1098,29 @@ try {
 
 /**
  * =====================================================
+ * CING WALLET TOP-UP RECONCILIATION WORKER
+ * Durable provider-query recovery for missed MoMo IPN,
+ * partial settlement and process/network failure.
+ * =====================================================
+ */
+try {
+  const {
+    startWalletTopupReconciliationWorker,
+  } = require(
+    "./services/payment/workers/walletTopupReconciliationWorker"
+  );
+
+  startWalletTopupReconciliationWorker();
+} catch (e) {
+  console.warn(
+    "[WALLET TOPUP RECONCILIATION] worker start failed:",
+    e.message
+  );
+}
+
+
+/**
+ * =====================================================
  * TRANSACTION INTEGRITY WORKER
  * Detect paid orders missing CRM/iPOS sync and auto-recover.
  * =====================================================

@@ -1,31 +1,23 @@
 const {
-  findTransactionByCode,
+  findOwnedPaymentByCode,
 } = require(
-  "./paymentTransactionService"
+  "./paymentCustomerOwnershipService"
 );
 
+
 async function recoverPayment({
-
   transaction_code,
-
+  customer,
 }) {
-
   const payment =
+    await findOwnedPaymentByCode({
+      transactionCode:
+        transaction_code,
 
-    await findTransactionByCode(
-      transaction_code
-    );
-
-  if (!payment) {
-
-    throw new Error(
-      "Payment not found"
-    );
-
-  }
+      customer,
+    });
 
   return {
-
     transaction_code:
       payment.transaction_code,
 
@@ -40,13 +32,10 @@ async function recoverPayment({
 
     amount:
       payment.amount,
-
   };
-
 }
 
+
 module.exports = {
-
   recoverPayment,
-
 };
