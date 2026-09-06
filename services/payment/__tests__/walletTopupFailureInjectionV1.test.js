@@ -24,6 +24,9 @@ function pendingJob(
     payment_status:
       "pending",
 
+    payment_provider:
+      "momo",
+
     amount:
       100000,
 
@@ -549,7 +552,7 @@ test(
     assert.deepEqual(
       calls,
       [
-        "cing_payment_terminal_fail_wallet_topup_reconciliation_v1",
+        "cing_payment_terminal_fail_wallet_topup_reconciliation_v2",
       ]
     );
   }

@@ -8,9 +8,9 @@ const {
 );
 
 const {
-  assertWalletMomoTopupEnabled,
+  assertWalletTopupProviderEnabled,
 } = require(
-  "./walletMomoTopupRuntimeGate"
+  "./walletTopupRuntimeGate"
 );
 
 
@@ -94,7 +94,7 @@ async function ensureWalletTopupReconciliation(
     data,
     error,
   } = await supabase.rpc(
-    "cing_payment_ensure_wallet_topup_reconciliation_v1",
+    "cing_payment_ensure_wallet_topup_reconciliation_v2",
     {
       p_payment_transaction_id:
         paymentTransactionId,
@@ -137,19 +137,26 @@ async function reconcilePayment({
    * Do not silently route commerce/order payments into
    * Wallet reconciliation authority.
    */
-  if (
-    payment.payment_purpose !==
-      "wallet_topup" ||
+  const provider =
     String(
       payment.payment_provider || ""
     )
       .trim()
-      .toLowerCase() !==
-      "momo"
+      .toLowerCase();
+
+  if (
+    payment.payment_purpose !==
+      "wallet_topup" ||
+    ![
+      "momo",
+      "zalo_checkout",
+    ].includes(
+      provider
+    )
   ) {
     throw reconciliationError({
       message:
-        "Giao dịch này không thuộc luồng đối soát Cing Wallet MoMo",
+        "Giao dịch này không thuộc luồng đối soát Cing Wallet",
       code:
         "PAYMENT_RECONCILIATION_UNSUPPORTED",
       statusCode:
@@ -165,7 +172,7 @@ async function reconcilePayment({
    * Disabled means this manual adapter cannot create a
    * path around the production/legal provider gate.
    */
-  assertWalletMomoTopupEnabled();
+  assertWalletTopupProviderEnabled(provider);
 
   const job =
     await ensureWalletTopupReconciliation(

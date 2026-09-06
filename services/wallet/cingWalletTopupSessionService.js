@@ -14,9 +14,9 @@ const {
 );
 
 const {
-  assertWalletMomoTopupEnabled,
+  assertWalletZaloCheckoutTopupEnabled,
 } = require(
-  "../payment/walletMomoTopupRuntimeGate"
+  "../payment/walletTopupRuntimeGate"
 );
 
 
@@ -213,7 +213,7 @@ async function createWalletTopupSession({
    * Deployment entitlement is checked before identity,
    * DB lookup, transaction creation or provider call.
    */
-  assertWalletMomoTopupEnabled();
+  assertWalletZaloCheckoutTopupEnabled();
 
   const userId =
     resolveWalletUserId(
@@ -244,10 +244,10 @@ async function createWalletTopupSession({
         userId,
 
       payment_provider:
-        "momo",
+        "zalo_checkout",
 
       payment_method:
-        "momo",
+        "zalo_checkout",
 
       payment_purpose:
         "wallet_topup",

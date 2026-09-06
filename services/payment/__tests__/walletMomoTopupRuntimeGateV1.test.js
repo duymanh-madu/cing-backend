@@ -140,7 +140,7 @@ test(
 
     const gate =
       section.indexOf(
-        "assertWalletMomoTopupEnabled();"
+        "assertWalletZaloCheckoutTopupEnabled();"
       );
 
     const identity =
@@ -196,12 +196,12 @@ test(
 
     const gate =
       runSection.indexOf(
-        "!isWalletMomoTopupEnabled()"
+        "getWalletTopupProviderEntitlements()"
       );
 
     const claim =
       runSection.indexOf(
-        "cing_payment_claim_wallet_topup_reconciliation_v1"
+        "cing_payment_claim_wallet_topup_reconciliation_v2"
       );
 
     assert.ok(
@@ -218,7 +218,17 @@ test(
 
     assert.match(
       runSection,
-      /wallet_momo_topup_disabled/
+      /p_allow_momo:[\s\S]*entitlements\.momo/
+    );
+
+    assert.match(
+      runSection,
+      /p_allow_zalo_checkout:[\s\S]*entitlements\.zalo_checkout/
+    );
+
+    assert.match(
+      runSection,
+      /wallet_topup_providers_disabled/
     );
   }
 );

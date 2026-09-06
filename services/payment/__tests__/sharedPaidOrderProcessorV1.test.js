@@ -119,11 +119,92 @@ test(
 );
 
 test(
-  "Zalo entry delegates directly to normalized processor",
+  "Zalo Wallet is fenced from commerce while Zalo orders retain normalized processing",
   () => {
+    const zaloStart =
+      route.indexOf(
+        "async function processZaloCheckoutAsPaid"
+      );
+
+    const zaloEnd =
+      route.indexOf(
+        'router.post("/zalo/callback"',
+        zaloStart
+      );
+
+    assert.ok(
+      zaloStart >= 0 &&
+      zaloEnd > zaloStart
+    );
+
+    const zaloSection =
+      route.slice(
+        zaloStart,
+        zaloEnd
+      );
+
+    const walletBranch =
+      zaloSection.indexOf(
+        'payment.payment_purpose ===\n      "wallet_topup"'
+      );
+
+    const orderGuard =
+      zaloSection.indexOf(
+        'payment.payment_purpose !==\n      "order"',
+        walletBranch
+      );
+
+    const normalizedCall =
+      zaloSection.indexOf(
+        "await processNormalizedPaymentResult({",
+        orderGuard
+      );
+
+    assert.ok(
+      walletBranch >= 0,
+      "Wallet top-up branch missing"
+    );
+
+    assert.ok(
+      orderGuard > walletBranch,
+      "order purpose guard must follow Wallet branch"
+    );
+
+    assert.ok(
+      normalizedCall > orderGuard,
+      "normalized order processor must run only after order guard"
+    );
+
+    const walletSection =
+      zaloSection.slice(
+        walletBranch,
+        orderGuard
+      );
+
+    assert.doesNotMatch(
+      walletSection,
+      /processNormalizedPaymentResult\(/
+    );
+
+    assert.doesNotMatch(
+      walletSection,
+      /processPaidOrderSettlement\(/
+    );
+
+    const orderSection =
+      zaloSection.slice(
+        orderGuard,
+        normalizedCall + 600
+      );
+
     assert.match(
-      route,
-      /processZaloCheckoutAsPaid[\s\S]*await processNormalizedPaymentResult\(\{[\s\S]*resultCode:[\s\S]*resultCode === 1[\s\S]*\? 0[\s\S]*: -1/
+      orderSection,
+      /await processNormalizedPaymentResult\(\{/
+    );
+
+    assert.match(
+      orderSection,
+      /resultCode:\s*0/
     );
 
     assert.doesNotMatch(

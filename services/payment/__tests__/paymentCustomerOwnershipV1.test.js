@@ -213,7 +213,7 @@ test(
 
     const entitlement =
       reconciliation.indexOf(
-        "assertWalletMomoTopupEnabled();"
+        "assertWalletTopupProviderEnabled(provider);"
       );
 
     const enrollment =

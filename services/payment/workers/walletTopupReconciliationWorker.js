@@ -8,9 +8,16 @@ const {
 );
 
 const {
-  isWalletMomoTopupEnabled,
+  queryZaloCheckoutTransaction,
 } = require(
-  "../walletMomoTopupRuntimeGate"
+  "../zaloCheckoutTransactionQueryService"
+);
+
+const {
+  getWalletTopupProviderEntitlements,
+  normalizeWalletTopupProvider,
+} = require(
+  "../walletTopupRuntimeGate"
 );
 
 
@@ -204,7 +211,7 @@ async function terminalFailJob({
   rpcCall = rpc,
 }) {
   await rpcCall(
-    "cing_payment_terminal_fail_wallet_topup_reconciliation_v1",
+    "cing_payment_terminal_fail_wallet_topup_reconciliation_v2",
     {
       p_payment_transaction_id:
         job.payment_transaction_id,
@@ -220,7 +227,7 @@ async function terminalFailJob({
 
       p_error:
         queryResult.message ||
-        `MoMo terminal resultCode ${queryResult.resultCode}`,
+        `Provider terminal resultCode ${queryResult.resultCode}`,
     }
   );
 }
@@ -230,7 +237,7 @@ async function processClaimedJob(
   job,
   {
     rpcCall = rpc,
-    queryTransaction = queryMomoTransaction,
+    queryTransaction = null,
   } = {}
 ) {
   /*
@@ -264,10 +271,34 @@ async function processClaimedJob(
   /*
    * Recovery path #2:
    * no durable settlement proof exists.
-   * Query MoMo authority directly.
+   *
+   * Dispatch only to the provider stored on the canonical
+   * payment row returned by PostgreSQL claim authority.
    */
+  const provider =
+    normalizeWalletTopupProvider(
+      job.payment_provider
+    );
+
+  const providerQuery =
+    queryTransaction ||
+    (
+      provider === "momo"
+        ? queryMomoTransaction
+        : provider ===
+            "zalo_checkout"
+          ? queryZaloCheckoutTransaction
+          : null
+    );
+
+  if (!providerQuery) {
+    throw new Error(
+      "WALLET_TOPUP_RECONCILIATION_PROVIDER_UNSUPPORTED"
+    );
+  }
+
   const queryResult =
-    await queryTransaction({
+    await providerQuery({
       transactionCode:
         job.transaction_code,
 
@@ -281,8 +312,22 @@ async function processClaimedJob(
     queryResult.classification ===
     "success"
   ) {
+    const acceptSuccessRpc =
+      provider === "momo"
+        ? "cing_payment_accept_momo_query_success_v1"
+        : provider ===
+            "zalo_checkout"
+          ? "cing_payment_accept_zalo_checkout_query_success_v2"
+          : null;
+
+    if (!acceptSuccessRpc) {
+      throw new Error(
+        "WALLET_TOPUP_RECONCILIATION_PROVIDER_UNSUPPORTED"
+      );
+    }
+
     await rpcCall(
-      "cing_payment_accept_momo_query_success_v1",
+      acceptSuccessRpc,
       {
         p_payment_transaction_id:
           job.payment_transaction_id,
@@ -340,7 +385,7 @@ async function processClaimedJob(
       queryResult.resultCode,
     error:
       queryResult.message ||
-      `MoMo pending resultCode ${queryResult.resultCode}`,
+      `Provider pending resultCode ${queryResult.resultCode}`,
     rpcCall,
   });
 
@@ -361,14 +406,18 @@ async function runWalletTopupReconciliationOnce() {
    * - no provider query
    * - no Wallet mutation
    */
+  const entitlements =
+    getWalletTopupProviderEntitlements();
+
   if (
-    !isWalletMomoTopupEnabled()
+    !entitlements.momo &&
+    !entitlements.zalo_checkout
   ) {
     return {
       skipped:
         true,
       reason:
-        "wallet_momo_topup_disabled",
+        "wallet_topup_providers_disabled",
     };
   }
 
@@ -404,7 +453,7 @@ async function runWalletTopupReconciliationOnce() {
 
     const claimed =
       await rpc(
-        "cing_payment_claim_wallet_topup_reconciliation_v1",
+        "cing_payment_claim_wallet_topup_reconciliation_v2",
         {
           p_batch_size:
             batchSize,
@@ -414,6 +463,12 @@ async function runWalletTopupReconciliationOnce() {
 
           p_grace_seconds:
             graceSeconds,
+
+          p_allow_momo:
+            entitlements.momo,
+
+          p_allow_zalo_checkout:
+            entitlements.zalo_checkout,
         }
       );
 

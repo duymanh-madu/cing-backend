@@ -470,90 +470,467 @@ function parseZaloCheckoutExtraData(extradata) {
 
 async function processZaloCheckoutAsPaid(req, res) {
   try {
-    const body = req.body || {};
-    const data = body.data || body;
-    const extraData = parseZaloCheckoutExtraData(data.extradata || body.extradata);
+    const body =
+      req.body || {};
 
-    // Zalo/MoMo orderId is provider order id.
-    // Internal transaction_code is stored inside extradata and must be used for payment_transactions lookup.
-    const orderId =
+    const data =
+      body.data || body;
+
+    /*
+     * Zalo Checkout callback is financial authority.
+     *
+     * MAC is mandatory. An unsigned request must never be
+     * allowed to mutate payment or Wallet state.
+     */
+    if (
+      typeof body.mac !== "string" ||
+      !body.mac.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "ZALO_CHECKOUT_CALLBACK_MAC_REQUIRED",
+      });
+    }
+
+    if (
+      !verifyZaloCheckoutMac(
+        data,
+        body.mac.trim()
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "INVALID_ZALO_CHECKOUT_CALLBACK_MAC",
+      });
+    }
+
+    const extraData =
+      parseZaloCheckoutExtraData(
+        data.extradata ||
+        body.extradata
+      );
+
+    /*
+     * Zalo provider orderId and Cing transaction_code are
+     * separate identities.
+     *
+     * transaction_code embedded by our backend in extradata
+     * is authoritative for payment_transactions lookup.
+     */
+    const transactionCode =
       extraData.transaction_code ||
       extraData.transactionCode ||
       data.transaction_code ||
       data.transactionCode ||
       data.orderId;
 
-    const providerOrderId = data.orderId || body.orderId;
-    const resultCode = Number(data.resultCode);
-    const transId = data.transId || data.transactionId || providerOrderId || orderId;
-    const amount = Number(data.amount || 0);
-    const message = data.message || body.message || data.msg || "Zalo Checkout result";
+    const providerOrderId =
+      data.orderId ||
+      body.orderId ||
+      null;
 
-    if (!orderId) {
+    const resultCode =
+      Number(
+        data.resultCode
+      );
+
+    const providerTransactionId =
+      data.transId ||
+      data.transactionId ||
+      providerOrderId ||
+      transactionCode;
+
+    const amount =
+      Number(
+        data.amount
+      );
+
+    const message =
+      data.message ||
+      body.message ||
+      data.msg ||
+      "Zalo Checkout result";
+
+    if (!transactionCode) {
       return res.status(400).json({
         success: false,
-        message: "Missing orderId",
+        error:
+          "ZALO_CHECKOUT_TRANSACTION_CODE_REQUIRED",
       });
     }
 
-    console.log("[ZALO CHECKOUT] normalized callback", {
-      internalOrderId: orderId,
-      providerOrderId,
-      transId,
-      amount,
-      resultCode,
-      paymentChannel: body.paymentChannel || data.paymentChannel || data.method,
-      hasExtraData: !!data.extradata,
-    });
-
-    if (body.mac && !verifyZaloCheckoutMac(data, body.mac)) {
+    if (
+      !Number.isSafeInteger(amount) ||
+      amount <= 0
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid Zalo Checkout callback MAC",
+        error:
+          "ZALO_CHECKOUT_AMOUNT_INVALID",
       });
     }
 
-    const { data: payment } = await supabase
-      .from("payment_transactions")
-      .select("amount")
-      .eq("transaction_code", orderId)
+    const {
+      data: payment,
+      error: paymentLookupError,
+    } = await supabase
+      .from(
+        "payment_transactions"
+      )
+      .select(
+        [
+          "id",
+          "transaction_code",
+          "payment_provider",
+          "payment_method",
+          "payment_purpose",
+          "payment_status",
+          "amount",
+          "provider_transaction_id",
+          "settlement_verified_at",
+          "settlement_reference",
+          "settlement_consumed_at",
+          "order_created",
+        ].join(",")
+      )
+      .eq(
+        "transaction_code",
+        transactionCode
+      )
       .maybeSingle();
+
+    if (paymentLookupError) {
+      console.error(
+        "[ZALO CHECKOUT] payment lookup failed:",
+        paymentLookupError.message
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "PAYMENT_LOOKUP_FAILED",
+      });
+    }
 
     if (!payment) {
       return res.status(404).json({
         success: false,
-        message: "Payment transaction not found",
+        error:
+          "PAYMENT_NOT_FOUND",
       });
     }
 
-    if (Number(payment.amount) !== amount) {
+    if (
+      String(
+        payment.payment_provider || ""
+      )
+        .trim()
+        .toLowerCase() !==
+      "zalo_checkout"
+    ) {
+      return res.status(409).json({
+        success: false,
+        error:
+          "PAYMENT_PROVIDER_MISMATCH",
+      });
+    }
+
+    if (
+      Number(
+        payment.amount
+      ) !== amount
+    ) {
+      return res.status(409).json({
+        success: false,
+        error:
+          "PAYMENT_AMOUNT_MISMATCH",
+      });
+    }
+
+    /*
+     * Zalo Checkout callback contract:
+     * resultCode = 1 means payment success.
+     *
+     * Any non-success result is authentic because the MAC
+     * has already been verified above.
+     */
+    if (resultCode !== 1) {
+      /*
+       * Never allow a stale failure callback to downgrade
+       * already durable successful settlement.
+       */
+      if (
+        payment.payment_status ===
+          "paid" ||
+        payment.settlement_verified_at ||
+        payment.settlement_consumed_at
+      ) {
+        return res.status(409).json({
+          success: false,
+          error:
+            "PAYMENT_SUCCESS_ALREADY_DURABLE",
+        });
+      }
+
+      const {
+        error: failurePersistenceError,
+      } = await supabase
+        .from(
+          "payment_transactions"
+        )
+        .update({
+          payment_status:
+            "failed",
+
+          provider_transaction_id:
+            providerTransactionId
+              ? String(
+                  providerTransactionId
+                )
+              : payment
+                  .provider_transaction_id,
+
+          callback_received:
+            true,
+
+          webhook_verified:
+            true,
+
+          failure_reason:
+            String(
+              message ||
+              `Zalo Checkout resultCode ${resultCode}`
+            ),
+        })
+        .eq(
+          "id",
+          payment.id
+        );
+
+      if (
+        failurePersistenceError
+      ) {
+        console.error(
+          "[ZALO CHECKOUT] failed result persistence error:",
+          failurePersistenceError.message
+        );
+
+        return res.status(500).json({
+          success: false,
+          error:
+            "PAYMENT_FAILED_RESULT_PERSISTENCE_FAILED",
+        });
+      }
+
+      return res.json({
+        returnCode: 1,
+        returnMessage:
+          "success",
+      });
+    }
+
+    if (
+      !providerTransactionId
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Amount mismatch",
+        error:
+          "ZALO_CHECKOUT_PROVIDER_TRANSACTION_REQUIRED",
       });
     }
 
+    /*
+     * Once settlement proof exists, the provider settlement
+     * identity is immutable.
+     */
+    if (
+      payment.settlement_verified_at &&
+      String(
+        payment.settlement_reference ||
+        ""
+      ) !==
+        String(
+          providerTransactionId
+        )
+    ) {
+      return res.status(409).json({
+        success: false,
+        error:
+          "PROVIDER_TRANSACTION_MISMATCH",
+      });
+    }
+
+    /*
+     * =====================================================
+     * WALLET TOP-UP
+     * =====================================================
+     *
+     * Wallet top-up is NOT commerce.
+     *
+     * It must never enter processPaidOrderSettlement(),
+     * iPOS order creation, CRM spend, loyalty, game plays,
+     * leaderboard, or commerce notifications.
+     *
+     * Provider proof is made durable first. PostgreSQL then
+     * derives canonical user + amount exclusively from the
+     * locked payment row.
+     */
+    if (
+      payment.payment_purpose ===
+      "wallet_topup"
+    ) {
+      const now =
+        new Date().toISOString();
+
+      const {
+        error: proofPersistenceError,
+      } = await supabase
+        .from(
+          "payment_transactions"
+        )
+        .update({
+          payment_status:
+            "paid",
+
+          provider_transaction_id:
+            String(
+              providerTransactionId
+            ),
+
+          callback_received:
+            true,
+
+          webhook_verified:
+            true,
+
+          paid_at:
+            now,
+
+          settlement_verified_at:
+            now,
+
+          settlement_verification_method:
+            "zalo_checkout_callback_mac_v2",
+
+          settlement_reference:
+            String(
+              providerTransactionId
+            ),
+
+          failure_reason:
+            null,
+        })
+        .eq(
+          "id",
+          payment.id
+        );
+
+      if (
+        proofPersistenceError
+      ) {
+        console.error(
+          "[ZALO CHECKOUT] Wallet provider proof persistence failed:",
+          proofPersistenceError.message
+        );
+
+        return res.status(500).json({
+          success: false,
+          error:
+            "SETTLEMENT_PROOF_PERSISTENCE_FAILED",
+        });
+      }
+
+      const {
+        error: walletSettlementError,
+      } = await supabase.rpc(
+        "cing_wallet_settle_verified_topup_atomic",
+        {
+          p_payment_transaction_id:
+            payment.id,
+        }
+      );
+
+      if (
+        walletSettlementError
+      ) {
+        /*
+         * Do not ACK settlement success.
+         *
+         * Durable provider proof already exists and Task 2
+         * reconciliation V2 will recover the Wallet mutation.
+         */
+        console.error(
+          "[ZALO CHECKOUT] Wallet settlement failed:",
+          walletSettlementError.message
+        );
+
+        return res.status(500).json({
+          success: false,
+          error:
+            "WALLET_TOPUP_SETTLEMENT_FAILED",
+        });
+      }
+
+      return res.json({
+        returnCode: 1,
+        returnMessage:
+          "success",
+      });
+    }
+
+    /*
+     * Everything other than Wallet top-up must be an actual
+     * commerce payment.
+     */
+    if (
+      payment.payment_purpose !==
+      "order"
+    ) {
+      return res.status(409).json({
+        success: false,
+        error:
+          "PAYMENT_PURPOSE_INVALID",
+      });
+    }
+
+    /*
+     * Preserve the existing commerce settlement pipeline.
+     * No Wallet-specific code runs for order payments.
+     */
     await processNormalizedPaymentResult({
       req,
+
       resultCode:
-        resultCode === 1
-          ? 0
-          : -1,
-      orderId,
-      transId,
+        0,
+
+      orderId:
+        transactionCode,
+
+      transId:
+        providerTransactionId,
+
       amount,
+
       message,
     });
 
     return res.json({
       returnCode: 1,
-      returnMessage: "success",
+      returnMessage:
+        "success",
     });
   } catch (err) {
-    console.error("[ZALO CHECKOUT] process failed:", err.message);
+    console.error(
+      "[ZALO CHECKOUT] process failed:",
+      err.message
+    );
+
     return res.status(500).json({
       success: false,
-      error: err.message,
+      error:
+        err.message,
     });
   }
 }

@@ -75,7 +75,7 @@ test(
 
     assert.match(
       reconciliation,
-      /cing_payment_ensure_wallet_topup_reconciliation_v1/
+      /cing_payment_ensure_wallet_topup_reconciliation_v2/
     );
 
     assert.doesNotMatch(
@@ -102,7 +102,7 @@ test(
 
 
 test(
-  "manual adapter cannot bypass Wallet MoMo deployment entitlement",
+  "manual adapter cannot bypass provider-specific Wallet deployment entitlement",
   () => {
     const functionStart =
       reconciliation.indexOf(
@@ -123,7 +123,7 @@ test(
 
     const gate =
       section.indexOf(
-        "assertWalletMomoTopupEnabled();"
+        "assertWalletTopupProviderEnabled(provider);"
       );
 
     const enrollment =
@@ -156,7 +156,7 @@ test(
 
     assert.match(
       reconciliation,
-      /payment\.payment_provider[\s\S]*"momo"/
+      /"momo"[\s\S]*"zalo_checkout"/
     );
 
     assert.match(

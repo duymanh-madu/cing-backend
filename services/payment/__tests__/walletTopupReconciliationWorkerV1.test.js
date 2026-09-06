@@ -24,6 +24,16 @@ const migration =
   fs.readFileSync(
     path.join(
       __dirname,
+      "../../../db/migrations/20260907_wallet_topup_reconciliation_dual_provider_v2.sql"
+    ),
+    "utf8"
+  );
+
+
+const legacyMigration =
+  fs.readFileSync(
+    path.join(
+      __dirname,
       "../../../db/migrations/20260905_wallet_topup_reconciliation_authority_v1.sql"
     ),
     "utf8"
@@ -44,7 +54,7 @@ test(
   () => {
     assert.match(
       worker,
-      /cing_payment_claim_wallet_topup_reconciliation_v1/
+      /cing_payment_claim_wallet_topup_reconciliation_v2/
     );
 
     assert.doesNotMatch(
@@ -90,7 +100,7 @@ test(
 
     const proof =
       successBranch.indexOf(
-        "cing_payment_accept_momo_query_success_v1"
+        "acceptSuccessRpc"
       );
 
     const settle =
@@ -152,8 +162,13 @@ test(
     );
 
     assert.match(
-      migration,
-      /status = 'retry'[\s\S]*next_attempt_at/
+      legacyMigration,
+      /status\s*=\s*'retry'[\s\S]*next_attempt_at/
+    );
+
+    assert.match(
+      worker,
+      /cing_payment_retry_wallet_topup_reconciliation_v1/
     );
   }
 );
@@ -164,12 +179,12 @@ test(
   () => {
     assert.match(
       migration,
-      /status = 'processing'[\s\S]*lease_expires_at <= v_now/
+      /j\.status\s*=\s*[\s\S]*?'processing'[\s\S]*j\.lease_expires_at\s*<=[\s\S]*?v_now/
     );
 
     assert.match(
       migration,
-      /for update of j skip locked/
+      /for update of j[\s\S]*skip locked/
     );
   }
 );
@@ -180,7 +195,7 @@ test(
   () => {
     assert.match(
       migration,
-      /settlement_verified_at is not null[\s\S]*settlement_consumed_at is not null[\s\S]*payment_status = 'paid'[\s\S]*WALLET_TOPUP_RECONCILIATION_SUCCESS_ALREADY_DURABLE/
+      /settlement_verified_at[\s\S]*is not null[\s\S]*settlement_consumed_at[\s\S]*is not null[\s\S]*payment_status[\s\S]*=[\s\S]*'paid'[\s\S]*WALLET_TOPUP_RECONCILIATION_SUCCESS_ALREADY_DURABLE/
     );
   }
 );
