@@ -159,6 +159,19 @@ async function createPayment({
 
       null,
 
+
+    deeplink:
+      typeof result.deeplink === "string" &&
+      result.deeplink.trim()
+        ? result.deeplink.trim()
+        : null,
+
+    deeplinkMiniApp:
+      typeof result.deeplinkMiniApp === "string" &&
+      result.deeplinkMiniApp.trim()
+        ? result.deeplinkMiniApp.trim()
+        : null,
+
     raw:
       result,
 

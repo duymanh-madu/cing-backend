@@ -175,6 +175,13 @@ async function createPaymentSession(
     paymentUrl:
       providerResult.paymentUrl || null,
 
+
+    deeplink:
+      providerResult.deeplink || null,
+
+    deeplinkMiniApp:
+      providerResult.deeplinkMiniApp || null,
+
     qrContent:
       providerResult.qrContent || null,
 
