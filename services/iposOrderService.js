@@ -85,10 +85,21 @@ function buildPayload(order, momo_trans_id = "") {
     is_estimate:     0,
     client: order.payment_method === "momo" ? "momo" : "online",
     PaymentInfo: {
-      Payment_Method: "MOMO_QR_AIO",
-      Payment_Info: momo_trans_id ? "MOMO-" + momo_trans_id : (order.payment_method === "momo" ? "MOMO" : ""),
+      Payment_Method:
+        order.payment_method === "cing_wallet"
+          ? "CING_WALLET"
+          : "MOMO_QR_AIO",
+      Payment_Info:
+        order.payment_method === "cing_wallet"
+          ? "CING_WALLET"
+          : momo_trans_id
+            ? "MOMO-" + momo_trans_id
+            : (order.payment_method === "momo" ? "MOMO" : ""),
       Amount: order.total_amount || 0,
-      Trans_Verified: momo_trans_id ? 1 : 0,
+      Trans_Verified:
+        order.payment_method === "cing_wallet"
+          ? 1
+          : (momo_trans_id ? 1 : 0),
     },
 
     // partner_voucher_info: truyền chiết khấu hạng thành viên + điểm tích lũy
