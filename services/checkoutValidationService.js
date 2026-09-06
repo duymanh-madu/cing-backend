@@ -13,6 +13,12 @@ const {
   "./shippingService"
 );
 
+const {
+  calculateOrderDiscount,
+} = require(
+  "./membershipBenefitsService"
+);
+
 /**
  * ============================================
  * GET APP CONFIG
@@ -270,6 +276,39 @@ function validateItems(
  * VALIDATE CHECKOUT
  * ============================================
  */
+
+async function resolveCanonicalCommerceTier(
+  user_id
+) {
+  if (!user_id) {
+    return "member";
+  }
+
+  const {
+    data: player,
+    error,
+  } = await supabase
+    .from("players")
+    .select("crm_tier")
+    .eq(
+      "user_id",
+      user_id
+    )
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `COMMERCE_TIER_LOOKUP_FAILED: ${error.message}`
+    );
+  }
+
+  return String(
+    player?.crm_tier ||
+      "member"
+  )
+    .trim()
+    .toLowerCase();
+}
 
 async function validateCheckout({
 
@@ -654,6 +693,24 @@ async function validateCheckout({
    * ============================================
    */
 
+  const tier_key =
+    await resolveCanonicalCommerceTier(
+      user_id
+    );
+
+  const {
+    discount_amount:
+      calculated_tier_discount,
+  } = calculateOrderDiscount(
+    subtotal,
+    tier_key
+  );
+
+  const tier_discount =
+    Number(
+      calculated_tier_discount || 0
+    );
+
   const expected_total_amount =
 
     Math.max(
@@ -666,7 +723,9 @@ async function validateCheckout({
         shippingResult.shipping_fee || 0
       ) -
 
-      voucher_discount
+      voucher_discount -
+
+      tier_discount
 
     );
 
@@ -755,6 +814,10 @@ async function validateCheckout({
     subtotal,
 
     voucher_discount,
+
+    tier_key,
+
+    tier_discount,
 
     shipping_fee:
 

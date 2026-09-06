@@ -199,6 +199,9 @@ router.post(
 
         await validateCheckout({
 
+          user_id:
+            canonicalUserId,
+
           items,
 
           destination_latitude,
@@ -274,6 +277,14 @@ router.post(
             subtotal:
 
               validationResult.subtotal,
+
+            tier_key:
+
+              validationResult.tier_key,
+
+            tier_discount:
+
+              validationResult.tier_discount,
 
             shipping_fee:
 
