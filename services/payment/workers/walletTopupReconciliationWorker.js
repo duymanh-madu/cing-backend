@@ -241,6 +241,33 @@ async function processClaimedJob(
   } = {}
 ) {
   /*
+   * Recovery path #0:
+   * provider callback already completed the entire
+   * financial settlement before this job was claimed.
+   *
+   * No Wallet mutation is permitted here. This claim
+   * exists only to terminally close the durable
+   * reconciliation lifecycle.
+   */
+  if (
+    job.payment_status ===
+      "paid" &&
+    job.settlement_verified_at &&
+    job.settlement_consumed_at
+  ) {
+    await completeJob(
+      job,
+      rpcCall
+    );
+
+    return {
+      action:
+        "completed_existing_settlement",
+    };
+  }
+
+
+  /*
    * Recovery path #1:
    * webhook already made provider proof durable but process died
    * before Wallet settlement.
