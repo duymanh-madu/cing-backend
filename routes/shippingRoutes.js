@@ -1,41 +1,26 @@
 const express    = require("express");
-const router     = express.Router();
-const supabase   = require("../supabase");
-const { getEstimateShipFee } = require("../services/foodbook");
 
-/**
- * =====================================================
- * HELPER: Tính phí ship từ shipping_tiers trong DB
- * =====================================================
- * shipping_tiers: [{ min_order, max_order, fee_per_km, base_fee, label }]
- */
-function calcShipFeeFromTiers(tiers, distanceKm, amount) {
-  if (!tiers || tiers.length === 0) return null;
 
-  // Tìm tier phù hợp với giá trị đơn hàng
-  const tier = tiers.find(t =>
-    amount >= (t.min_order || 0) &&
-    amount <= (t.max_order || 999999999)
+const authMiddleware =
+  require(
+    "../middlewares/authMiddleware"
   );
-  if (!tier) return null;
 
-  const fee = (tier.base_fee || 0) + distanceKm * (tier.fee_per_km || 0);
-  return Math.round(fee / 1000) * 1000; // Làm tròn 1000đ
-}
+const {
+  normalizePhone,
+} = require(
+  "../utils/phoneIdentity"
+);
+const {
+  resolveTypedDeliveryAddress,
+} = require(
+  "../services/typedDeliveryAddressResolutionService"
+);
 
-/**
- * =====================================================
- * HELPER: Tính khoảng cách từ tọa độ
- * =====================================================
- */
-function calcDistKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const dL = (lat2 - lat1) * Math.PI / 180;
-  const dl = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dL/2)**2 +
-    Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dl/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
+const router     = express.Router();
+const {
+  calculateShippingFee,
+} = require("../services/shippingService");
 
 /**
  * =====================================================
@@ -49,85 +34,67 @@ function calcDistKm(lat1, lng1, lat2, lng2) {
  */
 router.get("/estimate", async (req, res) => {
   try {
-    const { lat, lng, amount } = req.query;
-    if (!lat || !lng) {
-      return res.status(400).json({ success: false, error: "Missing lat/lng" });
-    }
+    const {
+      lat,
+      lng,
+      amount,
+    } = req.query;
 
-    const latF    = parseFloat(lat);
-    const lngF    = parseFloat(lng);
-    const amountF = parseFloat(amount || 0);
+    const result =
+      await calculateShippingFee({
+        total_amount:
+          Number(amount || 0),
+        destination_latitude:
+          lat,
+        destination_longitude:
+          lng,
+      });
 
-    // Load config từ DB
-    const { data: config } = await supabase
-      .from("app_configs")
-      .select("shipping_tiers, shipping_fee_per_km, free_shipping_threshold, store_latitude, store_longitude, max_delivery_distance")
-      .eq("id", 1)
-      .single();
+    if (!result.success) {
+      if (
+        result.code ===
+        "OUT_OF_DELIVERY_RANGE"
+      ) {
+        return res.json({
+          success: true,
+          ship_fee: -1,
+          dist_km:
+            result.distance_km,
+          reason:
+            result.code,
+        });
+      }
 
-    // Tính khoảng cách
-    const storeLat = config?.store_latitude  || 21.112192;
-    const storeLng = config?.store_longitude || 105.948687;
-    const distKm   = calcDistKm(latF, lngF, storeLat, storeLng);
-    const maxDist  = config?.max_delivery_distance || 10;
-
-    // Vượt khoảng cách tối đa → liên hệ
-    if (distKm > maxDist) {
-      return res.json({
-        success:  true,
-        ship_fee: -1,
-        dist_km:  Math.round(distKm * 10) / 10,
-        reason:   "OUT_OF_RANGE",
+      return res.status(400).json({
+        success: false,
+        error:
+          result.message ||
+          result.code,
+        code:
+          result.code,
       });
     }
 
-    // Miễn ship
-    const freeThreshold = config?.free_shipping_threshold || 0;
-    if (freeThreshold > 0 && amountF >= freeThreshold) {
-      return res.json({
-        success:  true,
-        ship_fee: 0,
-        dist_km:  Math.round(distKm * 10) / 10,
-        reason:   "FREE_SHIP",
-      });
-    }
-
-    // Priority 1: iPos foodbook
-    const iposResult = await getEstimateShipFee({ lat: latF, lng: lngF, amount: amountF });
-    if (iposResult?.success && iposResult?.ship_fee !== null && iposResult?.ship_fee >= 0) {
-      return res.json({
-        success:  true,
-        ship_fee: iposResult.ship_fee,
-        dist_km:  Math.round(distKm * 10) / 10,
-        reason:   "IPOS",
-      });
-    }
-
-    // Priority 2: shipping_tiers từ DB
-    const tiers = config?.shipping_tiers || [];
-    const tierFee = calcShipFeeFromTiers(tiers, distKm, amountF);
-    if (tierFee !== null) {
-      return res.json({
-        success:  true,
-        ship_fee: tierFee,
-        dist_km:  Math.round(distKm * 10) / 10,
-        reason:   "TIERS",
-      });
-    }
-
-    // Priority 3: fee_per_km từ DB
-    const feePerKm = config?.shipping_fee_per_km || 5000;
-    const fallbackFee = Math.round(distKm * feePerKm / 1000) * 1000;
     return res.json({
-      success:  true,
-      ship_fee: fallbackFee,
-      dist_km:  Math.round(distKm * 10) / 10,
-      reason:   "FEE_PER_KM",
+      success: true,
+      ship_fee:
+        result.shipping_fee,
+      dist_km:
+        result.distance_km,
+      reason:
+        result.authority,
     });
-
   } catch (err) {
-    console.error("[SHIPPING] estimate error:", err.message);
-    res.status(500).json({ success: false, error: err.message });
+    console.error(
+      "[SHIPPING] estimate error:",
+      err.message
+    );
+
+    return res.status(500).json({
+      success: false,
+      error:
+        "Shipping estimate failed",
+    });
   }
 });
 
@@ -136,37 +103,142 @@ router.get("/estimate", async (req, res) => {
  * POST /shipping/calculate (legacy — giữ nguyên)
  * =====================================================
  */
-router.post("/calculate", async (req, res) => {
-  try {
-    const { subtotal, distanceKm } = req.body;
-
-    const { data: config } = await supabase
-      .from("app_configs")
-      .select("shipping_tiers, shipping_fee_per_km, free_shipping_threshold")
-      .eq("id", 1)
-      .single();
-
-    const freeThreshold = config?.free_shipping_threshold || 200000;
-    if (subtotal >= freeThreshold) {
-      return res.json({ success: true, data: { fee: 0, reason: "FREE_SHIP" } });
-    }
-
-    const tiers   = config?.shipping_tiers || [];
-    const tierFee = calcShipFeeFromTiers(tiers, distanceKm, subtotal);
-    if (tierFee !== null) {
-      return res.json({ success: true, data: { fee: tierFee, reason: "TIERS" } });
-    }
-
-    const feePerKm = config?.shipping_fee_per_km || 5000;
-    const fee = Math.round(distanceKm * feePerKm / 1000) * 1000;
-    return res.json({ success: true, data: { fee, reason: "FEE_PER_KM" } });
-
-  } catch (error) {
-    console.error("[SHIPPING] calculate error:", error);
-    return res.status(500).json({ success: false, message: "Shipping calculate failed" });
+router.post(
+  "/calculate",
+  (req, res) => {
+    /*
+     * Retired legacy shipping quote authority.
+     *
+     * Client-provided subtotal/distance must never price delivery.
+     * Canonical shipping is calculated only by shippingService
+     * from backend-owned order amount and destination coordinates.
+     */
+    return res
+      .status(410)
+      .json({
+        success: false,
+        code:
+          "CANONICAL_SHIPPING_ENDPOINT_REQUIRED",
+        error:
+          "Phí giao hàng phải được tính qua luồng checkout chuẩn",
+      });
   }
-});
+);
 
+
+/**
+ * POST /shipping/resolve-address
+ *
+ * Resolve customer-entered delivery text into a backend-owned
+ * candidate pin, compare it with current GPS, and calculate
+ * shipping for that candidate destination.
+ */
+router.post(
+  "/resolve-address",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const canonicalUserId =
+        normalizePhone(
+          req.customer?.phone ||
+          ""
+        );
+
+      if (!canonicalUserId) {
+        return res
+          .status(401)
+          .json({
+            success: false,
+            code:
+              "DELIVERY_CUSTOMER_IDENTITY_REQUIRED",
+            error:
+              "Không xác định được tài khoản thành viên",
+          });
+      }
+
+      const result =
+        await resolveTypedDeliveryAddress({
+          user_id:
+            canonicalUserId,
+          address_text:
+            req.body?.address_text,
+
+          current_latitude:
+            req.body?.current_latitude,
+
+          current_longitude:
+            req.body?.current_longitude,
+
+          order_amount:
+            req.body?.order_amount,
+        });
+
+      if (
+        result.success !== true
+      ) {
+        return res
+          .status(400)
+          .json(result);
+      }
+
+      return res.json(
+        result
+      );
+    } catch (error) {
+      const clientCodes =
+        new Set([
+          "DELIVERY_ADDRESS_TEXT_INVALID",
+          "DELIVERY_ADDRESS_NOT_FOUND",
+          "DELIVERY_ADDRESS_AMBIGUOUS",
+          "DELIVERY_ADDRESS_TOO_COARSE",
+          "CURRENT_DELIVERY_LATITUDE_INVALID",
+          "CURRENT_DELIVERY_LONGITUDE_INVALID",
+        ]);
+
+      const authCodes =
+        new Set([
+          "DELIVERY_CUSTOMER_IDENTITY_REQUIRED",
+          "DELIVERY_LOCATION_CANDIDATE_USER_REQUIRED",
+        ]);
+
+      let status = 502;
+
+      if (
+        authCodes.has(
+          error.code
+        )
+      ) {
+        status = 401;
+      } else if (
+        clientCodes.has(
+          error.code
+        )
+      ) {
+        status = 400;
+      } else if (
+        error.code ===
+          "DELIVERY_GEOCODING_NOT_CONFIGURED" ||
+        error.code ===
+          "DELIVERY_LOCATION_TOKEN_SECRET_NOT_CONFIGURED"
+      ) {
+        status = 503;
+      }
+
+      return res
+        .status(status)
+        .json({
+          success: false,
+
+          code:
+            error.code ||
+            "DELIVERY_ADDRESS_RESOLUTION_FAILED",
+
+          error:
+            error.message,
+        });
+    }
+  }
+);
 
 /**
  * =====================================================
@@ -179,123 +251,115 @@ router.post("/calculate", async (req, res) => {
  */
 router.post("/decode-location", async (req, res) => {
   try {
-    const { token, amount, miniAccessToken } = req.body;
-    if (!token) {
-      return res.status(400).json({ success: false, error: "Missing location token" });
-    }
-
-    const miniAccessTokenSafe = String(miniAccessToken || "").trim();
-    if (!miniAccessTokenSafe) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing mini access token",
-      });
-    }
-
-    // Zalo API bị giới hạn vùng, nên Railway chỉ proxy sang server Mắt Bão tại Việt Nam.
-    const axios = require("axios");
-    const MATBAO_URL = process.env.GAME_SERVER_URL || "http://112.78.3.72:3001";
-    const zaloRes = await axios.post(`${MATBAO_URL}/zalo/decode-location`, {
+    const {
       token,
-      mini_access_token: miniAccessTokenSafe,
-    }).catch(e => ({ data: e.response?.data || { error: e.message } }));
+      miniAccessToken,
+    } = req.body || {};
 
-    const lat = zaloRes.data?.latitude  || zaloRes.data?.data?.latitude;
-    const lng = zaloRes.data?.longitude || zaloRes.data?.data?.longitude;
-
-    if (!lat || !lng) {
-      console.error("[LOCATION] Decode failed:", JSON.stringify(zaloRes.data));
-      return res.status(400).json({
-        success: false,
-        error:   "Cannot decode location token",
-        raw:     zaloRes.data,
-      });
+    if (!token) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error:
+            "Missing location token",
+        });
     }
 
-    const latF    = parseFloat(lat);
-    const lngF    = parseFloat(lng);
-    const amountF = parseFloat(amount || 0);
+    const miniAccessTokenSafe =
+      String(
+        miniAccessToken || ""
+      ).trim();
 
-    // Load config từ DB
-    const { data: config } = await supabase
-      .from("app_configs")
-      .select("shipping_tiers, shipping_fee_per_km, free_shipping_threshold, store_latitude, store_longitude, max_delivery_distance")
-      .eq("id", 1)
-      .single();
-
-    const storeLat = config?.store_latitude  || 21.112192;
-    const storeLng = config?.store_longitude || 105.948687;
-    const distKm   = calcDistKm(latF, lngF, storeLat, storeLng);
-    const maxDist  = config?.max_delivery_distance || 10;
-
-    // Vượt khoảng cách tối đa
-    if (distKm > maxDist) {
-      return res.json({
-        success:   true,
-        latitude:  latF,
-        longitude: lngF,
-        ship_fee:  -1,
-        dist_km:   Math.round(distKm * 10) / 10,
-        reason:    "OUT_OF_RANGE",
-      });
+    if (!miniAccessTokenSafe) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error:
+            "Missing mini access token",
+        });
     }
 
-    // Miễn ship
-    const freeThreshold = config?.free_shipping_threshold || 0;
-    if (freeThreshold > 0 && amountF >= freeThreshold) {
-      return res.json({
-        success:   true,
-        latitude:  latF,
-        longitude: lngF,
-        ship_fee:  0,
-        dist_km:   Math.round(distKm * 10) / 10,
-        reason:    "FREE_SHIP",
-      });
+    /*
+     * Zalo decode remains on the Vietnam server.
+     *
+     * This endpoint owns coordinate decoding only.
+     * It must never calculate or return shipping price.
+     */
+    const axios =
+      require("axios");
+
+    const MATBAO_URL =
+      process.env.GAME_SERVER_URL ||
+      "http://112.78.3.72:3001";
+
+    const zaloRes =
+      await axios
+        .post(
+          `${MATBAO_URL}/zalo/decode-location`,
+          {
+            token,
+
+            mini_access_token:
+              miniAccessTokenSafe,
+          }
+        )
+        .catch(
+          error => ({
+            data:
+              error.response?.data ||
+              {
+                error:
+                  error.message,
+              },
+          })
+        );
+
+    const latitude =
+      Number(
+        zaloRes.data?.latitude ??
+        zaloRes.data?.data?.latitude
+      );
+
+    const longitude =
+      Number(
+        zaloRes.data?.longitude ??
+        zaloRes.data?.data?.longitude
+      );
+
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+
+          error:
+            "Cannot decode location token",
+        });
     }
 
-    // iPos estimate
-    const { getEstimateShipFee } = require("../services/foodbook");
-    const iposResult = await getEstimateShipFee({ lat: latF, lng: lngF, amount: amountF });
-    if (iposResult?.success && iposResult?.ship_fee !== null && iposResult?.ship_fee >= 0) {
-      return res.json({
-        success:   true,
-        latitude:  latF,
-        longitude: lngF,
-        ship_fee:  iposResult.ship_fee,
-        dist_km:   Math.round(distKm * 10) / 10,
-        reason:    "IPOS",
-      });
-    }
-
-    // Fallback tiers
-    const tiers   = config?.shipping_tiers || [];
-    const tierFee = calcShipFeeFromTiers(tiers, distKm, amountF);
-    if (tierFee !== null) {
-      return res.json({
-        success:   true,
-        latitude:  latF,
-        longitude: lngF,
-        ship_fee:  tierFee,
-        dist_km:   Math.round(distKm * 10) / 10,
-        reason:    "TIERS",
-      });
-    }
-
-    // Fallback fee_per_km
-    const feePerKm    = config?.shipping_fee_per_km || 5000;
-    const fallbackFee = Math.round(distKm * feePerKm / 1000) * 1000;
     return res.json({
-      success:   true,
-      latitude:  latF,
-      longitude: lngF,
-      ship_fee:  fallbackFee,
-      dist_km:   Math.round(distKm * 10) / 10,
-      reason:    "FEE_PER_KM",
+      success: true,
+      latitude,
+      longitude,
     });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({
+        success: false,
 
-  } catch (err) {
-    console.error("[LOCATION] decode-location error:", err.message);
-    res.status(500).json({ success: false, error: err.message });
+        error:
+          error.message,
+      });
   }
 });
 

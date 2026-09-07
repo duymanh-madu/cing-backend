@@ -4,7 +4,11 @@ const jwt      = require("jsonwebtoken");
 const supabase = require("../supabase");
 const { pushOrderToIPOS } = require("../services/iposOrderService");
 
-const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
+const {
+  JWT_SECRET,
+} = require(
+  "../utils/jwtSecretAuthority"
+);
 
 function requireAdmin(req, res, next) {
   const token = req.headers.authorization?.replace("Bearer ", "");
@@ -36,6 +40,10 @@ payment_status,
 created_at,
 items,
 shipping_address,
+delivery_latitude,
+delivery_longitude,
+delivery_address_detail,
+delivery_location_source,
 shipping_fee,
 note,
 cancel_reason,

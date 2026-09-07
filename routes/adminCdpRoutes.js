@@ -7,7 +7,11 @@ const { sendZBSBroadcast } = require("../services/zaloZBSService");
 const { sendNotification, broadcastNotification } = require("../services/notificationService");
 const axios = require("axios");
 
-const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
+const {
+  JWT_SECRET,
+} = require(
+  "../utils/jwtSecretAuthority"
+);
 
 
 function normalizeDisplayUser(p = {}) {

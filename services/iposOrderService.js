@@ -22,6 +22,231 @@ function getIposConfig() {
   };
 }
 
+function normalizeNonNegativeMoney(
+  value,
+  code
+) {
+
+  const numeric =
+    Number(value ?? 0);
+
+  if (
+    !Number.isSafeInteger(numeric) ||
+    numeric < 0
+  ) {
+
+    const error =
+      new Error(code);
+
+    error.code =
+      code;
+
+    throw error;
+
+  }
+
+  return numeric;
+
+}
+
+
+function resolveIposPaymentProjection(
+  order = {},
+  momoTransId = ""
+) {
+
+  const paymentMethod =
+    String(
+      order.payment_method || ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const amount =
+    normalizeNonNegativeMoney(
+      order.total_amount,
+      "IPOS_ORDER_TOTAL_INVALID"
+    );
+
+
+  /*
+   * Cing Wallet is an iPOS-approved custom tender.
+   *
+   * In mixed Points + Wallet checkout, total_amount is already
+   * the canonical remaining monetary amount after point discount.
+   */
+  if (
+    paymentMethod ===
+      "cing_wallet"
+  ) {
+
+    if (amount <= 0) {
+
+      const error =
+        new Error(
+          "IPOS_WALLET_AMOUNT_INVALID"
+        );
+
+      error.code =
+        "IPOS_WALLET_AMOUNT_INVALID";
+
+      throw error;
+
+    }
+
+
+    return {
+
+      Payment_Method:
+        "CING_WALLET",
+
+      Payment_Info:
+        "CING_WALLET",
+
+      Amount:
+        amount,
+
+      Trans_Verified:
+        1,
+
+    };
+
+  }
+
+
+  /*
+   * MoMo remains the existing provider tender.
+   */
+  if (
+    paymentMethod ===
+      "momo"
+  ) {
+
+    if (amount <= 0) {
+
+      const error =
+        new Error(
+          "IPOS_MOMO_AMOUNT_INVALID"
+        );
+
+      error.code =
+        "IPOS_MOMO_AMOUNT_INVALID";
+
+      throw error;
+
+    }
+
+
+    return {
+
+      Payment_Method:
+        "MOMO_QR_AIO",
+
+      Payment_Info:
+        momoTransId
+          ? "MOMO-" + momoTransId
+          : "MOMO",
+
+      Amount:
+        amount,
+
+      Trans_Verified:
+        momoTransId
+          ? 1
+          : 0,
+
+    };
+
+  }
+
+
+  /*
+   * Points-only must never masquerade as MoMo or Cing Wallet.
+   *
+   * iPOS public documentation does not expose the accepted
+   * order_online Payment_Method enum for an internal loyalty
+   * tender, so we require an explicit iPOS-approved method value.
+   *
+   * This is operational configuration, not financial authority:
+   * amount remains canonical zero and discount comes from the
+   * frozen order snapshot.
+   */
+  if (
+    paymentMethod ===
+      "points"
+  ) {
+
+    if (amount !== 0) {
+
+      const error =
+        new Error(
+          "IPOS_POINTS_ONLY_AMOUNT_INVALID"
+        );
+
+      error.code =
+        "IPOS_POINTS_ONLY_AMOUNT_INVALID";
+
+      throw error;
+
+    }
+
+
+    const configuredMethod =
+      String(
+        process.env
+          .IPOS_POINTS_PAYMENT_METHOD ||
+        ""
+      ).trim();
+
+
+    if (!configuredMethod) {
+
+      const error =
+        new Error(
+          "IPOS_POINTS_PAYMENT_METHOD_REQUIRED"
+        );
+
+      error.code =
+        "IPOS_POINTS_PAYMENT_METHOD_REQUIRED";
+
+      throw error;
+
+    }
+
+
+    return {
+
+      Payment_Method:
+        configuredMethod,
+
+      Payment_Info:
+        "LOYALTY_POINTS",
+
+      Amount:
+        0,
+
+      Trans_Verified:
+        1,
+
+    };
+
+  }
+
+
+  const error =
+    new Error(
+      "IPOS_PAYMENT_METHOD_UNSUPPORTED"
+    );
+
+  error.code =
+    "IPOS_PAYMENT_METHOD_UNSUPPORTED";
+
+  throw error;
+
+}
+
+
 function normalizeIposOrderType(order = {}) {
   const raw =
     String(order.order_type || "").trim().toLowerCase();
@@ -61,7 +286,69 @@ function buildPayload(order, momo_trans_id = "") {
   const rawCode = (order.order_code || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
   const foodbook_code = rawCode.length > 10 ? rawCode.slice(-10) : rawCode;
 
-  const order_type = normalizeIposOrderType(order);
+  const order_type =
+    normalizeIposOrderType(order);
+
+
+  const canonicalTotal =
+    normalizeNonNegativeMoney(
+      order.total_amount,
+      "IPOS_ORDER_TOTAL_INVALID"
+    );
+
+  const canonicalPointsDiscount =
+    normalizeNonNegativeMoney(
+      order.points_discount,
+      "IPOS_POINTS_DISCOUNT_INVALID"
+    );
+
+  const canonicalPointsUsed =
+    Number(
+      order.points_used ?? 0
+    );
+
+
+  if (
+    !Number.isSafeInteger(
+      canonicalPointsUsed
+    ) ||
+    canonicalPointsUsed < 0
+  ) {
+
+    const error =
+      new Error(
+        "IPOS_POINTS_USED_INVALID"
+      );
+
+    error.code =
+      "IPOS_POINTS_USED_INVALID";
+
+    throw error;
+
+  }
+
+
+  /*
+   * A positive point count must always carry its frozen canonical
+   * monetary discount. iPOS must never reconstruct that value.
+   */
+  if (
+    canonicalPointsUsed > 0 &&
+    canonicalPointsDiscount <= 0
+  ) {
+
+    const error =
+      new Error(
+        "IPOS_POINTS_DISCOUNT_REQUIRED"
+      );
+
+    error.code =
+      "IPOS_POINTS_DISCOUNT_REQUIRED";
+
+    throw error;
+
+  }
+
 
   const payload = {
     pos_id:          Number(config.posId),
@@ -77,37 +364,40 @@ function buildPayload(order, momo_trans_id = "") {
     })(),
     to_address:      order.shipping_address || "",
     ship_price_real: order.shipping_fee || 0,
-    amount:       order.total_amount || 0,
-    total_amount: order.total_amount || 0,
+    amount:
+      canonicalTotal,
+
+    total_amount:
+      canonicalTotal,
     adapt_to_online: 1,
     return_data:     "full",
     is_pending:      0,
     is_estimate:     0,
     client: order.payment_method === "momo" ? "momo" : "online",
-    PaymentInfo: {
-      Payment_Method:
-        order.payment_method === "cing_wallet"
-          ? "CING_WALLET"
-          : "MOMO_QR_AIO",
-      Payment_Info:
-        order.payment_method === "cing_wallet"
-          ? "CING_WALLET"
-          : momo_trans_id
-            ? "MOMO-" + momo_trans_id
-            : (order.payment_method === "momo" ? "MOMO" : ""),
-      Amount: order.total_amount || 0,
-      Trans_Verified:
-        order.payment_method === "cing_wallet"
-          ? 1
-          : (momo_trans_id ? 1 : 0),
-    },
+    PaymentInfo:
+      resolveIposPaymentProjection(
+        order,
+        momo_trans_id
+      ),
 
     // partner_voucher_info: truyền chiết khấu hạng thành viên + điểm tích lũy
     // iPos ghi nhận doanh thu = total_amount (giá trị thực khách trả)
     ...(() => {
-      const tierDiscount  = order.tier_discount  || 0;
-      const pointsDiscount = order.points_discount || (order.points_used ? order.points_used * 1000 : 0);
-      const totalDiscount  = tierDiscount + pointsDiscount;
+      const tierDiscount =
+        normalizeNonNegativeMoney(
+          order.tier_discount,
+          "IPOS_TIER_DISCOUNT_INVALID"
+        );
+
+      const pointsDiscount =
+        normalizeNonNegativeMoney(
+          order.points_discount,
+          "IPOS_POINTS_DISCOUNT_INVALID"
+        );
+
+      const totalDiscount =
+        tierDiscount +
+        pointsDiscount;
       if (totalDiscount <= 0) return {};
       const parts = [];
       if (tierDiscount > 0)   parts.push(`Ưu đãi hạng thành viên: -${tierDiscount.toLocaleString('vi-VN')}đ`);
@@ -142,11 +432,34 @@ function buildPayload(order, momo_trans_id = "") {
     })(),
   };
 
-  // Thêm toạ độ và chi tiết địa chỉ nếu là đơn giao hàng
+  // Shipping Location Authority V2A+:
+  // iPOS receives the exact durable destination selected by customer.
   if (order_type === "DELI") {
-    if (order.latitude)       payload.latitude       = order.latitude;
-    if (order.longitude)      payload.longitude      = order.longitude;
-    if (order.address_detail) payload.address_detail = order.address_detail;
+    const latitude =
+      order.delivery_latitude;
+
+    const longitude =
+      order.delivery_longitude;
+
+    if (
+      latitude !== null &&
+      latitude !== undefined &&
+      longitude !== null &&
+      longitude !== undefined
+    ) {
+      payload.latitude =
+        Number(latitude);
+
+      payload.longitude =
+        Number(longitude);
+    }
+
+    if (
+      order.delivery_address_detail
+    ) {
+      payload.address_detail =
+        order.delivery_address_detail;
+    }
   }
 
   return payload;
@@ -171,6 +484,27 @@ function isIposTemporaryRetryError(message = "") {
     text.includes("code:301")
   );
 }
+
+function isIposRecoverablePreflightError(
+  message = ""
+) {
+
+  const text =
+    String(
+      message || ""
+    );
+
+  return (
+    text.includes(
+      "IPOS_POINTS_PAYMENT_METHOD_REQUIRED"
+    ) ||
+    text.includes(
+      "missing_ipos_config"
+    )
+  );
+
+}
+
 
 function isIposAfterHoursError(message = "") {
   const text = String(message || "").toLowerCase();
@@ -278,9 +612,13 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
     return { success: true, duplicated: true };
   }
 
-  const payload = buildPayload(order, momo_trans_id);
+  let log = null;
 
-  // Debug log để verify payload trước khi gửi
+  try {
+
+    const payload = buildPayload(order, momo_trans_id);
+
+    // Debug log để verify payload trước khi gửi
   console.log("[IPOS] Pushing order:", order.order_code, "| payment_method:", order.payment_method);
   if (process.env.IPOS_DEBUG === "true") console.log("[IPOS] Amount debug:", {
     total_amount: order.total_amount,
@@ -302,13 +640,12 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
     PaymentInfo:   payload.PaymentInfo,
   }));
 
-  const log = await createIposLog({
-    order_id:        order.id,
-    transaction_code,
-    request_payload: payload,
-  });
+    log = await createIposLog({
+      order_id:        order.id,
+      transaction_code,
+      request_payload: payload,
+    });
 
-  try {
     // ✅ FIX CHÍNH: access_token đặt trong params (query string)
     // iPOS docs: ?access_token=XXXX — KHÔNG phải Authorization: Bearer
     const config = getIposConfig();
@@ -389,7 +726,13 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
       isIposAfterHoursError(errDetail);
 
     const temporaryRetry =
-      isIposTemporaryRetryError(errDetail) || afterHours;
+      isIposTemporaryRetryError(
+        errDetail
+      ) ||
+      afterHours ||
+      isIposRecoverablePreflightError(
+        errDetail
+      );
 
     try {
       await supabase

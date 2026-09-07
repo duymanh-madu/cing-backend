@@ -19,6 +19,18 @@ const {
   "./membershipBenefitsService"
 );
 
+const {
+  resolveCanonicalMerchandisePricing,
+} = require(
+  "./commerce/canonicalMerchandisePricingService"
+);
+
+const {
+  resolveCanonicalPointRedemption,
+} = require(
+  "./commerce/canonicalPointRedemptionService"
+);
+
 /**
  * ============================================
  * GET APP CONFIG
@@ -131,145 +143,15 @@ function validateCoordinates({
 
 /**
  * ============================================
- * CALCULATE SUBTOTAL
+ * CANONICAL MERCHANDISE VALIDATION
  * ============================================
+ *
+ * Product identity, availability, quantity,
+ * customization relationship and all prices are
+ * resolved by the iPOS-synced catalog authority.
+ *
+ * Client item.price is presentation-only.
  */
-
-function calculateSubtotal(
-  items = []
-) {
-
-  return items.reduce(
-
-    (
-      sum,
-      item
-    ) => {
-
-      return (
-
-        sum +
-
-        Number(
-          item.price || 0
-        ) *
-
-        Number(
-          item.quantity || 0
-        )
-
-      );
-
-    },
-
-    0
-  );
-
-}
-
-/**
- * ============================================
- * VALIDATE ITEMS
- * ============================================
- */
-
-function validateItems(
-  items = []
-) {
-
-  if (
-
-    !Array.isArray(items) ||
-    items.length === 0
-
-  ) {
-
-    return {
-
-      success: false,
-
-      code:
-        "EMPTY_CART",
-
-      message:
-        "Giỏ hàng trống",
-
-    };
-
-  }
-
-  for (const item of items) {
-
-    if (
-
-      !item.id &&
-      !item.item_id
-
-    ) {
-
-      return {
-
-        success: false,
-
-        code:
-          "INVALID_ITEM",
-
-        message:
-          "Thiếu item id",
-
-      };
-
-    }
-
-    if (
-
-      Number(item.quantity) <= 0
-
-    ) {
-
-      return {
-
-        success: false,
-
-        code:
-          "INVALID_QUANTITY",
-
-        message:
-          "Số lượng không hợp lệ",
-
-      };
-
-    }
-
-    if (
-
-      Number(item.price) < 0
-
-    ) {
-
-      return {
-
-        success: false,
-
-        code:
-          "INVALID_PRICE",
-
-        message:
-          "Giá sản phẩm không hợp lệ",
-
-      };
-
-    }
-
-  }
-
-  return {
-
-    success: true,
-
-  };
-
-}
 
 /**
  * ============================================
@@ -320,13 +202,16 @@ async function validateCheckout({
 
   payment_method,
 
+  points_requested = 0,
+
+  order_type = "delivery",
   destination_latitude,
 
   destination_longitude,
 
-  submitted_shipping_fee = 0,
+  submitted_shipping_fee = null,
 
-  submitted_total_amount = 0,
+  submitted_total_amount = null,
 
 }) {
 
@@ -438,11 +323,53 @@ async function validateCheckout({
 
   /**
    * ============================================
-   * DELIVERY ENABLED
+   * ORDER TYPE
+   * ============================================
+   */
+
+  const normalizedOrderType =
+    String(order_type || "")
+      .trim()
+      .toLowerCase();
+
+  const requiresDelivery =
+    normalizedOrderType ===
+      "delivery";
+
+
+  if (
+    ![
+      "delivery",
+      "pickup",
+      "dine_in",
+    ].includes(
+      normalizedOrderType
+    )
+  ) {
+
+    return {
+
+      success: false,
+
+      code:
+        "INVALID_ORDER_TYPE",
+
+      message:
+        "Loại đơn hàng không hợp lệ",
+
+    };
+
+  }
+
+
+  /**
+   * ============================================
+   * DELIVERY AVAILABILITY
    * ============================================
    */
 
   if (
+    requiresDelivery &&
     !config.delivery_enabled
   ) {
 
@@ -460,24 +387,80 @@ async function validateCheckout({
 
   }
 
+
   /**
    * ============================================
-   * ITEMS VALIDATION
+   * DELIVERY COORDINATES
    * ============================================
    */
 
-  const itemValidation =
-    validateItems(
-      items
-    );
-
   if (
-    !itemValidation.success
+    requiresDelivery &&
+    !validateCoordinates({
+
+      latitude:
+        destination_latitude,
+
+      longitude:
+        destination_longitude,
+
+    })
   ) {
 
-    return itemValidation;
+    return {
+
+      success: false,
+
+      code:
+        "INVALID_COORDINATES",
+
+      message:
+        "Vị trí giao hàng không hợp lệ",
+
+    };
 
   }
+
+
+  /**
+   * ============================================
+   * CANONICAL MERCHANDISE
+   * ============================================
+   */
+
+  let canonicalPricing;
+
+  try {
+
+    canonicalPricing =
+      await resolveCanonicalMerchandisePricing({
+        items,
+      });
+
+  } catch (error) {
+
+    return {
+
+      success: false,
+
+      code:
+        error.code ||
+        "COMMERCE_PRICING_FAILED",
+
+      message:
+        "Sản phẩm hoặc tuỳ chọn không hợp lệ",
+
+    };
+
+  }
+
+
+  const canonicalItems =
+    canonicalPricing.items;
+
+  const subtotal =
+    canonicalPricing.subtotal;
+
 
   /**
    * ============================================
@@ -527,51 +510,6 @@ async function validateCheckout({
 
   /**
    * ============================================
-   * COORDINATES
-   * ============================================
-   */
-
-  const validCoordinates =
-
-    validateCoordinates({
-
-      latitude:
-        destination_latitude,
-
-      longitude:
-        destination_longitude,
-
-    });
-
-  if (!validCoordinates) {
-
-    return {
-
-      success: false,
-
-      code:
-        "INVALID_COORDINATES",
-
-      message:
-        "Vị trí giao hàng không hợp lệ",
-
-    };
-
-  }
-
-  /**
-   * ============================================
-   * SUBTOTAL
-   * ============================================
-   */
-
-  const subtotal =
-    calculateSubtotal(
-      items
-    );
-
-  /**
-   * ============================================
    * MINIMUM ORDER
    * ============================================
    */
@@ -608,16 +546,23 @@ async function validateCheckout({
    */
 
   const shippingResult =
-
-    await calculateShippingFee({
-
-      subtotal,
-
-      destination_latitude,
-
-      destination_longitude,
-
-    });
+    requiresDelivery
+      ? await calculateShippingFee({
+          total_amount:
+            subtotal,
+          destination_latitude,
+          destination_longitude,
+        })
+      : {
+          success: true,
+          shipping_fee: 0,
+          distance_km: null,
+          free_shipping: true,
+          duration_text: null,
+          distance_text: null,
+          authority:
+            "non_delivery",
+        };
 
   if (
     !shippingResult.success
@@ -711,7 +656,7 @@ async function validateCheckout({
       calculated_tier_discount || 0
     );
 
-  const expected_total_amount =
+  const pre_points_payable =
 
     Math.max(
 
@@ -729,6 +674,59 @@ async function validateCheckout({
 
     );
 
+
+  let pointRedemption;
+
+  try {
+
+    pointRedemption =
+      await resolveCanonicalPointRedemption({
+
+        userId:
+          user_id,
+
+        requestedPoints:
+          points_requested,
+
+        prePointsPayable:
+          pre_points_payable,
+
+      });
+
+  } catch (error) {
+
+    return {
+
+      success: false,
+
+      code:
+        error.code ||
+        "COMMERCE_POINTS_PRICING_FAILED",
+
+      message:
+        "Số điểm sử dụng không hợp lệ",
+
+    };
+
+  }
+
+
+  const points_used =
+    pointRedemption.points_used;
+
+  const point_value_vnd =
+    pointRedemption.point_value_vnd;
+
+  const points_discount =
+    pointRedemption.points_discount;
+
+  const remaining_payable =
+    pointRedemption.remaining_payable;
+
+  const expected_total_amount =
+    remaining_payable;
+
+
   /**
    * ============================================
    * SHIPPING CONSISTENCY
@@ -736,15 +734,14 @@ async function validateCheckout({
    */
 
   if (
-
+    submitted_shipping_fee !== null &&
+    submitted_shipping_fee !== undefined &&
     Number(
       submitted_shipping_fee
     ) !==
-
     Number(
       shippingResult.shipping_fee
     )
-
   ) {
 
     return {
@@ -772,15 +769,14 @@ async function validateCheckout({
    */
 
   if (
-
+    submitted_total_amount !== null &&
+    submitted_total_amount !== undefined &&
     Number(
       submitted_total_amount
     ) !==
-
     Number(
       expected_total_amount
     )
-
   ) {
 
     return {
@@ -811,6 +807,12 @@ async function validateCheckout({
 
     validated: true,
 
+    order_type:
+      normalizedOrderType,
+
+    items:
+      canonicalItems,
+
     subtotal,
 
     voucher_discount,
@@ -818,6 +820,20 @@ async function validateCheckout({
     tier_key,
 
     tier_discount,
+
+    pre_points_payable,
+
+    points_requested:
+      Number(points_requested || 0),
+
+    points_used,
+
+    point_value_vnd,
+
+    points_discount,
+
+    remaining_payable,
+
 
     shipping_fee:
 

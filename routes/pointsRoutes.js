@@ -1,5 +1,8 @@
 const express = require("express");
 const router = express.Router();
+
+const authMiddleware =
+  require("../middlewares/authMiddleware");
 const supabase = require("../supabase");
 const { deductPoints } = require("../services/loyaltyPointService");
 
@@ -72,112 +75,48 @@ router.post("/deduct", async (req, res) => {
 });
 
 // POST /api/points/pay-with-points — thanh toán đơn hàng bằng điểm + push iPOS
-router.post("/pay-with-points", async (req, res) => {
-  try {
-    const { user_id, phone, points, order_id, order_data } = req.body;
-    if (!user_id || !points) return res.status(400).json({ success: false, message: "Thiếu thông tin" });
+router.post(
+  "/pay-with-points",
+  authMiddleware,
+  async (req, res) => {
 
-    const finalPhone = normalizePhone(phone || user_id);
+    /*
+     * Deprecated commerce mutation entrypoint.
+     *
+     * Point-funded and mixed-funded orders must enter through
+     * POST /api/checkout/create, which owns:
+     *
+     * - canonical point value
+     * - canonical usable-point limit
+     * - durable point reservation
+     * - payment transaction
+     * - points/internal settlement
+     * - shared commerce completion
+     *
+     * This endpoint intentionally performs zero mutation.
+     */
+    return res
+      .status(410)
+      .json({
 
-    // 1. Deduct points
-    const result = await deductPoints({
-      phone: finalPhone, user_id: finalPhone,
-      points, reason: "Thanh toán đơn hàng bằng điểm",
-    });
+        success: false,
 
-    // 2. Update order payment_method = "points" TRƯỚC khi push iPOS
-    if (order_id) {
-      try {
-        const supabase = require("../supabase");
-        await supabase.from("orders").update({
-          payment_status: "paid",
-          status_code:    "confirmed",
-          order_created:  true,
-          payment_method: "points",
-        }).eq("id", order_id);
-      } catch(e) {}
-    }
+        code:
+          "COMMERCE_CHECKOUT_ENDPOINT_REQUIRED",
 
-    // 3. Push order to iPOS — fetch order từ DB sau khi đã update payment_method
-    if (order_id) {
-      try {
-        const supabase = require("../supabase");
-        const { pushOrderToIPOS } = require("../services/iposOrderService");
-        const { data: order } = await supabase
-          .from("orders").select("*").eq("id", order_id).single();
-        if (order) {
-          // Override payment_method để buildPayload dùng đúng
-          order.payment_method = "points";
-          const iposResult = await pushOrderToIPOS({ order, transaction_code: order.order_code });
-          console.log("[POINTS PAY] iPOS push:", iposResult.success ? "OK" : iposResult.error);
-        }
-      } catch(e) {
-        console.warn("[POINTS PAY] iPOS push failed:", e.message);
-      }
-    }
+        error:
+          "Thanh toán đơn hàng bằng điểm phải thực hiện qua checkout chuẩn",
 
-    // 4. Gửi thông báo cho khách
-    try {
-      const { sendNotification } = require("../services/notificationService");
-      const { realtimeEventBus } = require("../services/realtime/realtimeEventBus");
-      const supabase = require("../supabase");
+        checkout_endpoint:
+          "/api/checkout/create",
 
-      const { data: notifOrder } = await supabase
-        .from("orders").select("id, order_code, customer_phone")
-        .eq("id", order_id).single();
+      });
 
-      const playerPhone = normalizePhone(notifOrder?.customer_phone || finalPhone);
-      const orderCode = notifOrder?.order_code || "";
-
-      // Check after-hours (23h - 8h VN)
-      const hourVN = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })).getHours();
-      const isAfterHours = hourVN >= 23 || hourVN < 8;
-
-      const message = isAfterHours
-        ? `Đơn hàng ${orderCode} đã được thanh toán thành công. Hiện nay cửa hàng đang đóng cửa, chúng mình sẽ liên hệ bạn vào 8h sáng để trả hàng.`
-        : `Đơn hàng ${orderCode} đã được thanh toán bằng điểm tích lũy thành công!`;
-
-      const title = isAfterHours ? "✅ Đặt hàng thành công!" : "💎 Thanh toán điểm thành công!";
-
-      if (playerPhone) {
-        await sendNotification({
-          user_id: playerPhone,
-          template_key: "CAMPAIGN_BROADCAST",
-          custom: { title, message },
-          data: { order_id: notifOrder?.id, order_code: orderCode, reason: "points_payment" },
-        });
-
-        realtimeEventBus.publish({
-          event: "notification.broadcast",
-          delivery_type: "ROOM",
-          room: `member:${playerPhone}`,
-          payload: {
-            notification: {
-              title,
-              message,
-              type: "points_payment",
-              created_at: new Date().toISOString(),
-            },
-            ticker: { enabled: true, message },
-          },
-          channel: "notification",
-          timestamp: new Date().toISOString(),
-        });
-
-        console.log("[POINTS PAY] Notification sent to", playerPhone, "| after_hours:", isAfterHours);
-      }
-    } catch(e) {
-      console.warn("[POINTS PAY] Notification failed:", e.message);
-    }
-
-    res.json({ success: true, ...result });
-  } catch(err) {
-    console.error("[POINTS PAY] Error:", err.message, "| body:", JSON.stringify(req.body));
-    res.status(400).json({ success: false, message: err.message });
   }
-});
+);
 
-// POST /api/points/exchange-voucher — đổi điểm lấy voucher iPOS
+
+
 router.post("/exchange-voucher", async (req, res) => {
   try {
     const { user_id, phone, points } = req.body;

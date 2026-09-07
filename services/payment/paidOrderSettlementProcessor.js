@@ -818,11 +818,19 @@ async function processPaidOrderSettlement({
      * Wallet PostgreSQL authority and must never be rewritten as
      * webhook/provider proof here.
      */
-    const isInternalWallet =
+    const isInternalSettlement =
       payment.payment_method ===
-        "cing_wallet";
+        "cing_wallet" ||
+      (
+        payment.payment_method ===
+          "points" &&
+        payment.payment_provider ===
+          "internal" &&
+        payment.settlement_verification_method ===
+          "commerce_points_internal_atomic"
+      );
 
-    if (!isInternalWallet) {
+    if (!isInternalSettlement) {
       const {
         error: paymentUpdateError,
       } = await supabase
@@ -897,13 +905,23 @@ async function processPaidOrderSettlement({
         customer_name:          snap.customer_name    || payment.customer_name    || "Khách hàng",
         customer_phone:         finalCustomerPhone,
         items,
-        subtotal:               payment.amount,
-        shipping_fee:           snap.shipping_fee     || 0,
-        total_amount:           payment.amount,
-        points_used:            snap.points_used      || 0,
-        subtotal:               snap.subtotal          || payment.amount,
-        tier_discount:          snap.tier_discount     || 0,
-        points_discount:        snap.points_discount   || 0,
+        subtotal:
+          snap.subtotal ??
+          payment.amount,
+        shipping_fee:
+          snap.shipping_fee ??
+          0,
+        total_amount:
+          payment.amount,
+        points_used:
+          snap.points_used ??
+          0,
+        tier_discount:
+          snap.tier_discount ??
+          0,
+        points_discount:
+          snap.points_discount ??
+          0,
         payment_method:         payment.payment_method || "momo",
         payment_status:         "paid",
         payment_transaction_id: payment.id,
@@ -914,9 +932,27 @@ async function processPaidOrderSettlement({
         shipping_address:       snap.shipping_address || "",
         order_type:             snap.order_type || (String(snap.shipping_address || "").trim() ? "delivery" : "pickup"),
         note:                   snap.note || snap.customer_note || "",
-        // FIX: toạ độ và chi tiết địa chỉ để iPOS build đúng payload DELI
-        // latitude/longitude: removed - columns không tồn tại trong orders table
-        // address_detail: removed - column không tồn tại trong orders table
+
+        // Shipping Location Authority V2A+:
+        // freeze the exact final destination selected before payment.
+        delivery_latitude:
+          snap.delivery_latitude ??
+          snap.destination_latitude ??
+          null,
+
+        delivery_longitude:
+          snap.delivery_longitude ??
+          snap.destination_longitude ??
+          null,
+
+        delivery_address_detail:
+          snap.delivery_address_detail ||
+          snap.shipping_address ||
+          null,
+
+        delivery_location_source:
+          snap.delivery_location_source ||
+          null,
       })
       .select()
       .single();

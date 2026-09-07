@@ -3,7 +3,11 @@ const jwt = require("jsonwebtoken");
 const supabase = require("../supabase");
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
+const {
+  JWT_SECRET,
+} = require(
+  "../utils/jwtSecretAuthority"
+);
 
 const DELIVERY_STATUS = {
   assigned:   { label:"Đã gán shipper", next:["picked_up","cancelled"] },
@@ -40,7 +44,7 @@ router.get("/order/:token", verifyToken, async (req, res) => {
 
     const { data: order } = await supabase
       .from("orders")
-      .select("id,order_code,customer_name,customer_phone,total_amount,shipping_address,items,status,created_at")
+      .select("id,order_code,customer_name,customer_phone,total_amount,shipping_address,delivery_latitude,delivery_longitude,delivery_address_detail,delivery_location_source,items,status,created_at")
       .eq("id", tracking.order_id)
       .maybeSingle();
 

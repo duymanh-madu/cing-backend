@@ -93,8 +93,18 @@ async function enqueueIposRecovery({
     .maybeSingle();
 
   if (error) {
-    console.warn("[IPOS RECOVERY] enqueue failed:", error.message);
-    return { success:false, error:error.message };
+
+    const failure =
+      new Error(
+        error.message ||
+        "IPOS_RECOVERY_ENQUEUE_FAILED"
+      );
+
+    failure.code =
+      "IPOS_RECOVERY_ENQUEUE_FAILED";
+
+    throw failure;
+
   }
 
   return { success:true, data };

@@ -89,8 +89,9 @@ test(
 
 
 test(
-  "order ownership derives only from authenticated customer phone",
+  "legacy order creation is authenticated but has no ownership mutation authority",
   () => {
+
     const section =
       routeSection(
         orderRoute,
@@ -99,20 +100,42 @@ test(
 
     assert.match(
       section,
+      /authMiddleware/
+    );
+
+    assert.match(
+      section,
       /canonicalUserId[\s\S]*normalizePhone\([\s\S]*req\.customer\?\.phone/
     );
 
     assert.match(
       section,
-      /createOrder\(\{[\s\S]*\.\.\.body[\s\S]*user_id:[\s\S]*canonicalUserId[\s\S]*customer_phone:[\s\S]*canonicalUserId/
+      /status\(410\)/
     );
+
+    assert.match(
+      section,
+      /COMMERCE_CHECKOUT_ENDPOINT_REQUIRED/
+    );
+
+    assert.doesNotMatch(
+      section,
+      /createOrder\(/
+    );
+
+    assert.doesNotMatch(
+      section,
+      /\.\.\.body/
+    );
+
   }
 );
 
 
 test(
-  "payment ownership derives only from authenticated customer phone",
+  "deprecated payment creation route remains behind authenticated customer identity",
   () => {
+
     const section =
       routeSection(
         paymentRoute,
@@ -121,16 +144,31 @@ test(
 
     assert.match(
       section,
+      /authMiddleware/
+    );
+
+    assert.match(
+      section,
       /canonicalUserId[\s\S]*normalizePhone\([\s\S]*req\.customer\?\.phone/
     );
 
     assert.match(
       section,
-      /createPaymentSession\(\{[\s\S]*\.\.\.req\.body[\s\S]*user_id:[\s\S]*canonicalUserId[\s\S]*customer_phone:[\s\S]*canonicalUserId[\s\S]*payment_purpose:[\s\S]*"order"/
+      /status\(410\)[\s\S]*COMMERCE_CHECKOUT_ENDPOINT_REQUIRED/
     );
+
+    assert.doesNotMatch(
+      section,
+      /createPaymentSession\(/
+    );
+
+    assert.doesNotMatch(
+      section,
+      /\.\.\.req\.body/
+    );
+
   }
 );
-
 
 test(
   "caller controlled order user_id is no longer required",
@@ -155,13 +193,42 @@ test(
 
 
 test(
-  "canonical identity overrides caller identity after payload expansion",
+  "commerce checkout owns identity while deprecated payment route has zero financial authority",
   () => {
-    const order =
-      routeSection(
-        orderRoute,
-        '"/create"'
+
+    /*
+     * This file historically owns orderRoute/paymentRoute fixtures,
+     * but has no canonical checkout source fixture.
+     *
+     * Read the canonical checkout route explicitly here rather than
+     * introducing a misleading shared alias.
+     */
+    const canonicalCheckoutRoute =
+      fs.readFileSync(
+        "routes/checkoutRoutes.js",
+        "utf8"
       );
+
+    assert.match(
+      canonicalCheckoutRoute,
+      /const canonicalUserId =[\s\S]*normalizePhone\([\s\S]*req\.customer\?\.phone/
+    );
+
+    assert.match(
+      canonicalCheckoutRoute,
+      /await validateCheckout\(\{[\s\S]*user_id:[\s\S]*canonicalUserId/
+    );
+
+    assert.match(
+      canonicalCheckoutRoute,
+      /await createPaymentSession\(\{[\s\S]*user_id:[\s\S]*canonicalUserId/
+    );
+
+    assert.match(
+      canonicalCheckoutRoute,
+      /customer_phone:[\s\S]*canonicalUserId/
+    );
+
 
     const payment =
       routeSection(
@@ -169,52 +236,36 @@ test(
         '"/create-session"'
       );
 
-    const oSpread =
-      order.indexOf(
-        "...body"
-      );
-
-    const oUser =
-      order.indexOf(
-        "user_id:",
-        oSpread
-      );
-
-    const oPhone =
-      order.indexOf(
-        "customer_phone:",
-        oUser
-      );
-
-    assert.ok(
-      oSpread >= 0 &&
-      oSpread < oUser &&
-      oUser < oPhone
+    assert.match(
+      payment,
+      /authMiddleware/
     );
 
-
-    const pSpread =
-      payment.indexOf(
-        "...req.body"
-      );
-
-    const pUser =
-      payment.indexOf(
-        "user_id:",
-        pSpread
-      );
-
-    const pPhone =
-      payment.indexOf(
-        "customer_phone:",
-        pUser
-      );
-
-    assert.ok(
-      pSpread >= 0 &&
-      pSpread < pUser &&
-      pUser < pPhone
+    assert.match(
+      payment,
+      /status\(410\)/
     );
+
+    assert.match(
+      payment,
+      /COMMERCE_CHECKOUT_ENDPOINT_REQUIRED/
+    );
+
+    assert.match(
+      payment,
+      /\/api\/checkout\/create/
+    );
+
+    assert.doesNotMatch(
+      payment,
+      /createPaymentSession\(/
+    );
+
+    assert.doesNotMatch(
+      payment,
+      /\.\.\.req\.body/
+    );
+
   }
 );
 

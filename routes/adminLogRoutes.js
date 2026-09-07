@@ -2,7 +2,11 @@ const express  = require("express");
 const router   = express.Router();
 const jwt      = require("jsonwebtoken");
 const supabase = require("../supabase");
-const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
+const {
+  JWT_SECRET,
+} = require(
+  "../utils/jwtSecretAuthority"
+);
 
 function requireAdmin(req, res, next) {
   const token = req.headers.authorization?.replace("Bearer ", "");

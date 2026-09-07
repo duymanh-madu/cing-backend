@@ -50,10 +50,25 @@ test(
 test(
   "canonical total subtracts server-derived tier discount",
   () => {
+
+    /*
+     * Tier discount is now part of the canonical pre-points
+     * payable equation.
+     *
+     * Loyalty redemption runs after tier pricing, therefore
+     * expected_total_amount is the remaining payable after
+     * points rather than the raw subtotal/shipping/tier equation.
+     */
     assert.match(
       validator,
-      /expected_total_amount[\s\S]*subtotal[\s\S]*shippingResult\.shipping_fee[\s\S]*voucher_discount[\s\S]*tier_discount/
+      /const pre_points_payable\s*=[\s\S]*subtotal[\s\S]*shippingResult\.shipping_fee[\s\S]*voucher_discount[\s\S]*tier_discount/
     );
+
+    assert.match(
+      validator,
+      /const expected_total_amount\s*=\s*remaining_payable/
+    );
+
   }
 );
 
@@ -126,7 +141,7 @@ test(
   () => {
     assert.match(
       processor,
-      /tier_discount:\s*snap\.tier_discount\s*\|\|\s*0/
+      /tier_discount:\s*snap\.tier_discount\s*\?\?\s*0/
     );
   }
 );

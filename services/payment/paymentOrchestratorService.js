@@ -30,6 +30,12 @@ const {
 );
 
 const {
+  reservePaymentPoints,
+} = require(
+  "./commercePointReservationService"
+);
+
+const {
   incrementRuntimeMetric,
 } = require(
   "./paymentRuntimeRegistryService"
@@ -76,9 +82,75 @@ async function createPaymentSession(
 
     });
 
+  /*
+   * Commerce funding sequencing authority:
+   *
+   * The durable payment transaction must exist first because
+   * PostgreSQL accepts payment identity only.
+   *
+   * Point reservation MUST complete before:
+   *
+   * - any external provider.createPayment()
+   * - Cing Wallet debit/settlement handoff
+   *
+   * This prevents a payment rail from becoming irreversible
+   * before loyalty funding is safely held.
+   */
+  const pointReservation =
+    paymentPurpose === "order"
+      ? await reservePaymentPoints({
+          paymentTransactionId:
+            transaction.id,
+        })
+      : null;
+
   incrementRuntimeMetric(
     "active_payments"
   );
+
+  /*
+   * Points-only is an internal zero-money rail.
+   *
+   * The payment transaction and reservation already exist.
+   * The checkout layer owns the bounded settlement/completion
+   * handoff, exactly like the Cing Wallet route.
+   *
+   * No external provider may receive amount=0.
+   */
+  if (
+    paymentPurpose === "order" &&
+    payload.payment_method ===
+      "points" &&
+    payload.payment_provider ===
+      "internal" &&
+    Number(payload.total_amount) ===
+      0
+  ) {
+
+    return {
+
+      success: true,
+
+      payment:
+        transaction,
+
+      pointReservation,
+
+      internalRail:
+        "points",
+
+      paymentUrl: null,
+
+      qrContent: null,
+
+      zaloOrder: null,
+
+      expired_at,
+
+    };
+
+  }
+
 
   /*
    * Cing Wallet is an internal settlement rail.
@@ -95,6 +167,8 @@ async function createPaymentSession(
       success: true,
       payment:
         transaction,
+
+      pointReservation,
       paymentUrl: null,
       qrContent: null,
       zaloOrder: null,
@@ -171,6 +245,8 @@ async function createPaymentSession(
 
     payment:
       updated,
+
+    pointReservation,
 
     paymentUrl:
       providerResult.paymentUrl || null,

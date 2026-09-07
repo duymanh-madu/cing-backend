@@ -368,32 +368,62 @@ async function createPaymentSession({
       qr_code:
         qr_content,
 
+      /*
+       * Canonical commerce snapshot authority:
+       *
+       * `/checkout/create` has already validated pricing, fulfillment
+       * and the selected delivery destination. Preserve that canonical
+       * snapshot verbatim, then normalize only identity/order type
+       * fields that this payment layer legitimately owns.
+       *
+       * Never reconstruct financial or delivery-location fields from
+       * parallel top-level request arguments here.
+       */
       cart_snapshot: {
 
-        customer_name,
+        ...(cart_snapshot || {}),
 
-        customer_phone,
+        customer_name:
+          cart_snapshot?.customer_name ??
+          customer_name ??
+          null,
+
+        customer_phone:
+          cart_snapshot?.customer_phone ??
+          customer_phone ??
+          null,
 
         items:
-          cart_snapshot?.items || [],
-
-        subtotal,
-
-        shipping_fee,
-
-        shipping_address,
+          Array.isArray(
+            cart_snapshot?.items
+          )
+            ? cart_snapshot.items
+            : [],
 
         order_type:
           resolveOrderType({
-            order_type,
-            orderType,
-            fulfillment_type,
-            fulfillmentType,
-            shipping_address,
+            order_type:
+              cart_snapshot?.order_type ??
+              order_type,
+
+            orderType:
+              cart_snapshot?.orderType ??
+              orderType,
+
+            fulfillment_type:
+              cart_snapshot?.fulfillment_type ??
+              fulfillment_type,
+
+            fulfillmentType:
+              cart_snapshot?.fulfillmentType ??
+              fulfillmentType,
+
+            shipping_address:
+              cart_snapshot?.shipping_address ??
+              shipping_address,
+
             cart_snapshot,
           }),
-
-        shipping_distance,
 
       },
 

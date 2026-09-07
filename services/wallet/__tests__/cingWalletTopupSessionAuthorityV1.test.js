@@ -127,12 +127,12 @@ test(
   () => {
     assert.match(
       service,
-      /payment_provider:\s*"momo"/
+      /payment_provider:\s*"zalo_checkout"/
     );
 
     assert.match(
       service,
-      /payment_method:\s*"momo"/
+      /payment_method:\s*"zalo_checkout"/
     );
 
     assert.match(
@@ -227,20 +227,31 @@ test(
 
 
 test(
-  "public generic payment session remains commerce-order only",
+  "public generic payment session cannot create commerce or Wallet topup payments",
   () => {
+
     assert.match(
       publicPaymentRoute,
-      /createPaymentSession\(\{[\s\S]*\.\.\.req\.body[\s\S]*payment_purpose:\s*"order"/
+      /"\/create-session"[\s\S]*status\(410\)[\s\S]*COMMERCE_CHECKOUT_ENDPOINT_REQUIRED/
+    );
+
+    assert.doesNotMatch(
+      publicPaymentRoute,
+      /createPaymentSession\(/
+    );
+
+    assert.doesNotMatch(
+      publicPaymentRoute,
+      /\.\.\.req\.body/
     );
 
     assert.doesNotMatch(
       publicPaymentRoute,
       /payment_purpose:\s*"wallet_topup"/
     );
+
   }
 );
-
 
 test(
   "wallet top-up session delegates to shared payment orchestrator",

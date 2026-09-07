@@ -1,5 +1,10 @@
 const jwt =
   require("jsonwebtoken");
+const {
+  JWT_SECRET,
+} = require(
+  "../utils/jwtSecretAuthority"
+);
 
 const supabase =
   require("../supabase");
@@ -105,11 +110,7 @@ function requirePanelPermission(
         });
       }
 
-      const secret =
-        process.env.JWT_SECRET ||
-        "cing-admin-secret-2026";
-
-      let decoded;
+      const secret = JWT_SECRET;let decoded;
 
       try {
         decoded =

@@ -17,6 +17,19 @@ const {
 );
 
 const {
+  settlePointsOnlyOrderPayment,
+} = require(
+  "../services/payment/commercePointsOnlySettlementService"
+);
+
+
+const {
+  assertPointsOnlyCommerceReadiness,
+} = require(
+  "../services/commerce/pointsOnlyOperationalReadinessService"
+);
+
+const {
   validateCheckout,
 } = require(
   "../services/checkoutValidationService"
@@ -25,7 +38,25 @@ const {
 const {
   createPaymentSession,
 } = require(
-  "../services/paymentService"
+  "../services/payment/paymentOrchestratorService"
+);
+
+const {
+  normalizeDeliveryLocation,
+} = require(
+  "../services/deliveryLocationAuthorityService"
+);
+
+const {
+  resolveFinalDeliveryDestination,
+} = require(
+  "../services/finalDeliveryDestinationAuthorityService"
+);
+
+const {
+  consumeDeliveryLocationCandidate,
+} = require(
+  "../services/deliveryLocationCandidateConsumeService"
 );
 
 function normalizeOrderType(value, shippingAddress = "") {
@@ -45,6 +76,55 @@ function getIncomingOrderType(req, shippingAddress = "") {
     req.body?.fulfillment_type ||
     req.body?.fulfillmentType,
     shippingAddress
+  );
+}
+
+
+function getIncomingDeliveryCandidateToken(req) {
+  const direct =
+    String(
+      req.body?.candidate_token ||
+      ""
+    ).trim();
+
+  const legacy =
+    String(
+      req.body?.delivery_location_candidate_token ||
+      ""
+    ).trim();
+
+  /*
+   * candidate_token is the current canonical FE contract.
+   *
+   * delivery_location_candidate_token remains accepted only as
+   * a compatibility alias for already-released clients.
+   *
+   * If both are supplied they must identify the exact same signed
+   * capability. Ambiguous capability inputs fail closed.
+   */
+  if (
+    direct &&
+    legacy &&
+    direct !== legacy
+  ) {
+    const error =
+      new Error(
+        "Delivery candidate token fields conflict"
+      );
+
+    error.code =
+      "DELIVERY_LOCATION_CANDIDATE_TOKEN_CONFLICT";
+
+    error.statusCode =
+      400;
+
+    throw error;
+  }
+
+  return (
+    direct ||
+    legacy ||
+    null
   );
 }
 
@@ -81,84 +161,50 @@ router.post(
 
   "/validate",
 
+  authMiddleware,
+
   async (req, res) => {
 
-    try {
-
-      const {
-
-        items,
-
-        destination_latitude,
-
-        destination_longitude,
-
-        submitted_shipping_fee,
-
-        submitted_total_amount,
-
-        payment_method,
-
-      } = req.body;
-
-      /**
-       * VALIDATE
-       */
-
-      const result =
-
-        await validateCheckout({
-
-          items,
-
-          destination_latitude,
-
-          destination_longitude,
-
-          submitted_shipping_fee,
-
-          submitted_total_amount,
-
-          payment_method,
-
-        });
-
-      /**
-       * RESPONSE
-       */
-
-      res.json(result);
-
-    } catch (error) {
-
-      console.error(
-
-        "checkout validate error:",
-
-        error.message
-
-      );
-
-      res.status(500).json({
+    /*
+     * Deprecated checkout quote/validation surface.
+     *
+     * There are no active application consumers for this route.
+     *
+     * Canonical commerce validation is user-bound and executes only
+     * inside POST /api/checkout/create, which owns:
+     *
+     * - authenticated customer identity
+     * - merchandise pricing
+     * - fulfillment/shipping
+     * - membership tier
+     * - voucher pricing
+     * - loyalty-point balance/value
+     * - monetary remainder
+     * - payment transaction / funding rail
+     *
+     * This endpoint intentionally performs zero financial work.
+     */
+    return res
+      .status(410)
+      .json({
 
         success: false,
 
+        code:
+          "COMMERCE_CHECKOUT_ENDPOINT_REQUIRED",
+
         error:
-          error.message,
+          "Xác thực checkout phải thực hiện qua checkout chuẩn",
+
+        checkout_endpoint:
+          "/api/checkout/create",
 
       });
-
-    }
 
   }
 
 );
 
-/**
- * ============================================
- * CREATE CHECKOUT
- * ============================================
- */
 
 router.post(
 
@@ -174,6 +220,10 @@ router.post(
         customer_name,
         customer_phone,
         shipping_address,
+        delivery_address_detail,
+        delivery_location_source,
+        candidate_token,
+        delivery_location_candidate_token,
         order_type,
         destination_latitude,
         destination_longitude,
@@ -182,6 +232,7 @@ router.post(
         submitted_total_amount,
         payment_method,
         payment_provider,
+        points_requested = 0,
       } = req.body;
 
       const canonicalUserId =
@@ -201,11 +252,53 @@ router.post(
           });
       }
 
+
+      const canonicalDeliveryCandidateToken =
+        getIncomingDeliveryCandidateToken(
+          req
+        );
+
       /**
        * ============================================
        * VALIDATE CHECKOUT
        * ============================================
        */
+
+      const canonicalOrderType =
+        getIncomingOrderType(
+          req,
+          shipping_address
+        );
+
+      const finalDestination =
+        await resolveFinalDeliveryDestination({
+          user_id:
+            canonicalUserId,
+
+          order_type:
+            canonicalOrderType,
+
+          gps_latitude:
+            destination_latitude,
+
+          gps_longitude:
+            destination_longitude,
+
+          gps_location_source:
+            delivery_location_source,
+
+          address_detail:
+            delivery_address_detail ||
+            shipping_address,
+
+          candidate_token:
+            canonicalDeliveryCandidateToken,
+        });
+
+      const canonicalDeliveryLocation =
+        finalDestination.location;
+
+
 
       const validationResult =
 
@@ -216,15 +309,22 @@ router.post(
 
           items,
 
-          destination_latitude,
+          order_type:
+            canonicalOrderType,
 
-          destination_longitude,
+          destination_latitude:
+            canonicalDeliveryLocation.delivery_latitude,
+
+          destination_longitude:
+            canonicalDeliveryLocation.delivery_longitude,
 
           submitted_shipping_fee,
 
           submitted_total_amount,
 
           payment_method,
+
+          points_requested,
 
         });
 
@@ -250,6 +350,64 @@ router.post(
        * ============================================
        */
 
+            const isPointsOnly =
+        validationResult.remaining_payable ===
+          0 &&
+        validationResult.points_used >
+          0;
+
+
+      const canonicalPaymentMethod =
+        isPointsOnly
+          ? "points"
+          : payment_method;
+
+
+      const canonicalPaymentProvider =
+        isPointsOnly
+          ? "internal"
+          : payment_provider;
+
+
+      /*
+       * Operational rail readiness.
+       *
+       * Canonical pricing has already established whether this is
+       * a true points-only checkout. Before creating a durable
+       * payment transaction or reserving points, require an
+       * iPOS-approved tender configuration for that zero-money rail.
+       *
+       * Mixed Points + Wallet and mixed Points + external payments
+       * retain a positive monetary rail and do not enter this gate.
+       */
+      if (isPointsOnly) {
+
+        assertPointsOnlyCommerceReadiness();
+
+      }
+
+
+if (
+        finalDestination
+          .candidate_authority
+      ) {
+        await consumeDeliveryLocationCandidate({
+          jti:
+            finalDestination
+              .candidate_authority
+              .jti,
+
+          user_id:
+            canonicalUserId,
+
+          exp:
+            finalDestination
+              .candidate_authority
+              .exp,
+        });
+      }
+
+
       const paymentResult =
 
         await createPaymentSession({
@@ -257,9 +415,11 @@ router.post(
           user_id:
             canonicalUserId,
 
-          payment_provider,
+          payment_provider:
+            canonicalPaymentProvider,
 
-          payment_method,
+          payment_method:
+            canonicalPaymentMethod,
 
           payment_purpose:
             "order",
@@ -278,13 +438,29 @@ router.post(
               canonicalUserId,
 
             shipping_address,
-            order_type: getIncomingOrderType(req, shipping_address),
+            order_type:
+              canonicalOrderType,
 
-            destination_latitude,
+            destination_latitude:
+              canonicalDeliveryLocation.delivery_latitude,
 
-            destination_longitude,
+            destination_longitude:
+              canonicalDeliveryLocation.delivery_longitude,
 
-            items,
+            delivery_latitude:
+              canonicalDeliveryLocation.delivery_latitude,
+
+            delivery_longitude:
+              canonicalDeliveryLocation.delivery_longitude,
+
+            delivery_address_detail:
+              canonicalDeliveryLocation.delivery_address_detail,
+
+            delivery_location_source:
+              canonicalDeliveryLocation.delivery_location_source,
+
+            items:
+              validationResult.items,
 
             subtotal:
 
@@ -297,6 +473,30 @@ router.post(
             tier_discount:
 
               validationResult.tier_discount,
+
+            pre_points_payable:
+
+              validationResult.pre_points_payable,
+
+            points_requested:
+
+              validationResult.points_requested,
+
+            points_used:
+
+              validationResult.points_used,
+
+            point_value_vnd:
+
+              validationResult.point_value_vnd,
+
+            points_discount:
+
+              validationResult.points_discount,
+
+            remaining_payable:
+
+              validationResult.remaining_payable,
 
             shipping_fee:
 
@@ -314,8 +514,87 @@ router.post(
 
         });
 
-      if (
-        payment_method ===
+            if (
+        canonicalPaymentMethod ===
+          "points"
+      ) {
+
+        const paymentTransactionId =
+          paymentResult?.payment?.id;
+
+
+        if (!paymentTransactionId) {
+
+          const error =
+            new Error(
+              "COMMERCE_POINTS_ONLY_PAYMENT_TRANSACTION_ID_REQUIRED"
+            );
+
+          error.code =
+            "COMMERCE_POINTS_ONLY_PAYMENT_TRANSACTION_ID_REQUIRED";
+
+          throw error;
+
+        }
+
+
+        const pointsSettlement =
+          await settlePointsOnlyOrderPayment({
+
+            req,
+
+            paymentTransactionId,
+
+          });
+
+
+        return res.json({
+
+          success: true,
+
+          checkout_validated:
+            true,
+
+          subtotal:
+            validationResult.subtotal,
+
+          shipping_fee:
+            validationResult.shipping_fee,
+
+          pre_points_payable:
+            validationResult.pre_points_payable,
+
+          points_used:
+            validationResult.points_used,
+
+          points_discount:
+            validationResult.points_discount,
+
+          total_amount:
+            validationResult.total_amount,
+
+          distance_km:
+            validationResult.distance_km,
+
+          free_shipping:
+            validationResult.free_shipping,
+
+          duration_text:
+            validationResult.duration_text,
+
+          payment:
+            paymentResult,
+
+          points_settlement:
+            pointsSettlement,
+
+        });
+
+      }
+
+
+if (
+        canonicalPaymentMethod ===
           "cing_wallet"
       ) {
         const paymentTransactionId =
@@ -404,28 +683,40 @@ router.post(
       });
 
     } catch (error) {
-
       console.error(
-
         "checkout create error:",
-
         error.message
-
       );
 
-      res.status(500).json({
+      const statusCode =
+        Number.isInteger(
+          error?.statusCode
+        ) &&
+        error.statusCode >= 400 &&
+        error.statusCode <= 599
+          ? error.statusCode
+          : 500;
 
+      const responseBody = {
         success: false,
-
         error:
           error.message,
+      };
 
-      });
+      if (error?.code) {
+        responseBody.code =
+          error.code;
+      }
 
+      res
+        .status(
+          statusCode
+        )
+        .json(
+          responseBody
+        );
     }
-
   }
-
 );
 
 /**

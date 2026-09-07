@@ -16,12 +16,6 @@ const {
 );
 
 const {
-  createPaymentSession,
-} = require(
-  "../services/payment/paymentOrchestratorService"
-);
-
-const {
   recoverPayment,
 } = require(
   "../services/payment/paymentRecoveryService"
@@ -79,69 +73,82 @@ router.post(
     res
   ) => {
 
-    try {
+    /*
+     * Deprecated public financial entrypoint.
+     *
+     * Commerce order payments must enter exclusively through:
+     *
+     *   POST /api/checkout/create
+     *
+     * That route owns canonical:
+     *
+     * - customer identity
+     * - merchandise pricing
+     * - fulfillment / shipping
+     * - membership tier
+     * - vouchers
+     * - loyalty redemption
+     * - payment remainder
+     * - payment tender
+     * - frozen cart snapshot
+     *
+     * This route must never:
+     *
+     * - spread req.body into payment authority
+     * - create payment_transactions
+     * - reserve loyalty points
+     * - invoke Wallet settlement
+     * - invoke an external provider
+     *
+     * Keep authentication and canonical identity resolution so
+     * the deprecated endpoint remains fail-closed behind the same
+     * customer boundary while old clients are being retired.
+     */
+    const canonicalUserId =
+      normalizePhone(
+        req.customer?.phone || ""
+      );
 
-      const canonicalUserId =
-        normalizePhone(
-          req.customer?.phone || ""
-        );
 
-      if (!canonicalUserId) {
+    if (!canonicalUserId) {
 
-        return res
-          .status(401)
-          .json({
+      return res
+        .status(401)
+        .json({
 
-            success: false,
+          success: false,
 
-            code:
-              "COMMERCE_CUSTOMER_IDENTITY_REQUIRED",
+          code:
+            "COMMERCE_CUSTOMER_IDENTITY_REQUIRED",
 
-            error:
-              "Không xác định được tài khoản thành viên",
+          error:
+            "Không xác định được tài khoản thành viên",
 
-          });
-
-      }
-
-      const result =
-
-        await createPaymentSession({
-          ...req.body,
-
-          user_id:
-            canonicalUserId,
-
-          customer_phone:
-            canonicalUserId,
-
-          payment_purpose:
-            "order",
         });
-
-      return res.json(
-        result
-      );
-
-    } catch (error) {
-
-      console.log(
-        error.message
-      );
-
-      return res.status(500).json({
-
-        success: false,
-
-        error:
-          error.message,
-
-      });
 
     }
 
+
+    return res
+      .status(410)
+      .json({
+
+        success: false,
+
+        code:
+          "COMMERCE_CHECKOUT_ENDPOINT_REQUIRED",
+
+        error:
+          "Phiên thanh toán đơn hàng phải được tạo qua checkout chuẩn",
+
+        checkout_endpoint:
+          "/api/checkout/create",
+
+      });
+
   }
 );
+
 
 /**
  * =====================================================

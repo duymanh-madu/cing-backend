@@ -4,7 +4,11 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const supabase = require("../supabase");
 
-const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
+const {
+  JWT_SECRET,
+} = require(
+  "../utils/jwtSecretAuthority"
+);
 const JWT_EXPIRES = "8h";
 
 // POST /api/admin/auth/login

@@ -3,7 +3,11 @@ const router   = express.Router();
 const jwt      = require("jsonwebtoken");
 const supabase = require("../supabase");
 
-const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
+const {
+  JWT_SECRET,
+} = require(
+  "../utils/jwtSecretAuthority"
+);
 
 function requireAdmin(req, res, next) {
   const token = req.headers.authorization?.replace("Bearer ", "");
@@ -45,7 +49,7 @@ router.get("/list", requireAdmin, async (req, res) => {
     if (orderIds.length > 0) {
       const { data: orders, error: orderError } = await supabase
         .from("orders")
-        .select("id,order_code,customer_name,customer_phone,total_amount,shipping_address,items")
+        .select("id,order_code,customer_name,customer_phone,total_amount,shipping_address,delivery_latitude,delivery_longitude,delivery_address_detail,delivery_location_source,items")
         .in("id", orderIds);
 
       if (orderError) throw orderError;
@@ -241,7 +245,7 @@ router.get("/orders-ready", requireAdmin, async (req, res) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const { data: orders } = await supabase.from("orders")
-      .select("id,order_code,customer_name,customer_phone,total_amount,shipping_address,status,payment_status,created_at,items,order_type")
+      .select("id,order_code,customer_name,customer_phone,total_amount,shipping_address,delivery_latitude,delivery_longitude,delivery_address_detail,delivery_location_source,status,payment_status,created_at,items,order_type")
       .eq("payment_status","paid")
       .in("status",["confirmed","processing","ready"])
       .eq("order_type","delivery")

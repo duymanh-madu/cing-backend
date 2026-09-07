@@ -135,13 +135,34 @@ test(
 test(
   "internal Wallet settlement proof is not rewritten as provider webhook proof",
   () => {
+
+    const processorSource =
+      require("node:fs")
+        .readFileSync(
+          "services/payment/paidOrderSettlementProcessor.js",
+          "utf8"
+        );
+
+    /*
+     * Internal settlement deliberately covers both:
+     *
+     * - Cing Wallet
+     * - points/internal with commerce_points_internal_atomic
+     *
+     * Neither proof may enter external webhook projection.
+     */
     assert.match(
-      processor,
-      /isInternalWallet[\s\S]*payment\.payment_method[\s\S]*"cing_wallet"[\s\S]*if \(!isInternalWallet\)[\s\S]*webhook_verified/
+      processorSource,
+      /const isInternalSettlement[\s\S]*payment\.payment_method[\s\S]*"cing_wallet"[\s\S]*payment\.payment_method[\s\S]*"points"[\s\S]*payment\.payment_provider[\s\S]*"internal"[\s\S]*commerce_points_internal_atomic/
     );
+
+    assert.match(
+      processorSource,
+      /if \(!isInternalSettlement\)[\s\S]*webhook_verified/
+    );
+
   }
 );
-
 
 test(
   "iPOS handoff preserves actual payment tender",

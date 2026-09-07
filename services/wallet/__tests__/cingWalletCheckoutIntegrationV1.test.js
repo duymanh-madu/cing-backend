@@ -87,12 +87,35 @@ test(
 test(
   "cing wallet is settled through bounded wallet order service",
   () => {
+
     assert.match(
       checkout,
-      /payment_method\s*===\s*"cing_wallet"[\s\S]*settleWalletOrderPayment\(\{[\s\S]*paymentTransactionId/
+      /settleWalletOrderPayment/
     );
+
+    assert.match(
+      checkout,
+      /canonicalPaymentMethod ===[\s\S]*"cing_wallet"/
+    );
+
+    assert.match(
+      checkout,
+      /const paymentTransactionId =[\s\S]*paymentResult\?\.payment\?\.id/
+    );
+
+    assert.match(
+      checkout,
+      /await settleWalletOrderPayment\(\{[\s\S]*req,[\s\S]*paymentTransactionId/
+    );
+
+    assert.doesNotMatch(
+      checkout,
+      /payment_method\s*===\s*"cing_wallet"[\s\S]*provider\.createPayment/
+    );
+
   }
 );
+
 
 test(
   "orchestrator never dispatches cing wallet to external provider registry",

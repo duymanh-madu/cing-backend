@@ -3,67 +3,88 @@ const supabase =
 
 /**
  * ============================================
- * DEFAULT CONFIG
- * ============================================
- */
-
-const DEFAULT_CONFIG = {
-
-  base_fee: 15000,
-
-  fee_per_km: 5000,
-
-  free_shipping_threshold:
-    300000,
-
-  max_distance_km: 15,
-
-};
-
-/**
- * ============================================
  * GET SHIPPING CONFIG
  * ============================================
  */
 
 async function getShippingConfig() {
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("app_configs")
+    .select(
+      [
+        "store_latitude",
+        "store_longitude",
+        "max_delivery_distance",
+        "shipping_tiers",
+        "shipping_fee_per_km",
+        "free_shipping_threshold",
+      ].join(",")
+    )
+    .eq("id", 1)
+    .single();
 
-  try {
-
-    const {
-
-      data,
-
-    } = await supabase
-
-      .from("shipping_configs")
-
-      .select("*")
-
-      .order("id", {
-
-        ascending: false,
-
-      })
-
-      .limit(1)
-
-      .maybeSingle();
-
-    return {
-
-      ...DEFAULT_CONFIG,
-
-      ...(data || {}),
-
-    };
-
-  } catch (error) {
-
-    return DEFAULT_CONFIG;
-
+  if (error) {
+    throw new Error(
+      `SHIPPING_CONFIG_LOOKUP_FAILED: ${error.message}`
+    );
   }
 
+  if (!data) {
+    throw new Error(
+      "SHIPPING_CONFIG_NOT_FOUND"
+    );
+  }
+
+  return data;
+}
+
+function resolveTierFee({
+  tiers = [],
+  distance_km,
+  total_amount,
+}) {
+  if (!Array.isArray(tiers)) {
+    return null;
+  }
+
+  const tier = tiers.find((item) => {
+    const minKm =
+      Number(item?.min_km ?? 0);
+
+    const maxKm =
+      Number(item?.max_km ?? Infinity);
+
+    const minOrder =
+      Number(item?.min_order ?? 0);
+
+    const maxOrder =
+      Number(
+        item?.max_order ??
+        Number.MAX_SAFE_INTEGER
+      );
+
+    return (
+      distance_km >= minKm &&
+      distance_km <= maxKm &&
+      total_amount >= minOrder &&
+      total_amount <= maxOrder
+    );
+  });
+
+  if (!tier) {
+    return null;
+  }
+
+  return Math.round(
+    Number(tier.base_fee || 0) +
+    (
+      Number(tier.fee_per_km || 0) *
+      distance_km
+    )
+  );
 }
 
 /**
@@ -155,139 +176,165 @@ function calculateDistance({
  */
 
 async function calculateShippingFee({
-
   total_amount = 0,
-
-  origin_latitude =
-    21.121421,
-
-  origin_longitude =
-    106.051239,
-
   destination_latitude,
-
   destination_longitude,
-
 }) {
-
   const config =
     await getShippingConfig();
 
+  const hasDestinationLatitude =
+    destination_latitude !== null &&
+    destination_latitude !== undefined &&
+    String(destination_latitude).trim() !== "";
+
+  const hasDestinationLongitude =
+    destination_longitude !== null &&
+    destination_longitude !== undefined &&
+    String(destination_longitude).trim() !== "";
+
+  const destinationLat =
+    Number(destination_latitude);
+
+  const destinationLng =
+    Number(destination_longitude);
+
   if (
-
-    !destination_latitude ||
-
-    !destination_longitude
-
+    !hasDestinationLatitude ||
+    !hasDestinationLongitude ||
+    !Number.isFinite(destinationLat) ||
+    !Number.isFinite(destinationLng) ||
+    destinationLat < -90 ||
+    destinationLat > 90 ||
+    destinationLng < -180 ||
+    destinationLng > 180
   ) {
-
     return {
-
       success: false,
-
-      code:
-        "INVALID_LOCATION",
-
-      message:
-        "Thiếu vị trí giao hàng",
-
+      code: "INVALID_LOCATION",
+      message: "Thiếu vị trí giao hàng",
     };
+  }
 
+  const originLat =
+    Number(config.store_latitude);
+
+  const originLng =
+    Number(config.store_longitude);
+
+  if (
+    !Number.isFinite(originLat) ||
+    !Number.isFinite(originLng)
+  ) {
+    throw new Error(
+      "SHIPPING_STORE_COORDINATES_INVALID"
+    );
   }
 
   const distance_km =
-
     calculateDistance({
-
-      origin_latitude,
-
-      origin_longitude,
-
-      destination_latitude,
-
-      destination_longitude,
-
+      origin_latitude: originLat,
+      origin_longitude: originLng,
+      destination_latitude:
+        destinationLat,
+      destination_longitude:
+        destinationLng,
     });
 
-  if (
-
-    distance_km >
-
+  const maxDistance =
     Number(
-      config.max_distance_km
-    )
+      config.max_delivery_distance
+    );
 
+  if (
+    Number.isFinite(maxDistance) &&
+    distance_km > maxDistance
   ) {
-
     return {
-
       success: false,
-
-      code:
-        "OUT_OF_DELIVERY_RANGE",
-
-      message:
-        "Ngoài phạm vi giao hàng",
-
+      code: "OUT_OF_DELIVERY_RANGE",
+      message: "Ngoài phạm vi giao hàng",
       distance_km,
-
     };
-
   }
 
-  let shipping_fee =
+  const normalizedTotal =
+    Number(total_amount || 0);
 
+  const tierFee =
+    resolveTierFee({
+      tiers:
+        config.shipping_tiers || [],
+      distance_km,
+      total_amount:
+        normalizedTotal,
+    });
+
+  if (tierFee !== null) {
+    return {
+      success: true,
+      shipping_fee:
+        tierFee,
+      distance_km,
+      free_shipping:
+        tierFee === 0,
+      duration_text:
+        `${Math.ceil(distance_km * 3)} phút`,
+      distance_text:
+        `${distance_km} km`,
+      authority:
+        "app_configs.shipping_tiers",
+    };
+  }
+
+  const freeThreshold =
     Number(
-      config.base_fee
-    ) +
-
-    distance_km *
-
-      Number(
-        config.fee_per_km
-      );
-
-  let free_shipping =
-    false;
+      config.free_shipping_threshold ||
+      0
+    );
 
   if (
-
-    total_amount >=
-
-    Number(
-      config.free_shipping_threshold
-    )
-
+    freeThreshold > 0 &&
+    normalizedTotal >= freeThreshold
   ) {
-
-    shipping_fee = 0;
-
-    free_shipping = true;
-
+    return {
+      success: true,
+      shipping_fee: 0,
+      distance_km,
+      free_shipping: true,
+      duration_text:
+        `${Math.ceil(distance_km * 3)} phút`,
+      distance_text:
+        `${distance_km} km`,
+      authority:
+        "app_configs.free_shipping_threshold",
+    };
   }
 
-  shipping_fee =
-    Math.round(shipping_fee);
+  const feePerKm =
+    Number(
+      config.shipping_fee_per_km ||
+      0
+    );
+
+  const shipping_fee =
+    Math.round(
+      distance_km * feePerKm
+    );
 
   return {
-
     success: true,
-
     shipping_fee,
-
     distance_km,
-
-    free_shipping,
-
+    free_shipping:
+      shipping_fee === 0,
     duration_text:
-
       `${Math.ceil(distance_km * 3)} phút`,
-
     distance_text:
       `${distance_km} km`,
-
+    authority:
+      "app_configs.shipping_fee_per_km",
   };
-
 }
 
 module.exports = {
@@ -295,5 +342,6 @@ module.exports = {
   calculateShippingFee,
 
   calculateDistance,
+  resolveTierFee,
 
 };

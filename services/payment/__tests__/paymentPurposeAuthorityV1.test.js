@@ -91,16 +91,28 @@ const paymentRoutes =
   );
 
 test(
-  "public payments create-session hard-binds payment purpose to order",
+  "public payments create-session cannot create commerce payments directly",
   () => {
+
     assert.match(
       paymentRoutes,
-      /createPaymentSession\(\{[\s\S]*\.\.\.req\.body[\s\S]*payment_purpose:\s*"order"[\s\S]*\}\)/
+      /"\/create-session"[\s\S]*authMiddleware[\s\S]*status\(410\)[\s\S]*COMMERCE_CHECKOUT_ENDPOINT_REQUIRED/
+    );
+
+    assert.match(
+      paymentRoutes,
+      /checkout_endpoint:[\s\S]*"\/api\/checkout\/create"/
     );
 
     assert.doesNotMatch(
       paymentRoutes,
-      /createPaymentSession\(\s*req\.body\s*\)/
+      /createPaymentSession\(\{[\s\S]*\.\.\.req\.body/
     );
+
+    assert.doesNotMatch(
+      paymentRoutes,
+      /payment_purpose:\s*"order"/
+    );
+
   }
 );

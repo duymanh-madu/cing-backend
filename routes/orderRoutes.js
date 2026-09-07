@@ -7,17 +7,23 @@ const router =
 const authMiddleware =
   require("../middlewares/authMiddleware");
 
-const {
-  createOrder,
-} = require(
-  "../services/orderService"
-);
-
 const supabase =
   require("../supabase");
 
 const { normalizePhone } =
   require("../utils/phoneIdentity");
+
+const {
+  normalizeDeliveryLocation,
+} = require(
+  "../services/deliveryLocationAuthorityService"
+);
+
+const {
+  resolveFinalDeliveryDestination,
+} = require(
+  "../services/finalDeliveryDestinationAuthorityService"
+);
 
 /**
  * ============================================
@@ -78,113 +84,64 @@ router.post(
 
   async (req, res) => {
 
-    try {
-
-      /**
-       * BODY
-       */
-
-      const body =
-        req.body || {};
-
-      const canonicalUserId =
-        normalizePhone(
-          req.customer?.phone || ""
-        );
-
-      if (!canonicalUserId) {
-
-        return res
-          .status(401)
-          .json({
-
-            success: false,
-
-            code:
-              "COMMERCE_CUSTOMER_IDENTITY_REQUIRED",
-
-            error:
-              "Không xác định được tài khoản thành viên",
-
-          });
-
-      }
-
-      /**
-       * VALIDATE
-       */
-
-      if (
-        !Array.isArray(
-          body.items
-        ) ||
-
-        body.items.length === 0
-      ) {
-
-        return res
-          .status(400)
-          .json({
-
-            success: false,
-
-            error:
-              "Items invalid",
-
-          });
-
-      }
-
-      /**
-       * CREATE
-       */
-
-      const result =
-
-        await createOrder({
-
-          ...body,
-
-          user_id:
-            canonicalUserId,
-
-          customer_phone:
-            canonicalUserId,
-
-        });
-
-      return res.json(
-        result
+    const canonicalUserId =
+      normalizePhone(
+        req.customer?.phone || ""
       );
 
-    } catch (error) {
-
-      console.error(
-        error
-      );
+    if (!canonicalUserId) {
 
       return res
-        .status(500)
+        .status(401)
         .json({
 
           success: false,
 
+          code:
+            "COMMERCE_CUSTOMER_IDENTITY_REQUIRED",
+
           error:
-            error.message,
+            "Không xác định được tài khoản thành viên",
 
         });
 
     }
 
+
+    /*
+     * Deprecated commerce mutation entrypoint.
+     *
+     * POST /api/checkout/create is the sole authority for:
+     * - canonical merchandise pricing
+     * - canonical shipping
+     * - membership discount
+     * - loyalty-point redemption/reservation
+     * - payment transaction creation
+     * - final funding rail and settlement
+     *
+     * This legacy route intentionally performs zero mutation.
+     */
+    return res
+      .status(410)
+      .json({
+
+        success: false,
+
+        code:
+          "COMMERCE_CHECKOUT_ENDPOINT_REQUIRED",
+
+        error:
+          "Đơn hàng phải được tạo qua checkout chuẩn",
+
+        checkout_endpoint:
+          "/api/checkout/create",
+
+      });
+
   }
 
 );
 
-/**
- * ============================================
- * GET USER ORDERS
- * ============================================
- */
 
 router.get(
 

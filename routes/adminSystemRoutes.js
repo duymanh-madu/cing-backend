@@ -5,7 +5,11 @@ const router =
   express.Router();
 
 const jwt = require("jsonwebtoken");
-const JWT_SECRET = process.env.JWT_SECRET || "cing-admin-secret-2026";
+const {
+  JWT_SECRET,
+} = require(
+  "../utils/jwtSecretAuthority"
+);
 
 const { getLoyaltyIntegritySnapshot } = require("../services/loyalty/loyaltyIntegrityService");
 
