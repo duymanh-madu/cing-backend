@@ -55,6 +55,11 @@ const migration =
     "supabase/migrations/20260907073000_commerce_delivery_location_candidate_consume_v1.sql"
   );
 
+const requestBoundMigration =
+  read(
+    "supabase/migrations/20260908183000_commerce_checkout_request_idempotency_v1.sql"
+  );
+
 
 test(
   "candidate V2 binds signed capability to authenticated canonical user",
@@ -250,7 +255,7 @@ test(
   () => {
     assert.match(
       consume,
-      /cing_commerce_consume_delivery_location_candidate_v1/
+      /cing_commerce_consume_delivery_location_candidate_v2/
     );
 
     assert.match(
@@ -267,6 +272,22 @@ test(
       consume,
       /p_expires_at/
     );
+
+    assert.match(
+      consume,
+      /p_checkout_request_id/
+    );
+
+    assert.match(
+      consume,
+      /idempotentReplay/
+    );
+
+    assert.match(
+      requestBoundMigration,
+      /p_checkout_request_id uuid/
+    );
+
 
     assert.match(
       consume,

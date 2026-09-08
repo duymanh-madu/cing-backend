@@ -80,6 +80,35 @@ async function createPaymentSession(
 
       expired_at,
 
+      checkout_request_id:
+
+        paymentPurpose === "order"
+
+          ? (
+
+              payload.checkout_request_id ||
+
+              null
+
+            )
+
+          : null,
+
+      checkout_fingerprint:
+
+        paymentPurpose === "order"
+
+          ? (
+
+              payload.checkout_fingerprint ||
+
+              null
+
+            )
+
+          : null,
+
+
     });
 
   /*
@@ -104,9 +133,23 @@ async function createPaymentSession(
         })
       : null;
 
-  incrementRuntimeMetric(
-    "active_payments"
-  );
+  if (
+
+    transaction
+
+      ._checkout_replayed !==
+
+      true
+
+  ) {
+
+    incrementRuntimeMetric(
+
+      "active_payments"
+
+    );
+
+  }
 
   /*
    * Points-only is an internal zero-money rail.
@@ -182,7 +225,146 @@ async function createPaymentSession(
       payload.payment_provider
     );
 
-  const providerResult =
+    /*
+   * Exact checkout replay authority.
+   *
+   * Internal Wallet/points rails already returned above and remain
+   * payment-transaction-ID authorities.
+   *
+   * For external payment:
+   * - reuse durable provider payload when present;
+   * - Zalo Checkout may rebuild from the SAME transaction_code when
+   *   provider_response was not persisted before a crash;
+   * - every other external provider fails closed.
+   */
+  if (
+
+    transaction
+
+      ._checkout_replayed ===
+
+      true
+
+  ) {
+
+    const storedProviderResponse =
+
+      transaction
+
+        .provider_response;
+
+
+    if (
+
+      transaction
+
+        .payment_provider ===
+
+        "zalo_checkout" &&
+
+      storedProviderResponse &&
+
+      typeof storedProviderResponse ===
+
+        "object" &&
+
+      Object.keys(
+
+        storedProviderResponse
+
+      ).length > 0
+
+    ) {
+
+      return {
+
+        success: true,
+
+        payment:
+
+          transaction,
+
+        pointReservation,
+
+        paymentUrl:
+
+          transaction.payment_url ||
+
+          null,
+
+        deeplink:
+
+          null,
+
+        deeplinkMiniApp:
+
+          null,
+
+        qrContent:
+
+          transaction.qr_code ||
+
+          null,
+
+        zaloOrder:
+
+          storedProviderResponse,
+
+        expired_at:
+
+          transaction.expired_at ||
+
+          expired_at,
+
+        replayed:
+
+          true,
+
+      };
+
+    }
+
+
+    if (
+
+      transaction
+
+        .payment_provider !==
+
+        "zalo_checkout"
+
+    ) {
+
+      const recoveryError =
+
+        new Error(
+
+          "COMMERCE_PAYMENT_SESSION_REPLAY_RECOVERY_REQUIRED"
+
+        );
+
+      recoveryError.code =
+
+        "COMMERCE_PAYMENT_SESSION_REPLAY_RECOVERY_REQUIRED";
+
+      recoveryError.statusCode =
+
+        409;
+
+      throw recoveryError;
+
+    }
+
+    /*
+     * Zalo Checkout without persisted provider_response continues
+     * below. Its adapter only rebuilds signed checkout payload from
+     * this SAME durable transaction_code; it does not create a new
+     * financial transaction.
+     */
+  }
+
+
+const providerResult =
 
     await provider.createPayment({
 

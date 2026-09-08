@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const express = require("express");
 const router = express.Router();
 
@@ -58,6 +59,65 @@ const {
 } = require(
   "../services/deliveryLocationCandidateConsumeService"
 );
+
+const {
+  createCommerceCheckoutFingerprint,
+} = require(
+  "../services/payment/commerceCheckoutFingerprintService"
+);
+
+
+const CHECKOUT_REQUEST_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+
+function getCheckoutRequestId(
+  req
+) {
+  const supplied =
+    String(
+      req.body
+        ?.checkout_request_id ||
+      ""
+    ).trim();
+
+  /*
+   * Backward-compatible backend cutover:
+   *
+   * Existing clients may omit checkout_request_id.
+   * They receive a one-shot server UUID and continue working.
+   *
+   * New frontend sends and preserves its UUID across retries,
+   * activating durable exact-retry semantics.
+   */
+  if (!supplied) {
+    return crypto.randomUUID();
+  }
+
+  if (
+    !CHECKOUT_REQUEST_ID_PATTERN
+      .test(
+        supplied
+      )
+  ) {
+    const error =
+      new Error(
+        "COMMERCE_CHECKOUT_REQUEST_ID_INVALID"
+      );
+
+    error.code =
+      "COMMERCE_CHECKOUT_REQUEST_ID_INVALID";
+
+    error.statusCode =
+      400;
+
+    throw error;
+  }
+
+  return supplied
+    .toLowerCase();
+}
+
 
 function normalizeOrderType(value, shippingAddress = "") {
   const raw = String(value || "").trim().toLowerCase();
@@ -253,6 +313,12 @@ router.post(
       }
 
 
+      const checkoutRequestId =
+        getCheckoutRequestId(
+          req
+        );
+
+
       const canonicalDeliveryCandidateToken =
         getIncomingDeliveryCandidateToken(
           req
@@ -393,6 +459,95 @@ router.post(
       }
 
 
+      /*
+       * Canonical idempotency fingerprint.
+       *
+       * Only backend-authoritative checkout results participate.
+       * Client-submitted totals and shipping fees are intentionally
+       * excluded.
+       */
+      const checkoutFingerprint =
+        createCommerceCheckoutFingerprint({
+          user_id:
+            canonicalUserId,
+
+          order_type:
+            canonicalOrderType,
+
+          candidate_jti:
+            finalDestination
+              .candidate_authority
+              ?.jti ||
+            null,
+
+          destination_latitude:
+            canonicalDeliveryLocation
+              .delivery_latitude,
+
+          destination_longitude:
+            canonicalDeliveryLocation
+              .delivery_longitude,
+
+          delivery_address_detail:
+            canonicalDeliveryLocation
+              .delivery_address_detail,
+
+          customer_name:
+            customer_name ||
+            "",
+
+          customer_note:
+            String(
+              req.body?.note ||
+              ""
+            ).trim(),
+
+          items:
+            validationResult.items,
+
+          subtotal:
+            validationResult.subtotal,
+
+          tier_key:
+            validationResult.tier_key,
+
+          tier_discount:
+            validationResult.tier_discount,
+
+          points_requested:
+            validationResult.points_requested,
+
+          points_used:
+            validationResult.points_used,
+
+          point_value_vnd:
+            validationResult.point_value_vnd,
+
+          points_discount:
+            validationResult.points_discount,
+
+          shipping_fee:
+            validationResult.shipping_fee,
+
+          distance_km:
+            validationResult.distance_km,
+
+          manual_shipping_quote_required:
+            validationResult
+              .manual_shipping_quote_required ===
+              true,
+
+          total_amount:
+            validationResult.total_amount,
+
+          payment_method:
+            canonicalPaymentMethod,
+
+          payment_provider:
+            canonicalPaymentProvider,
+        });
+
+
 if (
         finalDestination
           .candidate_authority
@@ -410,7 +565,11 @@ if (
             finalDestination
               .candidate_authority
               .exp,
-        });
+
+          checkout_request_id:
+            checkoutRequestId,
+
+});
       }
 
 
@@ -433,10 +592,23 @@ if (
           total_amount:
             validationResult.total_amount,
 
-          cart_snapshot: {
+                    checkout_request_id:
+            checkoutRequestId,
+
+          checkout_fingerprint:
+            checkoutFingerprint,
+
+cart_snapshot: {
 
             user_id:
               canonicalUserId,
+
+            checkout_request_id:
+              checkoutRequestId,
+
+            checkout_fingerprint:
+              checkoutFingerprint,
+
 
             customer_name,
 
@@ -596,6 +768,9 @@ if (
           checkout_validated:
             true,
 
+          checkout_request_id:
+            checkoutRequestId,
+
           subtotal:
             validationResult.subtotal,
 
@@ -663,6 +838,9 @@ if (
           success: true,
           checkout_validated:
             true,
+
+          checkout_request_id:
+            checkoutRequestId,
           subtotal:
             validationResult.subtotal,
           shipping_fee:
@@ -692,6 +870,9 @@ if (
 
         checkout_validated:
           true,
+
+        checkout_request_id:
+          checkoutRequestId,
 
         subtotal:
 

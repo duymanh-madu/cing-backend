@@ -115,6 +115,7 @@ async function consumeDeliveryLocationCandidate({
   jti,
   user_id,
   exp,
+  checkout_request_id,
 }) {
   const candidateJti =
     normalizeJti(
@@ -131,12 +132,17 @@ async function consumeDeliveryLocationCandidate({
       exp
     );
 
+  const checkoutRequestId =
+    normalizeJti(
+      checkout_request_id
+    );
+
   const {
     data,
     error,
   } =
     await supabase.rpc(
-      "cing_commerce_consume_delivery_location_candidate_v1",
+      "cing_commerce_consume_delivery_location_candidate_v2",
       {
         p_candidate_jti:
           candidateJti,
@@ -146,6 +152,9 @@ async function consumeDeliveryLocationCandidate({
 
         p_expires_at:
           expiresAt,
+
+        p_checkout_request_id:
+          checkoutRequestId,
       }
     );
 
@@ -189,9 +198,22 @@ async function consumeDeliveryLocationCandidate({
     );
   }
 
+  const idempotentReplay =
+    data.replayed === true &&
+    data.idempotent === true &&
+    data.consumed === true &&
+    String(
+      data.checkout_request_id ||
+      ""
+    ) ===
+      checkoutRequestId;
+
   if (
-    data.replayed === true ||
-    data.consumed !== true
+    !idempotentReplay &&
+    (
+      data.replayed === true ||
+      data.consumed !== true
+    )
   ) {
     throw consumeError(
       "DELIVERY_LOCATION_CANDIDATE_REPLAYED",
@@ -225,11 +247,17 @@ async function consumeDeliveryLocationCandidate({
     consumed_at:
       data.consumed_at,
 
+    checkout_request_id:
+      checkoutRequestId,
+
     consumed:
       true,
 
     replayed:
-      false,
+      data.replayed === true,
+
+    idempotent:
+      idempotentReplay,
   };
 }
 
