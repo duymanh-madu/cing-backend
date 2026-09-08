@@ -134,10 +134,18 @@ async function resolveSelectedDeliveryPlace({
    * Place Details terminates the Autocomplete session and owns the
    * canonical human-readable address. It does NOT own road distance.
    */
+  /*
+   * Place Details must receive the Autocomplete-selected alias.
+   *
+   * Google may canonicalize that alias and return a different
+   * provider-owned place_id. Only after Details succeeds does
+   * canonicalPlaceId exist and become downstream Routes/candidate
+   * authority.
+   */
   const placeDetails =
     await getSelectedDeliveryPlaceDetails({
       place_id:
-        canonicalPlaceId,
+        placeId,
 
       session_token,
     });

@@ -340,3 +340,84 @@ test(
     );
   }
 );
+
+
+test(
+  "selected Place Details consumes autocomplete alias before canonical id exists",
+  () => {
+
+    const detailsCall =
+      selected.indexOf(
+        "await getSelectedDeliveryPlaceDetails({"
+      );
+
+    const canonicalDeclaration =
+      selected.indexOf(
+        "const canonicalPlaceId ="
+      );
+
+    assert.ok(
+      detailsCall >= 0
+    );
+
+    assert.ok(
+      canonicalDeclaration > detailsCall
+    );
+
+    const preCanonical =
+      selected.slice(
+        detailsCall,
+        canonicalDeclaration
+      );
+
+    /*
+     * Autocomplete alias is the only valid input to Place Details.
+     * canonicalPlaceId does not exist until Details returns.
+     */
+    assert.match(
+      preCanonical,
+      /place_id:[\s\S]*placeId/
+    );
+
+    assert.doesNotMatch(
+      preCanonical,
+      /place_id:[\s\S]*canonicalPlaceId/
+    );
+  }
+);
+
+
+test(
+  "provider canonical id is used only after Place Details returns",
+  () => {
+
+    const canonicalDeclaration =
+      selected.indexOf(
+        "const canonicalPlaceId ="
+      );
+
+    assert.ok(
+      canonicalDeclaration >= 0
+    );
+
+    const downstream =
+      selected.slice(
+        canonicalDeclaration
+      );
+
+    assert.match(
+      downstream,
+      /placeDetails\.place_id/
+    );
+
+    assert.match(
+      downstream,
+      /destination_place_id:[\s\S]*canonicalPlaceId/
+    );
+
+    assert.match(
+      downstream,
+      /place_id:[\s\S]*canonicalPlaceId/
+    );
+  }
+);
