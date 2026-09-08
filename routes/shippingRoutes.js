@@ -17,6 +17,18 @@ const {
   "../services/typedDeliveryAddressResolutionService"
 );
 
+const {
+  autocompleteDeliveryAddresses,
+} = require(
+  "../services/googlePlacesDeliveryAutocompleteService"
+);
+
+const {
+  resolveSelectedDeliveryPlace,
+} = require(
+  "../services/selectedDeliveryPlaceResolutionService"
+);
+
 const router     = express.Router();
 const {
   calculateShippingFee,
@@ -122,6 +134,189 @@ router.post(
         error:
           "Phí giao hàng phải được tính qua luồng checkout chuẩn",
       });
+  }
+);
+
+
+/**
+ * POST /shipping/address-suggestions
+ *
+ * Authenticated backend proxy for Google Places Autocomplete (New).
+ * Provider key never reaches the browser.
+ */
+router.post(
+  "/address-suggestions",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const canonicalUserId =
+        normalizePhone(
+          req.customer?.phone ||
+          ""
+        );
+
+      if (!canonicalUserId) {
+        return res
+          .status(401)
+          .json({
+            success: false,
+            code:
+              "DELIVERY_CUSTOMER_IDENTITY_REQUIRED",
+            error:
+              "Không xác định được tài khoản thành viên",
+          });
+      }
+
+      const result =
+        await autocompleteDeliveryAddresses({
+          input:
+            req.body?.input,
+
+          session_token:
+            req.body?.session_token,
+
+          current_latitude:
+            req.body?.current_latitude,
+
+          current_longitude:
+            req.body?.current_longitude,
+        });
+
+      return res.json(
+        result
+      );
+    } catch (error) {
+      const status =
+        Number(
+          error.statusCode
+        ) ||
+        (
+          error.code ===
+            "DELIVERY_PLACES_NOT_CONFIGURED"
+            ? 503
+            : 502
+        );
+
+      return res
+        .status(status)
+        .json({
+          success: false,
+          code:
+            error.code ||
+            "DELIVERY_ADDRESS_AUTOCOMPLETE_FAILED",
+          error:
+            error.message,
+        });
+    }
+  }
+);
+
+
+/**
+ * POST /shipping/resolve-place
+ *
+ * Resolve a customer-selected Google Places placeId directly through
+ * Google Routes DRIVE. Frontend text/coordinates never own distance.
+ */
+router.post(
+  "/resolve-place",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const canonicalUserId =
+        normalizePhone(
+          req.customer?.phone ||
+          ""
+        );
+
+      if (!canonicalUserId) {
+        return res
+          .status(401)
+          .json({
+            success: false,
+            code:
+              "DELIVERY_CUSTOMER_IDENTITY_REQUIRED",
+            error:
+              "Không xác định được tài khoản thành viên",
+          });
+      }
+
+      const result =
+        await resolveSelectedDeliveryPlace({
+          user_id:
+            canonicalUserId,
+
+          place_id:
+            req.body?.place_id,
+
+          session_token:
+            req.body?.session_token,
+
+          current_latitude:
+            req.body?.current_latitude,
+
+          current_longitude:
+            req.body?.current_longitude,
+
+          order_amount:
+            req.body?.order_amount,
+        });
+
+      if (
+        result.success !== true
+      ) {
+        return res
+          .status(400)
+          .json(result);
+      }
+
+      return res.json(
+        result
+      );
+    } catch (error) {
+      const clientCodes =
+        new Set([
+          "DELIVERY_ADDRESS_PLACE_ID_INVALID",
+          "DELIVERY_ADDRESS_TEXT_INVALID",
+          "CURRENT_DELIVERY_LATITUDE_INVALID",
+          "CURRENT_DELIVERY_LONGITUDE_INVALID",
+          "DELIVERY_ADDRESS_ROUTE_ENDPOINT_INVALID",
+        ]);
+
+      let status =
+        Number(
+          error.statusCode
+        ) ||
+        502;
+
+      if (
+        clientCodes.has(
+          error.code
+        )
+      ) {
+        status =
+          400;
+      } else if (
+        error.code ===
+          "DELIVERY_ROUTES_NOT_CONFIGURED" ||
+        error.code ===
+          "DELIVERY_LOCATION_TOKEN_SECRET_NOT_CONFIGURED"
+      ) {
+        status =
+          503;
+      }
+
+      return res
+        .status(status)
+        .json({
+          success: false,
+          code:
+            error.code ||
+            "DELIVERY_SELECTED_PLACE_RESOLUTION_FAILED",
+          error:
+            error.message,
+        });
+    }
   }
 );
 
