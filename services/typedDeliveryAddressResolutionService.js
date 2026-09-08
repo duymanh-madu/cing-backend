@@ -351,6 +351,19 @@ async function resolveTypedDeliveryAddress({
     free_shipping:
       shipping.free_shipping,
 
+    manual_shipping_quote_required:
+      shipping
+        .manual_shipping_quote_required ===
+        true,
+
+    shipping_quote_note:
+      shipping.shipping_quote_note ||
+      null,
+
+    address_match_partial:
+      routeAddress.partial_match ===
+      true,
+
     candidate_token:
       candidateToken,
   };

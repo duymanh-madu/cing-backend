@@ -337,10 +337,43 @@ async function calculateShippingFee({
     distance_km > maxDistance
   ) {
     return {
-      success: false,
-      code: "OUT_OF_DELIVERY_RANGE",
-      message: "Ngoài phạm vi giao hàng",
+      /*
+       * Beyond the automatic shipping-pricing radius the order
+       * remains valid.
+       *
+       * shipping_fee = 0 means no shipping amount is collected by
+       * checkout yet. It MUST NOT be interpreted as free shipping.
+       * Store staff will agree the shipping charge with the customer.
+       */
+      success: true,
+
+      shipping_fee: 0,
+
       distance_km,
+
+      free_shipping: false,
+
+      manual_shipping_quote_required:
+        true,
+
+      shipping_quote_note:
+        "Cửa hàng sẽ liên hệ lại để thống nhất đơn giá ship.",
+
+      duration_text,
+
+      distance_text,
+
+      route_distance_meters:
+        route.distance_meters,
+
+      route_duration_seconds:
+        route.duration_seconds,
+
+      route_provider:
+        route.provider,
+
+      authority:
+        "app_configs.manual_shipping_quote",
     };
   }
 

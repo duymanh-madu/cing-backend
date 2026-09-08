@@ -69,16 +69,26 @@ test(
 
 
 test(
-  "Routes address authority rejects partial or unusable matches",
+  "Routes address authority treats partial match as advisory while rejecting unusable destinations",
   () => {
     assert.match(
       routes,
-      /DELIVERY_ADDRESS_PARTIAL_MATCH/
+      /geocoded\?\.partialMatch\s*===\s*true/
     );
 
     assert.match(
       routes,
-      /geocoded\?\.partialMatch\s*===\s*true/
+      /partial_match:[\s\S]*partialMatch/
+    );
+
+    assert.doesNotMatch(
+      routes,
+      /DELIVERY_ADDRESS_PARTIAL_MATCH/
+    );
+
+    assert.doesNotMatch(
+      routes,
+      /if\s*\(\s*partialMatch\s*\)[\s\S]{0,250}throw routeError/
     );
 
     assert.match(
@@ -94,6 +104,11 @@ test(
     assert.match(
       routes,
       /DELIVERY_ADDRESS_TOO_COARSE/
+    );
+
+    assert.match(
+      routes,
+      /DELIVERY_ADDRESS_ROUTE_ENDPOINT_INVALID/
     );
   }
 );

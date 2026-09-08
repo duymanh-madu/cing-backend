@@ -563,6 +563,9 @@ async function validateCheckout({
           shipping_fee: 0,
           distance_km: null,
           free_shipping: true,
+          manual_shipping_quote_required:
+            false,
+          shipping_quote_note: null,
           duration_text: null,
           distance_text: null,
           authority:
@@ -856,6 +859,17 @@ async function validateCheckout({
     free_shipping:
 
       shippingResult.free_shipping,
+
+    manual_shipping_quote_required:
+
+      shippingResult
+        .manual_shipping_quote_required ===
+        true,
+
+    shipping_quote_note:
+
+      shippingResult.shipping_quote_note ||
+      null,
 
     duration_text:
 

@@ -444,6 +444,41 @@ if (
               canonicalUserId,
 
             shipping_address,
+
+            /*
+             * System shipping note is backend-derived from canonical
+             * distance policy. Client note may add context but cannot
+             * suppress this operational instruction.
+             */
+            note: [
+              String(
+                req.body?.note ||
+                ""
+              ).trim(),
+
+              validationResult
+                .manual_shipping_quote_required ===
+                true
+                ? (
+                    validationResult
+                      .shipping_quote_note ||
+                    "Cửa hàng sẽ liên hệ lại để thống nhất đơn giá ship."
+                  )
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" | "),
+
+            manual_shipping_quote_required:
+              validationResult
+                .manual_shipping_quote_required ===
+                true,
+
+            shipping_quote_note:
+              validationResult
+                .shipping_quote_note ||
+              null,
+
             order_type:
               canonicalOrderType,
 

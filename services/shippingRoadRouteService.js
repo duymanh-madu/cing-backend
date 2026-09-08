@@ -337,16 +337,20 @@ async function resolveDrivingRouteFromAddress({
     );
   }
 
+  /*
+   * Google Routes may mark a Vietnamese address as partialMatch even
+   * when it produced a stable placeId, a usable delivery type and a
+   * routable endpoint.
+   *
+   * Partial matching is therefore presentation metadata, not an
+   * automatic rejection condition. Hard authority remains:
+   * - provider success
+   * - placeId
+   * - usable delivery type
+   * - valid route endpoint
+   */
   const partialMatch =
     geocoded?.partialMatch === true;
-
-  if (partialMatch) {
-    throw routeError(
-      "DELIVERY_ADDRESS_PARTIAL_MATCH",
-      "Địa chỉ chưa khớp đầy đủ, vui lòng nhập chi tiết hơn",
-      400
-    );
-  }
 
   const types =
     normalizeResultTypes(
@@ -405,7 +409,7 @@ async function resolveDrivingRouteFromAddress({
     types,
 
     partial_match:
-      false,
+      partialMatch,
 
     distance_meters:
       distanceMeters,
