@@ -209,6 +209,8 @@ async function validateCheckout({
 
   destination_longitude,
 
+  shipping_route_snapshot = null,
+
   submitted_shipping_fee = null,
 
   submitted_total_amount = null,
@@ -552,6 +554,9 @@ async function validateCheckout({
             subtotal,
           destination_latitude,
           destination_longitude,
+
+          route_snapshot:
+            shipping_route_snapshot,
         })
       : {
           success: true,

@@ -1,6 +1,12 @@
 const supabase =
   require("../supabase");
 
+const {
+  resolveDrivingRoute,
+} = require(
+  "./shippingRoadRouteService"
+);
+
 /**
  * ============================================
  * GET SHIPPING CONFIG
@@ -179,6 +185,7 @@ async function calculateShippingFee({
   total_amount = 0,
   destination_latitude,
   destination_longitude,
+  route_snapshot = null,
 }) {
   const config =
     await getShippingConfig();
@@ -231,15 +238,94 @@ async function calculateShippingFee({
     );
   }
 
+  const suppliedRouteSnapshot =
+    route_snapshot;
+
+  let route;
+
+  if (suppliedRouteSnapshot) {
+    const distanceMeters =
+      Number(
+        suppliedRouteSnapshot
+          .distance_meters
+      );
+
+    const durationSeconds =
+      Number(
+        suppliedRouteSnapshot
+          .duration_seconds
+      );
+
+    if (
+      !Number.isInteger(
+        distanceMeters
+      ) ||
+      distanceMeters < 0 ||
+      !Number.isInteger(
+        durationSeconds
+      ) ||
+      durationSeconds < 0
+    ) {
+      throw new Error(
+        "DELIVERY_ROUTE_SNAPSHOT_INVALID"
+      );
+    }
+
+    route = {
+      distance_meters:
+        distanceMeters,
+
+      distance_km:
+        distanceMeters / 1000,
+
+      duration_seconds:
+        durationSeconds,
+
+      provider:
+        String(
+          suppliedRouteSnapshot
+            .provider ||
+          "signed_candidate"
+        ),
+
+      travel_mode:
+        "DRIVE",
+    };
+  } else {
+    route =
+      await resolveDrivingRoute({
+        origin_latitude:
+          originLat,
+
+        origin_longitude:
+          originLng,
+
+        destination_latitude:
+          destinationLat,
+
+        destination_longitude:
+          destinationLng,
+      });
+  }
+
   const distance_km =
-    calculateDistance({
-      origin_latitude: originLat,
-      origin_longitude: originLng,
-      destination_latitude:
-        destinationLat,
-      destination_longitude:
-        destinationLng,
-    });
+    route.distance_km;
+
+  const duration_text =
+    route.duration_seconds === 0
+      ? "0 phút"
+      : `${Math.max(
+          1,
+          Math.ceil(
+            route.duration_seconds /
+            60
+          )
+        )} phút`;
+
+  const distance_text =
+    `${Number(
+      distance_km.toFixed(2)
+    )} km`;
 
   const maxDistance =
     Number(
@@ -278,10 +364,14 @@ async function calculateShippingFee({
       distance_km,
       free_shipping:
         tierFee === 0,
-      duration_text:
-        `${Math.ceil(distance_km * 3)} phút`,
-      distance_text:
-        `${distance_km} km`,
+      duration_text,
+      distance_text,
+      route_distance_meters:
+        route.distance_meters,
+      route_duration_seconds:
+        route.duration_seconds,
+      route_provider:
+        route.provider,
       authority:
         "app_configs.shipping_tiers",
     };
@@ -302,10 +392,14 @@ async function calculateShippingFee({
       shipping_fee: 0,
       distance_km,
       free_shipping: true,
-      duration_text:
-        `${Math.ceil(distance_km * 3)} phút`,
-      distance_text:
-        `${distance_km} km`,
+      duration_text,
+      distance_text,
+      route_distance_meters:
+        route.distance_meters,
+      route_duration_seconds:
+        route.duration_seconds,
+      route_provider:
+        route.provider,
       authority:
         "app_configs.free_shipping_threshold",
     };
@@ -328,10 +422,14 @@ async function calculateShippingFee({
     distance_km,
     free_shipping:
       shipping_fee === 0,
-    duration_text:
-      `${Math.ceil(distance_km * 3)} phút`,
-    distance_text:
-      `${distance_km} km`,
+    duration_text,
+    distance_text,
+    route_distance_meters:
+      route.distance_meters,
+    route_duration_seconds:
+      route.duration_seconds,
+    route_provider:
+      route.provider,
     authority:
       "app_configs.shipping_fee_per_km",
   };

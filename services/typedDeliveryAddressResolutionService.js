@@ -208,6 +208,18 @@ async function resolveTypedDeliveryAddress({
 
       shipping_fee:
         shipping.shipping_fee,
+
+      route_distance_meters:
+        shipping
+          .route_distance_meters,
+
+      route_duration_seconds:
+        shipping
+          .route_duration_seconds,
+
+      route_provider:
+        shipping
+          .route_provider,
     });
 
   return {

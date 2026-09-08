@@ -106,6 +106,50 @@ async function resolveFinalDeliveryDestination({
       candidate.address_text ||
       address_detail;
 
+    const hasRouteDistance =
+      candidate
+        .route_distance_meters !==
+          null &&
+      candidate
+        .route_distance_meters !==
+          undefined;
+
+    const hasRouteDuration =
+      candidate
+        .route_duration_seconds !==
+          null &&
+      candidate
+        .route_duration_seconds !==
+          undefined;
+
+    const routeDistanceMeters =
+      hasRouteDistance
+        ? Number(
+            candidate
+              .route_distance_meters
+          )
+        : null;
+
+    const routeDurationSeconds =
+      hasRouteDuration
+        ? Number(
+            candidate
+              .route_duration_seconds
+          )
+        : null;
+
+    const hasSignedRouteSnapshot =
+      hasRouteDistance &&
+      hasRouteDuration &&
+      Number.isInteger(
+        routeDistanceMeters
+      ) &&
+      routeDistanceMeters >= 0 &&
+      Number.isInteger(
+        routeDurationSeconds
+      ) &&
+      routeDurationSeconds >= 0;
+
     candidateAuthority = {
       jti:
         candidate.jti,
@@ -115,6 +159,24 @@ async function resolveFinalDeliveryDestination({
 
       exp:
         candidate.exp,
+
+      route_snapshot:
+        hasSignedRouteSnapshot
+          ? {
+              distance_meters:
+                routeDistanceMeters,
+
+              duration_seconds:
+                routeDurationSeconds,
+
+              provider:
+                String(
+                  candidate
+                    .route_provider ||
+                  "google_routes_v2"
+                ),
+            }
+          : null,
     };
   }
 

@@ -110,6 +110,9 @@ function createDeliveryLocationCandidate({
   place_id = null,
   shipping_distance_km,
   shipping_fee,
+  route_distance_meters = null,
+  route_duration_seconds = null,
+  route_provider = null,
 }) {
   const userId =
     normalizeCandidateUserId(
@@ -168,7 +171,56 @@ function createDeliveryLocationCandidate({
       Number(
         shipping_fee
       ),
+
+    route_distance_meters:
+      route_distance_meters === null
+        ? null
+        : Number(
+            route_distance_meters
+          ),
+
+    route_duration_seconds:
+      route_duration_seconds === null
+        ? null
+        : Number(
+            route_duration_seconds
+          ),
+
+    route_provider:
+      route_provider
+        ? String(
+            route_provider
+          ).trim()
+        : null,
   };
+
+  if (
+    payload.route_distance_meters !== null &&
+    (
+      !Number.isInteger(
+        payload.route_distance_meters
+      ) ||
+      payload.route_distance_meters < 0
+    )
+  ) {
+    throw candidateError(
+      "DELIVERY_LOCATION_CANDIDATE_ROUTE_DISTANCE_INVALID"
+    );
+  }
+
+  if (
+    payload.route_duration_seconds !== null &&
+    (
+      !Number.isInteger(
+        payload.route_duration_seconds
+      ) ||
+      payload.route_duration_seconds < 0
+    )
+  ) {
+    throw candidateError(
+      "DELIVERY_LOCATION_CANDIDATE_ROUTE_DURATION_INVALID"
+    );
+  }
 
   if (
     !Number.isFinite(

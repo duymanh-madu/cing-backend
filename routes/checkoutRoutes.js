@@ -318,6 +318,12 @@ router.post(
           destination_longitude:
             canonicalDeliveryLocation.delivery_longitude,
 
+          shipping_route_snapshot:
+            finalDestination
+              .candidate_authority
+              ?.route_snapshot ||
+            null,
+
           submitted_shipping_fee,
 
           submitted_total_amount,

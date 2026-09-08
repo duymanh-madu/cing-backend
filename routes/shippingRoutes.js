@@ -32,7 +32,7 @@ const {
  * 3. shipping_fee_per_km từ app_configs (DB)
  * =====================================================
  */
-router.get("/estimate", async (req, res) => {
+router.get("/estimate", authMiddleware, async (req, res) => {
   try {
     const {
       lat,
