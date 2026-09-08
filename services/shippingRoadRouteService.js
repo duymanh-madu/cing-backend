@@ -9,6 +9,24 @@ const GOOGLE_ROUTES_ENDPOINT =
 const ROUTES_FIELD_MASK =
   "routes.distanceMeters,routes.duration";
 
+const ROUTES_ADDRESS_FIELD_MASK =
+  [
+    "routes.distanceMeters",
+    "routes.duration",
+    "routes.legs.endLocation",
+    "geocodingResults",
+  ].join(",");
+
+const DELIVERY_CAPABLE_TYPES =
+  new Set([
+    "street_address",
+    "subpremise",
+    "premise",
+    "establishment",
+    "point_of_interest",
+    "intersection",
+  ]);
+
 function routeError(
   code,
   message = code,
@@ -81,6 +99,331 @@ function parseDurationSeconds(
 
   return Math.ceil(seconds);
 }
+
+function normalizeAddressText(
+  value
+) {
+  const address =
+    String(
+      value || ""
+    )
+      .trim()
+      .replace(
+        /\s+/g,
+        " "
+      );
+
+  if (
+    address.length < 5 ||
+    address.length > 500
+  ) {
+    throw routeError(
+      "DELIVERY_ADDRESS_TEXT_INVALID",
+      "Địa chỉ giao hàng không hợp lệ",
+      400
+    );
+  }
+
+  return address;
+}
+
+function normalizeResultTypes(
+  value
+) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      value
+        .map(
+          item =>
+            String(
+              item || ""
+            ).trim()
+        )
+        .filter(Boolean)
+    ),
+  ];
+}
+
+function isDeliveryCapableType(
+  types
+) {
+  return types.some(
+    type =>
+      DELIVERY_CAPABLE_TYPES.has(
+        type
+      )
+  );
+}
+
+async function resolveDrivingRouteFromAddress({
+  origin_latitude,
+  origin_longitude,
+  destination_address,
+}) {
+  const apiKey =
+    String(
+      process.env
+        .GOOGLE_MAPS_ROUTES_API_KEY ||
+      ""
+    ).trim();
+
+  if (!apiKey) {
+    throw routeError(
+      "DELIVERY_ROUTES_NOT_CONFIGURED",
+      "Dịch vụ xác định tuyến giao hàng chưa được cấu hình"
+    );
+  }
+
+  const originLat =
+    normalizeCoordinate(
+      origin_latitude,
+      -90,
+      90,
+      "DELIVERY_ROUTE_ORIGIN_LATITUDE_INVALID"
+    );
+
+  const originLng =
+    normalizeCoordinate(
+      origin_longitude,
+      -180,
+      180,
+      "DELIVERY_ROUTE_ORIGIN_LONGITUDE_INVALID"
+    );
+
+  const address =
+    normalizeAddressText(
+      destination_address
+    );
+
+  let response;
+
+  try {
+    response =
+      await axios.post(
+        GOOGLE_ROUTES_ENDPOINT,
+        {
+          origin: {
+            location: {
+              latLng: {
+                latitude:
+                  originLat,
+
+                longitude:
+                  originLng,
+              },
+            },
+          },
+
+          destination: {
+            address,
+          },
+
+          travelMode:
+            "DRIVE",
+
+          routingPreference:
+            "TRAFFIC_UNAWARE",
+        },
+        {
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            "X-Goog-Api-Key":
+              apiKey,
+
+            "X-Goog-FieldMask":
+              ROUTES_ADDRESS_FIELD_MASK,
+          },
+
+          timeout:
+            10000,
+        }
+      );
+  } catch (error) {
+    throw routeError(
+      "DELIVERY_ROUTES_PROVIDER_FAILED",
+      error?.response?.data?.error?.message ||
+        error.message
+    );
+  }
+
+  const routes =
+    Array.isArray(
+      response.data?.routes
+    )
+      ? response.data.routes
+      : [];
+
+  if (routes.length === 0) {
+    throw routeError(
+      "DELIVERY_ADDRESS_NOT_FOUND",
+      "Không xác định được địa chỉ giao hàng",
+      400
+    );
+  }
+
+  const route =
+    routes[0];
+
+  const endLocation =
+    route?.legs?.[0]
+      ?.endLocation
+      ?.latLng;
+
+  const latitude =
+    Number(
+      endLocation?.latitude
+    );
+
+  const longitude =
+    Number(
+      endLocation?.longitude
+    );
+
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    throw routeError(
+      "DELIVERY_ADDRESS_ROUTE_ENDPOINT_INVALID"
+    );
+  }
+
+  const geocoded =
+    response.data
+      ?.geocodingResults
+      ?.destination ||
+    {};
+
+  const statusCode =
+    Number(
+      geocoded
+        ?.geocoderStatus
+        ?.code ||
+      0
+    );
+
+  if (
+    Number.isFinite(statusCode) &&
+    statusCode !== 0
+  ) {
+    throw routeError(
+      "DELIVERY_ADDRESS_NOT_FOUND",
+      "Không xác định được địa chỉ giao hàng",
+      400
+    );
+  }
+
+  const placeId =
+    String(
+      geocoded?.placeId ||
+      ""
+    ).trim();
+
+  if (!placeId) {
+    throw routeError(
+      "DELIVERY_ADDRESS_PLACE_ID_REQUIRED",
+      "Địa chỉ chưa đủ rõ ràng, vui lòng nhập chi tiết hơn",
+      400
+    );
+  }
+
+  const partialMatch =
+    geocoded?.partialMatch === true;
+
+  if (partialMatch) {
+    throw routeError(
+      "DELIVERY_ADDRESS_PARTIAL_MATCH",
+      "Địa chỉ chưa khớp đầy đủ, vui lòng nhập chi tiết hơn",
+      400
+    );
+  }
+
+  const types =
+    normalizeResultTypes(
+      geocoded?.type
+    );
+
+  if (
+    !isDeliveryCapableType(
+      types
+    )
+  ) {
+    throw routeError(
+      "DELIVERY_ADDRESS_TOO_COARSE",
+      "Địa chỉ chưa đủ chính xác để giao hàng, vui lòng nhập thêm số nhà hoặc địa điểm cụ thể",
+      400
+    );
+  }
+
+  const distanceMeters =
+    Number(
+      route?.distanceMeters
+    );
+
+  if (
+    !Number.isInteger(
+      distanceMeters
+    ) ||
+    distanceMeters < 0
+  ) {
+    throw routeError(
+      "DELIVERY_ROUTES_DISTANCE_INVALID"
+    );
+  }
+
+  const durationSeconds =
+    distanceMeters === 0
+      ? 0
+      : parseDurationSeconds(
+          route?.duration
+        );
+
+  return {
+    address_text:
+      address,
+
+    formatted_address:
+      address,
+
+    latitude,
+
+    longitude,
+
+    place_id:
+      placeId,
+
+    types,
+
+    partial_match:
+      false,
+
+    distance_meters:
+      distanceMeters,
+
+    distance_km:
+      distanceMeters / 1000,
+
+    duration_seconds:
+      durationSeconds,
+
+    provider:
+      "google_routes_v2",
+
+    travel_mode:
+      "DRIVE",
+  };
+}
+
 
 async function resolveDrivingRoute({
   origin_latitude,
@@ -261,6 +604,10 @@ async function resolveDrivingRoute({
 module.exports = {
   GOOGLE_ROUTES_ENDPOINT,
   ROUTES_FIELD_MASK,
+  ROUTES_ADDRESS_FIELD_MASK,
+  DELIVERY_CAPABLE_TYPES,
+  normalizeAddressText,
   parseDurationSeconds,
   resolveDrivingRoute,
+  resolveDrivingRouteFromAddress,
 };

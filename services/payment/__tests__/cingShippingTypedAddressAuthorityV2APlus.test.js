@@ -1,26 +1,29 @@
 "use strict";
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
+const test =
+  require("node:test");
 
-function read(file) {
-  return fs.readFileSync(file, "utf8");
+const assert =
+  require("node:assert/strict");
+
+const fs =
+  require("node:fs");
+
+function read(path) {
+  return fs.readFileSync(
+    path,
+    "utf8"
+  );
 }
 
-const geocoder =
-  read(
-    "services/shippingAddressGeocodingService.js"
-  );
-
-const candidate =
-  read(
-    "services/deliveryLocationCandidateService.js"
-  );
-
-const resolver =
+const typed =
   read(
     "services/typedDeliveryAddressResolutionService.js"
+  );
+
+const routes =
+  read(
+    "services/shippingRoadRouteService.js"
   );
 
 const shippingRoutes =
@@ -28,111 +31,220 @@ const shippingRoutes =
     "routes/shippingRoutes.js"
   );
 
-const locationAuthority =
+const finalDestination =
   read(
-    "services/deliveryLocationAuthorityService.js"
+    "services/finalDeliveryDestinationAuthorityService.js"
   );
 
+
 test(
-  "typed-address geocoding stays backend-owned",
+  "typed-address resolution uses Routes address waypoint only",
   () => {
     assert.match(
-      geocoder,
-      /GOOGLE_MAPS_GEOCODING_API_KEY/
+      typed,
+      /resolveDrivingRouteFromAddress/
+    );
+
+    assert.doesNotMatch(
+      typed,
+      /geocodeDeliveryAddress/
+    );
+
+    assert.doesNotMatch(
+      typed,
+      /shippingAddressGeocodingService/
     );
 
     assert.match(
-      geocoder,
-      /X-Goog-Api-Key/
+      routes,
+      /destination:[\s\S]*address/
+    );
+
+    assert.match(
+      routes,
+      /geocodingResults/
     );
   }
 );
 
+
 test(
-  "candidate is signed and expires",
+  "Routes address authority rejects partial or unusable matches",
   () => {
     assert.match(
-      candidate,
-      /createHmac/
+      routes,
+      /DELIVERY_ADDRESS_PARTIAL_MATCH/
     );
 
     assert.match(
-      candidate,
-      /SHIPPING_LOCATION_TOKEN_SECRET/
+      routes,
+      /geocoded\?\.partialMatch\s*===\s*true/
     );
 
     assert.match(
-      candidate,
-      /timingSafeEqual/
+      routes,
+      /DELIVERY_ADDRESS_PLACE_ID_REQUIRED/
     );
 
     assert.match(
-      candidate,
-      /15 \* 60/
+      routes,
+      /DELIVERY_CAPABLE_TYPES/
+    );
+
+    assert.match(
+      routes,
+      /DELIVERY_ADDRESS_TOO_COARSE/
     );
   }
 );
 
+
 test(
-  "GPS versus typed address mismatch threshold is 200m",
+  "provider route endpoint becomes canonical delivery candidate",
   () => {
     assert.match(
-      resolver,
+      routes,
+      /legs\?\.\[0\][\s\S]*endLocation[\s\S]*latLng/
+    );
+
+    assert.match(
+      typed,
+      /candidate_latitude:[\s\S]*routeAddress\.latitude/
+    );
+
+    assert.match(
+      typed,
+      /candidate_longitude:[\s\S]*routeAddress\.longitude/
+    );
+
+    assert.match(
+      typed,
+      /place_id:[\s\S]*routeAddress\.place_id/
+    );
+  }
+);
+
+
+test(
+  "GPS versus typed address mismatch remains 200m sanity-only",
+  () => {
+    assert.match(
+      typed,
       /MISMATCH_THRESHOLD_KM\s*=\s*0\.2/
     );
 
     assert.match(
-      resolver,
-      /mismatchDistanceKm\s*>\s*MISMATCH_THRESHOLD_KM/
+      typed,
+      /mismatchDistanceKm\s*=\s*calculateDistance\(/
+    );
+
+    assert.match(
+      typed,
+      /routeAddress\.latitude/
+    );
+
+    assert.match(
+      typed,
+      /routeAddress\.longitude/
     );
   }
 );
 
+
 test(
-  "candidate shipping fee is calculated by canonical backend service",
+  "typed address issues exactly one provider route call",
   () => {
-    assert.match(
-      resolver,
-      /calculateShippingFee\(\{/
-    );
+    const calls =
+      typed.match(
+        /resolveDrivingRouteFromAddress\s*\(\{/g
+      ) || [];
 
-    assert.match(
-      resolver,
-      /destination_latitude:[\s\S]*geocoded\.latitude/
-    );
-
-    assert.match(
-      resolver,
-      /destination_longitude:[\s\S]*geocoded\.longitude/
+    assert.equal(
+      calls.length,
+      1
     );
   }
 );
 
+
 test(
-  "resolve-address exposes backend-issued candidate token",
+  "typed address reuses provider road snapshot for canonical shipping",
+  () => {
+    assert.match(
+      typed,
+      /calculateShippingFee\(\{[\s\S]*route_snapshot:/
+    );
+
+    assert.match(
+      typed,
+      /distance_meters:[\s\S]*routeAddress[\s\S]*distance_meters/
+    );
+
+    assert.match(
+      typed,
+      /duration_seconds:[\s\S]*routeAddress[\s\S]*duration_seconds/
+    );
+
+    assert.match(
+      typed,
+      /route_distance_meters:[\s\S]*shipping/
+    );
+  }
+);
+
+
+test(
+  "store route origin remains backend app_configs authority",
+  () => {
+    assert.match(
+      typed,
+      /getShippingConfig\(\)/
+    );
+
+    assert.match(
+      typed,
+      /shippingConfig[\s\S]*store_latitude/
+    );
+
+    assert.match(
+      typed,
+      /shippingConfig[\s\S]*store_longitude/
+    );
+  }
+);
+
+
+test(
+  "resolve-address remains authenticated and user-bound",
   () => {
     assert.match(
       shippingRoutes,
-      /"\/resolve-address"/
+      /["']\/resolve-address["'][\s\S]*authMiddleware/
     );
 
     assert.match(
       shippingRoutes,
-      /resolveTypedDeliveryAddress/
+      /canonicalUserId[\s\S]*req\.customer\?\.phone/
+    );
+
+    assert.match(
+      shippingRoutes,
+      /user_id:[\s\S]*canonicalUserId/
     );
 
     assert.doesNotMatch(
       shippingRoutes,
-      /candidate_token\s*:\s*req\.body/
+      /user_id:\s*req\.body/
     );
   }
 );
 
+
 test(
-  "typed-address candidate is a recognized final location source",
+  "typed-address compatibility source remains recognized",
   () => {
     assert.match(
-      locationAuthority,
+      finalDestination,
       /typed_address_geocode/
     );
   }

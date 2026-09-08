@@ -1,15 +1,16 @@
 "use strict";
 
 const {
-  geocodeDeliveryAddress,
   normalizeAddressText,
+  resolveDrivingRouteFromAddress,
 } = require(
-  "./shippingAddressGeocodingService"
+  "./shippingRoadRouteService"
 );
 
 const {
   calculateDistance,
   calculateShippingFee,
+  getShippingConfig,
 } = require(
   "./shippingService"
 );
@@ -119,12 +120,69 @@ async function resolveTypedDeliveryAddress({
       address_text
     );
 
-  const geocoded =
-    await geocodeDeliveryAddress({
-      address:
+  /*
+   * Store origin remains backend-owned through app_configs.
+   */
+  const shippingConfig =
+    await getShippingConfig();
+
+  const originLat =
+    Number(
+      shippingConfig
+        .store_latitude
+    );
+
+  const originLng =
+    Number(
+      shippingConfig
+        .store_longitude
+    );
+
+  if (
+    !Number.isFinite(originLat) ||
+    !Number.isFinite(originLng) ||
+    originLat < -90 ||
+    originLat > 90 ||
+    originLng < -180 ||
+    originLng > 180
+  ) {
+    throw resolutionError(
+      "SHIPPING_STORE_COORDINATES_INVALID"
+    );
+  }
+
+  /*
+   * SINGLE PROVIDER CALL.
+   *
+   * Google Routes owns all provider work for typed addresses:
+   * - address resolution
+   * - provider place id / type
+   * - canonical route endpoint
+   * - DRIVE distance
+   * - DRIVE duration
+   *
+   * Google Geocoding API is intentionally retired from this
+   * executable production path.
+   */
+  const routeAddress =
+    await resolveDrivingRouteFromAddress({
+      origin_latitude:
+        originLat,
+
+      origin_longitude:
+        originLng,
+
+      destination_address:
         addressText,
     });
 
+  /*
+   * Haversine is sanity-only.
+   *
+   * It compares the device GPS location to the provider-resolved
+   * destination. It never prices shipping and never determines
+   * delivery range.
+   */
   const mismatchDistanceKm =
     calculateDistance({
       origin_latitude:
@@ -134,24 +192,48 @@ async function resolveTypedDeliveryAddress({
         currentLng,
 
       destination_latitude:
-        geocoded.latitude,
+        routeAddress.latitude,
 
       destination_longitude:
-        geocoded.longitude,
+        routeAddress.longitude,
     });
 
+  /*
+   * Reuse the exact Google Routes snapshot.
+   *
+   * calculateShippingFee remains canonical for DB-owned tiers,
+   * max range and free-shipping policy, but must NOT call Google
+   * Routes a second time for this typed-address quote.
+   *
+   * order_amount here is quote-only. Checkout later recalculates
+   * against canonical backend merchandise pricing.
+   */
   const shipping =
     await calculateShippingFee({
       destination_latitude:
-        geocoded.latitude,
+        routeAddress.latitude,
 
       destination_longitude:
-        geocoded.longitude,
+        routeAddress.longitude,
 
       total_amount:
         Number(
           order_amount
         ) || 0,
+
+      route_snapshot: {
+        distance_meters:
+          routeAddress
+            .distance_meters,
+
+        duration_seconds:
+          routeAddress
+            .duration_seconds,
+
+        provider:
+          routeAddress
+            .provider,
+      },
     });
 
   if (
@@ -167,41 +249,55 @@ async function resolveTypedDeliveryAddress({
 
       error:
         shipping.error ||
+        shipping.message ||
         "Không thể giao tới địa chỉ đã nhập",
 
       formatted_address:
-        geocoded.formatted_address,
+        routeAddress
+          .formatted_address,
 
       candidate_latitude:
-        geocoded.latitude,
+        routeAddress.latitude,
 
       candidate_longitude:
-        geocoded.longitude,
+        routeAddress.longitude,
 
       mismatch_distance_km:
         mismatchDistanceKm,
     };
   }
 
+  /*
+   * Signed capability freezes:
+   * - authenticated customer
+   * - canonical route endpoint
+   * - provider place id
+   * - road-distance snapshot
+   * - route duration snapshot
+   *
+   * Signed shipping_fee remains informational only; checkout
+   * recalculates monetary authority from canonical subtotal.
+   */
   const candidateToken =
     createDeliveryLocationCandidate({
       user_id:
         canonicalUserId,
 
       latitude:
-        geocoded.latitude,
+        routeAddress.latitude,
 
       longitude:
-        geocoded.longitude,
+        routeAddress.longitude,
 
       formatted_address:
-        geocoded.formatted_address,
+        routeAddress
+          .formatted_address,
 
       address_text:
         addressText,
 
       place_id:
-        geocoded.place_id,
+        routeAddress.place_id,
 
       shipping_distance_km:
         shipping.distance_km,
@@ -237,13 +333,14 @@ async function resolveTypedDeliveryAddress({
       mismatchDistanceKm,
 
     formatted_address:
-      geocoded.formatted_address,
+      routeAddress
+        .formatted_address,
 
     candidate_latitude:
-      geocoded.latitude,
+      routeAddress.latitude,
 
     candidate_longitude:
-      geocoded.longitude,
+      routeAddress.longitude,
 
     shipping_distance_km:
       shipping.distance_km,

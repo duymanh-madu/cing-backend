@@ -191,6 +191,8 @@ router.post(
           "DELIVERY_ADDRESS_NOT_FOUND",
           "DELIVERY_ADDRESS_AMBIGUOUS",
           "DELIVERY_ADDRESS_TOO_COARSE",
+          "DELIVERY_ADDRESS_PARTIAL_MATCH",
+          "DELIVERY_ADDRESS_PLACE_ID_REQUIRED",
           "CURRENT_DELIVERY_LATITUDE_INVALID",
           "CURRENT_DELIVERY_LONGITUDE_INVALID",
         ]);
@@ -218,6 +220,8 @@ router.post(
       } else if (
         error.code ===
           "DELIVERY_GEOCODING_NOT_CONFIGURED" ||
+        error.code ===
+          "DELIVERY_ROUTES_NOT_CONFIGURED" ||
         error.code ===
           "DELIVERY_LOCATION_TOKEN_SECRET_NOT_CONFIGURED"
       ) {

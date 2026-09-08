@@ -440,6 +440,8 @@ module.exports = {
   calculateShippingFee,
 
   calculateDistance,
+
+  getShippingConfig,
   resolveTierFee,
 
 };
