@@ -32,6 +32,13 @@ const {
   "../services/wallet/cingWalletBuyGamePlaysService"
 );
 
+const {
+  previewCustomerPosPayment,
+  confirmCustomerPosPayment,
+} = require(
+  "../services/wallet/cingWalletPosPaymentService"
+);
+
 const router =
   express.Router();
 
@@ -247,6 +254,87 @@ router.post(
  *
  * No user_id / amount / price is accepted from client.
  */
+/*
+ * =====================================================
+ * GET /api/wallet/pos-pay/:capability
+ * =====================================================
+ *
+ * Customer identity comes only from authMiddleware.
+ * Amount comes only from PostgreSQL payment intent.
+ */
+router.get(
+  "/pos-pay/:capability",
+  authMiddleware,
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const data =
+        await previewCustomerPosPayment({
+          customer:
+            req.customer,
+
+          capability:
+            req.params?.capability,
+        });
+
+      return res.json({
+        success:
+          true,
+
+        data,
+      });
+    } catch (error) {
+      return sendWalletError(
+        res,
+        error
+      );
+    }
+  }
+);
+
+
+/*
+ * =====================================================
+ * POST /api/wallet/pos-pay/:capability/confirm
+ * =====================================================
+ *
+ * Caller cannot supply user_id or amount.
+ */
+router.post(
+  "/pos-pay/:capability/confirm",
+  authMiddleware,
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const data =
+        await confirmCustomerPosPayment({
+          customer:
+            req.customer,
+
+          capability:
+            req.params?.capability,
+        });
+
+      return res.json({
+        success:
+          true,
+
+        data,
+      });
+    } catch (error) {
+      return sendWalletError(
+        res,
+        error
+      );
+    }
+  }
+);
+
+
 router.post(
   "/buy-plays",
   authMiddleware,

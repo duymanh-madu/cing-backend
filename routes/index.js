@@ -162,6 +162,11 @@ router.use(
   require("./walletRoutes")
 );
 
+router.use(
+  "/ipos/epayment/cing-wallet",
+  require("./iposCingWalletEpaymentRoutes")
+);
+
 
 
 router.use(
