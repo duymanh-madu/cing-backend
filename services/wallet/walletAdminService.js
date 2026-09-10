@@ -74,6 +74,36 @@ async function configureTopupPromotion({
   return data;
 }
 
+async function getWalletTransactions({
+  limit,
+  before_created_at,
+  before_id,
+  transaction_type,
+}) {
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    "cing_wallet_admin_transactions_v1",
+    {
+      p_limit: limit,
+      p_before_created_at:
+        before_created_at,
+      p_before_id:
+        before_id,
+      p_transaction_type:
+        transaction_type,
+    }
+  );
+
+  assertRpcResult(
+    error,
+    "LEDGER_READ"
+  );
+
+  return data;
+}
+
 async function getWalletSummary({
   from,
   to,
@@ -101,4 +131,5 @@ module.exports = {
   getTopupPromotion,
   configureTopupPromotion,
   getWalletSummary,
+  getWalletTransactions,
 };

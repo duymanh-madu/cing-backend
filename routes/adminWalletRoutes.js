@@ -14,6 +14,7 @@ const {
   getPromotion,
   updatePromotion,
   getSummary,
+  getTransactions,
 } = require(
   "../controllers/admin/adminWalletController"
 );
@@ -32,6 +33,14 @@ router.put(
     "wallet.promotion.update"
   ),
   updatePromotion
+);
+
+router.get(
+  "/transactions",
+  requirePanelPermission(
+    "wallet.reporting.read"
+  ),
+  getTransactions
 );
 
 router.get(

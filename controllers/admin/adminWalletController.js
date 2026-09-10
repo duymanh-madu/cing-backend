@@ -2,6 +2,7 @@ const {
   getTopupPromotion,
   configureTopupPromotion,
   getWalletSummary,
+  getWalletTransactions,
 } = require(
   "../../services/wallet/walletAdminService"
 );
@@ -576,8 +577,268 @@ async function getSummary(
   }
 }
 
+
+const ADMIN_LEDGER_DEFAULT_LIMIT = 50;
+const ADMIN_LEDGER_MAX_LIMIT = 100;
+
+const ADMIN_LEDGER_TYPES =
+  new Set([
+    "topup",
+    "topup_promotion",
+    "payment",
+    "refund",
+    "reversal",
+    "admin_adjustment",
+  ]);
+
+function encodeLedgerCursor(
+  row
+) {
+  if (
+    !row?.created_at ||
+    !row?.id
+  ) {
+    return null;
+  }
+
+  return Buffer
+    .from(
+      JSON.stringify({
+        created_at:
+          row.created_at,
+        id:
+          row.id,
+      }),
+      "utf8"
+    )
+    .toString(
+      "base64url"
+    );
+}
+
+function decodeLedgerCursor(
+  value
+) {
+  if (!value) {
+    return null;
+  }
+
+  if (
+    typeof value !==
+      "string" ||
+    value.length > 512
+  ) {
+    throw new Error(
+      "CING_WALLET_ADMIN_LEDGER_CURSOR_INVALID"
+    );
+  }
+
+  try {
+    const decoded =
+      JSON.parse(
+        Buffer
+          .from(
+            value,
+            "base64url"
+          )
+          .toString(
+            "utf8"
+          )
+      );
+
+    if (
+      !isPlainObject(
+        decoded
+      ) ||
+      typeof decoded
+        .created_at !==
+        "string" ||
+      typeof decoded.id !==
+        "string" ||
+      Number.isNaN(
+        Date.parse(
+          decoded.created_at
+        )
+      ) ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        .test(
+          decoded.id
+        )
+    ) {
+      throw new Error();
+    }
+
+    return {
+      created_at:
+        new Date(
+          decoded.created_at
+        ).toISOString(),
+      id:
+        decoded.id,
+    };
+  } catch {
+    throw new Error(
+      "CING_WALLET_ADMIN_LEDGER_CURSOR_INVALID"
+    );
+  }
+}
+
+function normalizeLedgerLimit(
+  value
+) {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return ADMIN_LEDGER_DEFAULT_LIMIT;
+  }
+
+  if (
+    typeof value !==
+      "string" ||
+    !/^[1-9][0-9]*$/.test(
+      value
+    )
+  ) {
+    throw new Error(
+      "CING_WALLET_ADMIN_LEDGER_LIMIT_INVALID"
+    );
+  }
+
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isSafeInteger(
+      parsed
+    ) ||
+    parsed >
+      ADMIN_LEDGER_MAX_LIMIT
+  ) {
+    throw new Error(
+      "CING_WALLET_ADMIN_LEDGER_LIMIT_INVALID"
+    );
+  }
+
+  return parsed;
+}
+
+async function getTransactions(
+  req,
+  res
+) {
+  try {
+    const limit =
+      normalizeLedgerLimit(
+        req.query?.limit
+      );
+
+    const cursor =
+      decodeLedgerCursor(
+        req.query?.cursor
+      );
+
+    const transactionType =
+      req.query
+        ?.transaction_type ||
+      null;
+
+    if (
+      transactionType !==
+        null &&
+      (
+        typeof transactionType !==
+          "string" ||
+        !ADMIN_LEDGER_TYPES.has(
+          transactionType
+        )
+      )
+    ) {
+      return badRequest(
+        res,
+        "CING_WALLET_ADMIN_LEDGER_TYPE_INVALID"
+      );
+    }
+
+    const rows =
+      await getWalletTransactions({
+        limit,
+        before_created_at:
+          cursor?.created_at ||
+          null,
+        before_id:
+          cursor?.id ||
+          null,
+        transaction_type:
+          transactionType,
+      });
+
+    if (
+      !Array.isArray(rows)
+    ) {
+      throw new Error(
+        "CING_WALLET_ADMIN_LEDGER_RESULT_INVALID"
+      );
+    }
+
+    const hasMore =
+      rows.length > limit;
+
+    const items =
+      hasMore
+        ? rows.slice(
+            0,
+            limit
+          )
+        : rows;
+
+    const tail =
+      items[
+        items.length - 1
+      ] || null;
+
+    return res.json({
+      success: true,
+      data: {
+        items,
+        next_cursor:
+          hasMore
+            ? encodeLedgerCursor(
+                tail
+              )
+            : null,
+      },
+    });
+  } catch (error) {
+    const message =
+      error?.message ||
+      "";
+
+    if (
+      message ===
+        "CING_WALLET_ADMIN_LEDGER_CURSOR_INVALID" ||
+      message ===
+        "CING_WALLET_ADMIN_LEDGER_LIMIT_INVALID" ||
+      message ===
+        "CING_WALLET_ADMIN_LEDGER_TYPE_INVALID"
+    ) {
+      return badRequest(
+        res,
+        message
+      );
+    }
+
+    return mapWalletError(
+      res,
+      error
+    );
+  }
+}
+
 module.exports = {
   getPromotion,
   updatePromotion,
   getSummary,
+  getTransactions,
 };
