@@ -338,13 +338,34 @@ async function updatePromotion(
           const tierKeys =
             Object.keys(tier);
 
+          const allowedTierKeys =
+            new Set([
+              "min_topup_amount",
+              "bonus_amount",
+              "is_featured",
+            ]);
+
           if (
-            tierKeys.length !== 2 ||
+            tierKeys.length < 2 ||
+            tierKeys.length > 3 ||
             !tierKeys.includes(
               "min_topup_amount"
             ) ||
             !tierKeys.includes(
               "bonus_amount"
+            ) ||
+            tierKeys.some(
+              key =>
+                !allowedTierKeys.has(
+                  key
+                )
+            ) ||
+            (
+              tierKeys.includes(
+                "is_featured"
+              ) &&
+              typeof tier.is_featured !==
+                "boolean"
             )
           ) {
             throw new Error(
@@ -364,6 +385,9 @@ async function updatePromotion(
                 tier.bonus_amount,
                 "CING_WALLET_PROMOTION_TIER_BONUS"
               ),
+
+            is_featured:
+              tier.is_featured === true,
           };
         }
       );
@@ -388,6 +412,21 @@ async function updatePromotion(
 
       seen.add(
         tier.min_topup_amount
+      );
+    }
+
+    const featuredTierCount =
+      normalizedTiers.filter(
+        tier =>
+          tier.is_featured === true
+      ).length;
+
+    if (
+      featuredTierCount > 1
+    ) {
+      return badRequest(
+        res,
+        "CING_WALLET_PROMOTION_MULTIPLE_FEATURED_TIERS"
       );
     }
 
