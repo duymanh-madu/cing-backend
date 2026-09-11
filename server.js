@@ -1073,6 +1073,26 @@ try {
   );
 }
 
+  try {
+    const {
+      startCommercePointRedemptionIposSyncWorker,
+    } = require(
+      "./services/payment/commercePointRedemptionIposSyncWorker"
+    );
+
+    startCommercePointRedemptionIposSyncWorker();
+
+    console.log(
+      "[COMMERCE POINT REDEMPTION IPOS SYNC] Worker started"
+    );
+  } catch (error) {
+    console.warn(
+      "[COMMERCE POINT REDEMPTION IPOS SYNC] Worker bootstrap failed:",
+      error.message
+    );
+  }
+
+
 
 /**
  * =====================================================
