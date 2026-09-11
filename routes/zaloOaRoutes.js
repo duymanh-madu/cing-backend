@@ -97,8 +97,14 @@ async function refreshZaloToken() {
     const { data: config } = await supabase.from("app_configs")
       .select("zalo_oa_refresh_token").eq("id", 1).single();
 
-    const refresh_token = config?.zalo_oa_refresh_token || process.env.ZALO_OA_REFRESH_TOKEN;
-    if (!refresh_token) throw new Error("No refresh token");
+    const refresh_token =
+      config?.zalo_oa_refresh_token;
+
+    if (!refresh_token) {
+      throw new Error(
+        "No database Zalo OA refresh token"
+      );
+    }
 
     const result = await axios.post("https://oauth.zaloapp.com/v4/oa/access_token", null, {
       headers: { secret_key: process.env.ZALO_APP_SECRET },
