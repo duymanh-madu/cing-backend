@@ -153,7 +153,19 @@ router.get("/refresh-token", verifyAdmin, async (req, res) => {
 router.post("/oa-webhook", async (req, res) => {
   try {
     const body = req.body || {};
-    console.log("[ZALO OA WEBHOOK]", JSON.stringify(body).slice(0, 300));
+    console.log(
+      "[ZALO OA WEBHOOK] received",
+      {
+        event_name:
+          body.event_name || null,
+        app_id:
+          body.app_id || null,
+        has_sender:
+          Boolean(body.sender),
+        has_recipient:
+          Boolean(body.recipient),
+      }
+    );
     const redis = require("../services/infrastructure/cache/redisClient");
     await redis.setex("zalo:last_webhook", 3600, JSON.stringify(body));
     res.status(200).json({ success: true });
