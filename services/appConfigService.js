@@ -34,7 +34,29 @@ async function getPublicAppConfig() {
 
   }
 
-  return data;
+  if (!data) {
+    return data;
+  }
+
+  /*
+   * SECURITY:
+   * Public app configuration must never expose
+   * server-side Zalo OA credentials.
+   *
+   * Internal Zalo services continue reading these
+   * fields directly from app_configs.
+   */
+  const {
+    zalo_oa_access_token:
+      _privateZaloOaAccessToken,
+
+    zalo_oa_refresh_token:
+      _privateZaloOaRefreshToken,
+
+    ...publicConfig
+  } = data;
+
+  return publicConfig;
 
 }
 
