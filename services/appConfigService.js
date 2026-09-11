@@ -49,6 +49,17 @@ async function updateAppConfig({
   payload,
 }) {
 
+
+  /*
+   * LEGAL AUTHORITY:
+   * customer_multiplayer_enabled must never be mutated through
+   * the generic application configuration endpoint.
+   */
+  const {
+    customer_multiplayer_enabled: _protectedCustomerMultiplayerEnabled,
+    ...mutablePayload
+  } = payload || {};
+
   const {
     data,
     error,
@@ -58,7 +69,7 @@ async function updateAppConfig({
 
     .update({
 
-      ...payload,
+      ...mutablePayload,
 
       updated_at:
         new Date(),

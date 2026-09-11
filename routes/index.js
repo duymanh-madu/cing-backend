@@ -1,6 +1,7 @@
 const express =
   require("express");
 
+const customerMultiplayerGate = require("../middlewares/customerMultiplayerGate");
 const router =
   express.Router();
 
@@ -97,6 +98,7 @@ router.use(
 
 router.use(
   "/game/cing-piu-piu",
+  customerMultiplayerGate,
   require("./cingArtilleryRoutes")
 );
 
@@ -348,7 +350,7 @@ router.use("/profile-update", require("./profileUpdateRoutes"));
 
 router.use("/zalo", require("./zaloOaRoutes"));
 
-router.use("/game/chess", require("./chessRoutes"));
+router.use("/game/chess", customerMultiplayerGate, require("./chessRoutes"));
 
 router.use("/admin/monitor", require("./adminMonitorRoutes"));
 router.use("/admin/payment-dashboard", require("./adminPaymentDashboardRoutes"));
