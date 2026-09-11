@@ -5,6 +5,12 @@ const router =
   express.Router();
 
 const {
+  verifyAdmin,
+} = require(
+  "./adminAuthRoutes"
+);
+
+const {
 
   getPublicAppConfig,
 
@@ -24,6 +30,7 @@ const {
 
 router.post(
   "/init",
+  verifyAdmin,
   async (
     req,
     res
@@ -112,6 +119,7 @@ router.get(
 
 router.put(
   "/:id",
+  verifyAdmin,
   async (
     req,
     res
