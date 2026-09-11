@@ -3,6 +3,12 @@ const router   = express.Router();
 const axios    = require("axios");
 const supabase = require("../supabase");
 
+const {
+  verifyAdmin,
+} = require(
+  "./adminAuthRoutes"
+);
+
 const APP_ID     = process.env.ZALO_APP_ID;
 const APP_SECRET = process.env.ZALO_APP_SECRET;
 
@@ -36,11 +42,16 @@ router.get("/oa-callback", async (req, res) => {
       headers: { secret_key: APP_SECRET, "Content-Type": "application/x-www-form-urlencoded" }
     });
 
-    console.log("[ZALO OA] Exchange result.data:", JSON.stringify(result.data));
+    console.log(
+      "[ZALO OA] Authorization code exchange completed"
+    );
+
     const { access_token, refresh_token, expires_in } = result.data;
 
     if (!access_token) {
-      return res.status(500).send("❌ Zalo trả về: " + JSON.stringify(result.data));
+      return res.status(500).send(
+        "❌ Zalo không trả về access token hợp lệ"
+      );
     }
 
     await supabase.from("app_configs").update({
@@ -52,13 +63,16 @@ router.get("/oa-callback", async (req, res) => {
     console.log("[ZALO OA] Token saved successfully");
     res.send("<h2>✅ Kết nối Zalo OA thành công! Bạn có thể đóng tab này.</h2>");
   } catch(err) {
-    console.error("[ZALO OA] Callback error:", err.response?.data || err.message);
+    console.error(
+      "[ZALO OA] Callback error:",
+      err.message
+    );
     res.status(500).send("❌ Lỗi: " + (err.response?.data?.message || err.message));
   }
 });
 
 // POST /api/zalo/send-message
-router.post("/send-message", async (req, res) => {
+router.post("/send-message", verifyAdmin, async (req, res) => {
   try {
     const { user_id, message } = req.body;
     const { data: config } = await supabase.from("app_configs")
@@ -95,7 +109,9 @@ async function refreshZaloToken() {
       }
     });
 
-    console.log("[ZALO OA] Response:", JSON.stringify(result.data));
+    console.log(
+      "[ZALO OA] Refresh response received"
+    );
 
     // Zalo trả HTTP 200 nhưng body có error — phải check
     if (result.data.error && result.data.error !== 0) {
@@ -118,13 +134,16 @@ async function refreshZaloToken() {
     console.log("[ZALO OA] Token refreshed successfully");
     return access_token;
   } catch(err) {
-    console.error("[ZALO OA] Refresh failed:", err.message, JSON.stringify(err.response?.data));
+    console.error(
+      "[ZALO OA] Refresh failed:",
+      err.message
+    );
     return null;
   }
 }
 
 // GET /api/zalo/refresh-token
-router.get("/refresh-token", async (req, res) => {
+router.get("/refresh-token", verifyAdmin, async (req, res) => {
   const token = await refreshZaloToken();
   if (token) res.json({ success: true, message: "Token refreshed" });
   else res.status(500).json({ success: false, error: "Refresh failed" });
@@ -145,7 +164,7 @@ router.post("/oa-webhook", async (req, res) => {
 });
 
 // GET /api/zalo/last-webhook
-router.get("/last-webhook", async (req, res) => {
+router.get("/last-webhook", verifyAdmin, async (req, res) => {
   try {
     const redis = require("../services/infrastructure/cache/redisClient");
     const data = await redis.get("zalo:last_webhook");
