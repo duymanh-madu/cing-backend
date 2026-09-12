@@ -4,6 +4,7 @@ const {
   getWalletSummary,
   getWalletTransactions,
   adjustWalletBalance,
+  searchWalletCustomers,
 } = require(
   "../../services/wallet/walletAdminService"
 );
@@ -529,6 +530,134 @@ async function createAdjustment(
         error:
           message,
       });
+    }
+
+    return mapWalletError(
+      res,
+      error
+    );
+  }
+}
+
+
+async function getAdjustmentCustomers(
+  req,
+  res
+) {
+  try {
+    if (
+      req.admin?.role !==
+        "super_admin"
+    ) {
+      return res.status(403).json({
+        success:
+          false,
+        error:
+          "CING_WALLET_SUPER_ADMIN_REQUIRED",
+      });
+    }
+
+    const query =
+      typeof req.query?.q ===
+        "string"
+        ? req.query.q.trim()
+        : "";
+
+    if (
+      query.length < 2 ||
+      query.length > 120
+    ) {
+      return badRequest(
+        res,
+        "CING_WALLET_ADMIN_CUSTOMER_QUERY_INVALID"
+      );
+    }
+
+    const rows =
+      await searchWalletCustomers({
+        query,
+      });
+
+    const items =
+      rows.map(
+        row => {
+          const balance =
+            Number(
+              row
+                ?.wallet_balance
+            );
+
+          if (
+            typeof row?.user_id !==
+              "string" ||
+            !row.user_id ||
+            !Number.isSafeInteger(
+              balance
+            ) ||
+            balance < 0 ||
+            typeof row
+              ?.wallet_account_exists !==
+              "boolean"
+          ) {
+            throw new Error(
+              "CING_WALLET_ADMIN_CUSTOMER_LOOKUP_RESULT_INVALID"
+            );
+          }
+
+          return {
+            user_id:
+              row.user_id,
+            phone:
+              typeof row?.phone ===
+                "string"
+                ? row.phone
+                : row.user_id,
+            display_name:
+              typeof row
+                ?.display_name ===
+                "string"
+                ? row.display_name
+                : row.user_id,
+            avatar:
+              typeof row?.avatar ===
+                "string"
+                ? row.avatar
+                : "",
+            wallet_balance:
+              balance,
+            wallet_status:
+              typeof row
+                ?.wallet_status ===
+                "string"
+                ? row.wallet_status
+                : "not_created",
+            wallet_account_exists:
+              row
+                .wallet_account_exists,
+          };
+        }
+      );
+
+    return res.json({
+      success:
+        true,
+      data: {
+        items,
+      },
+    });
+  } catch (error) {
+    const message =
+      error?.message ||
+      "";
+
+    if (
+      message ===
+        "CING_WALLET_ADMIN_CUSTOMER_QUERY_INVALID"
+    ) {
+      return badRequest(
+        res,
+        message
+      );
     }
 
     return mapWalletError(
@@ -1206,4 +1335,5 @@ module.exports = {
   getSummary,
   getTransactions,
   createAdjustment,
+  getAdjustmentCustomers,
 };

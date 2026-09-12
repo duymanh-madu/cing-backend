@@ -16,6 +16,7 @@ const {
   getSummary,
   getTransactions,
   createAdjustment,
+  getAdjustmentCustomers,
 } = require(
   "../controllers/admin/adminWalletController"
 );
@@ -34,6 +35,14 @@ router.put(
     "wallet.promotion.update"
   ),
   updatePromotion
+);
+
+router.get(
+  "/customers",
+  requirePanelPermission(
+    "wallet.balance.adjust"
+  ),
+  getAdjustmentCustomers
 );
 
 router.post(

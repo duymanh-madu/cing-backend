@@ -189,10 +189,44 @@ async function adjustWalletBalance({
   return row;
 }
 
+
+async function searchWalletCustomers({
+  query,
+}) {
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    "cing_wallet_admin_customer_lookup_v1",
+    {
+      p_query:
+        query,
+    }
+  );
+
+  assertRpcResult(
+    error,
+    "CUSTOMER_LOOKUP"
+  );
+
+  if (!Array.isArray(data)) {
+    const wrapped =
+      new Error(
+        "CING_WALLET_ADMIN_CUSTOMER_LOOKUP_RESULT_INVALID"
+      );
+    wrapped.code =
+      "CING_WALLET_ADMIN_CUSTOMER_LOOKUP_RESULT_INVALID";
+    throw wrapped;
+  }
+
+  return data;
+}
+
 module.exports = {
   getTopupPromotion,
   configureTopupPromotion,
   getWalletSummary,
   getWalletTransactions,
   adjustWalletBalance,
+  searchWalletCustomers,
 };
