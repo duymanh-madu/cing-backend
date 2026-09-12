@@ -127,9 +127,72 @@ async function getWalletSummary({
   return data;
 }
 
+
+async function adjustWalletBalance({
+  user_id,
+  direction,
+  amount,
+  request_id,
+  reason_code,
+  note,
+  reference_type,
+  reference_id,
+  actor_id,
+}) {
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    "cing_wallet_admin_adjust_balance_atomic_v1",
+    {
+      p_user_id:
+        user_id,
+      p_direction:
+        direction,
+      p_amount:
+        amount,
+      p_request_id:
+        request_id,
+      p_reason_code:
+        reason_code,
+      p_note:
+        note,
+      p_reference_type:
+        reference_type,
+      p_reference_id:
+        reference_id,
+      p_actor_id:
+        actor_id,
+    }
+  );
+
+  assertRpcResult(
+    error,
+    "ADJUSTMENT"
+  );
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (!row) {
+    const wrapped =
+      new Error(
+        "CING_WALLET_ADMIN_ADJUSTMENT_EMPTY"
+      );
+    wrapped.code =
+      "CING_WALLET_ADMIN_ADJUSTMENT_EMPTY";
+    throw wrapped;
+  }
+
+  return row;
+}
+
 module.exports = {
   getTopupPromotion,
   configureTopupPromotion,
   getWalletSummary,
   getWalletTransactions,
+  adjustWalletBalance,
 };

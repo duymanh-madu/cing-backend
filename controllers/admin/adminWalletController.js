@@ -3,6 +3,7 @@ const {
   configureTopupPromotion,
   getWalletSummary,
   getWalletTransactions,
+  adjustWalletBalance,
 } = require(
   "../../services/wallet/walletAdminService"
 );
@@ -10,6 +11,10 @@ const {
 const MAX_TIERS = 50;
 const MAX_NAME_LENGTH = 160;
 const MAX_ACTOR_LENGTH = 512;
+const MAX_ADJUSTMENT_NOTE_LENGTH = 1000;
+const MAX_ADJUSTMENT_REFERENCE_TYPE_LENGTH = 100;
+const MAX_ADJUSTMENT_REFERENCE_ID_LENGTH = 300;
+
 
 function badRequest(
   res,
@@ -172,6 +177,365 @@ function resolveActorId(
   }
 
   return normalized;
+}
+
+
+function normalizeRequiredText(
+  value,
+  {
+    code,
+    maxLength,
+    pattern = null,
+  }
+) {
+  if (
+    typeof value !==
+      "string"
+  ) {
+    throw new Error(code);
+  }
+
+  const normalized =
+    value.trim();
+
+  if (
+    !normalized ||
+    normalized.length >
+      maxLength ||
+    (
+      pattern &&
+      !pattern.test(
+        normalized
+      )
+    )
+  ) {
+    throw new Error(code);
+  }
+
+  return normalized;
+}
+
+function normalizeOptionalText(
+  value,
+  {
+    code,
+    maxLength,
+    pattern = null,
+  }
+) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return null;
+  }
+
+  if (
+    typeof value !==
+      "string"
+  ) {
+    throw new Error(code);
+  }
+
+  const normalized =
+    value.trim();
+
+  if (
+    !normalized ||
+    normalized.length >
+      maxLength ||
+    (
+      pattern &&
+      !pattern.test(
+        normalized
+      )
+    )
+  ) {
+    throw new Error(code);
+  }
+
+  return normalized;
+}
+
+function normalizeRequestUuid(
+  value
+) {
+  return normalizeRequiredText(
+    value,
+    {
+      code:
+        "CING_WALLET_ADMIN_ADJUSTMENT_REQUEST_ID_INVALID",
+      maxLength:
+        36,
+      pattern:
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    }
+  ).toLowerCase();
+}
+
+async function createAdjustment(
+  req,
+  res
+) {
+  try {
+    if (
+      req.admin?.role !==
+        "super_admin"
+    ) {
+      return res.status(403).json({
+        success:
+          false,
+        error:
+          "CING_WALLET_SUPER_ADMIN_REQUIRED",
+      });
+    }
+
+    if (
+      !isPlainObject(
+        req.body
+      )
+    ) {
+      return badRequest(
+        res,
+        "CING_WALLET_ADMIN_ADJUSTMENT_BODY_INVALID"
+      );
+    }
+
+    const allowedKeys =
+      new Set([
+        "user_id",
+        "direction",
+        "amount",
+        "request_id",
+        "reason_code",
+        "note",
+        "reference_type",
+        "reference_id",
+      ]);
+
+    const unknownKey =
+      Object
+        .keys(req.body)
+        .find(
+          key =>
+            !allowedKeys.has(
+              key
+            )
+        );
+
+    if (unknownKey) {
+      return badRequest(
+        res,
+        "CING_WALLET_ADMIN_ADJUSTMENT_BODY_INVALID"
+      );
+    }
+
+    const userId =
+      normalizeRequiredText(
+        req.body.user_id,
+        {
+          code:
+            "CING_WALLET_ADMIN_ADJUSTMENT_USER_ID_INVALID",
+          maxLength:
+            200,
+        }
+      );
+
+    const direction =
+      normalizeRequiredText(
+        req.body.direction,
+        {
+          code:
+            "CING_WALLET_ADMIN_ADJUSTMENT_DIRECTION_INVALID",
+          maxLength:
+            6,
+          pattern:
+            /^(credit|debit)$/,
+        }
+      ).toLowerCase();
+
+    const amount =
+      normalizePositiveBigint(
+        req.body.amount,
+        "CING_WALLET_ADMIN_ADJUSTMENT_AMOUNT"
+      );
+
+    const requestId =
+      normalizeRequestUuid(
+        req.body.request_id
+      );
+
+    const reasonCode =
+      normalizeRequiredText(
+        req.body.reason_code,
+        {
+          code:
+            "CING_WALLET_ADMIN_ADJUSTMENT_REASON_CODE_INVALID",
+          maxLength:
+            64,
+          pattern:
+            /^[a-z0-9][a-z0-9_]{1,63}$/,
+        }
+      ).toLowerCase();
+
+    const note =
+      normalizeOptionalText(
+        req.body.note,
+        {
+          code:
+            "CING_WALLET_ADMIN_ADJUSTMENT_NOTE_INVALID",
+          maxLength:
+            MAX_ADJUSTMENT_NOTE_LENGTH,
+        }
+      );
+
+    const referenceType =
+      normalizeOptionalText(
+        req.body.reference_type,
+        {
+          code:
+            "CING_WALLET_ADMIN_ADJUSTMENT_REFERENCE_INVALID",
+          maxLength:
+            MAX_ADJUSTMENT_REFERENCE_TYPE_LENGTH,
+          pattern:
+            /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,99}$/,
+        }
+      );
+
+    const referenceId =
+      normalizeOptionalText(
+        req.body.reference_id,
+        {
+          code:
+            "CING_WALLET_ADMIN_ADJUSTMENT_REFERENCE_INVALID",
+          maxLength:
+            MAX_ADJUSTMENT_REFERENCE_ID_LENGTH,
+        }
+      );
+
+    if (
+      Boolean(referenceType) !==
+      Boolean(referenceId)
+    ) {
+      return badRequest(
+        res,
+        "CING_WALLET_ADMIN_ADJUSTMENT_REFERENCE_INVALID"
+      );
+    }
+
+    const actorId =
+      resolveActorId(req);
+
+    if (!actorId) {
+      return res.status(403).json({
+        success:
+          false,
+        error:
+          "CING_WALLET_ADMIN_ACTOR_MISSING",
+      });
+    }
+
+    const adjustment =
+      await adjustWalletBalance({
+        user_id:
+          userId,
+        direction,
+        amount,
+        request_id:
+          requestId,
+        reason_code:
+          reasonCode,
+        note,
+        reference_type:
+          referenceType,
+        reference_id:
+          referenceId,
+        actor_id:
+          actorId,
+      });
+
+    return res.json({
+      success:
+        true,
+      data:
+        adjustment,
+    });
+  } catch (error) {
+    const message =
+      error?.message ||
+      "";
+
+    if (
+      message.startsWith(
+        "CING_WALLET_ADMIN_ADJUSTMENT_"
+      ) &&
+      !message.includes(
+        "REPLAY_CONFLICT"
+      )
+    ) {
+      return badRequest(
+        res,
+        message
+      );
+    }
+
+    if (
+      message.includes(
+        "CING_WALLET_INSUFFICIENT_BALANCE"
+      )
+    ) {
+      return res.status(409).json({
+        success:
+          false,
+        error:
+          "CING_WALLET_INSUFFICIENT_BALANCE",
+      });
+    }
+
+    if (
+      message.includes(
+        "CING_WALLET_ADMIN_ADJUSTMENT_REPLAY_CONFLICT"
+      )
+    ) {
+      return res.status(409).json({
+        success:
+          false,
+        error:
+          "CING_WALLET_ADMIN_ADJUSTMENT_REPLAY_CONFLICT",
+      });
+    }
+
+    if (
+      message.includes(
+        "CING_WALLET_USER_NOT_FOUND"
+      )
+    ) {
+      return res.status(404).json({
+        success:
+          false,
+        error:
+          "CING_WALLET_USER_NOT_FOUND",
+      });
+    }
+
+    if (
+      message.includes(
+        "CING_WALLET_ACCOUNT"
+      )
+    ) {
+      return res.status(409).json({
+        success:
+          false,
+        error:
+          message,
+      });
+    }
+
+    return mapWalletError(
+      res,
+      error
+    );
+  }
 }
 
 function mapWalletError(
@@ -841,4 +1205,5 @@ module.exports = {
   updatePromotion,
   getSummary,
   getTransactions,
+  createAdjustment,
 };
