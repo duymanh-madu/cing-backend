@@ -28,6 +28,9 @@ const POS_COUNTER_ENABLED_ENV =
 const POS_TRIGGER_CODE_ENV =
   "CING_WALLET_POS_TRIGGER_CODE";
 
+const POS_VOUCHER_PREFIX_ENV =
+  "CING_WALLET_POS_VOUCHER_PREFIX";
+
 const DEFAULT_QR_TTL_SECONDS =
   300;
 
@@ -97,12 +100,119 @@ function assertPosCounterEnabled() {
 }
 
 
-function getConfiguredTriggerCode() {
+function getConfiguredVoucherPrefix() {
+
   return String(
+
     process.env[
-      POS_TRIGGER_CODE_ENV
+
+      POS_VOUCHER_PREFIX_ENV
+
     ] || ""
-  ).trim();
+
+  )
+    .trim()
+    .toUpperCase();
+
+}
+
+
+function getConfiguredTriggerCode() {
+
+  return String(
+
+    process.env[
+
+      POS_TRIGGER_CODE_ENV
+
+    ] || ""
+
+  )
+    .trim()
+    .toUpperCase();
+
+}
+
+
+function getConfiguredTriggerAuthority() {
+
+  const voucherPrefix =
+    getConfiguredVoucherPrefix();
+
+  const triggerCode =
+    getConfiguredTriggerCode();
+
+  if (
+    !/^[A-Z0-9]{2}$/.test(
+      voucherPrefix
+    )
+  ) {
+
+    throw createSessionError({
+
+      message:
+        "Cing Wallet POS voucher prefix chưa hợp lệ",
+
+      code:
+        "CING_WALLET_POS_VOUCHER_PREFIX_INVALID",
+
+      statusCode:
+        503,
+
+    });
+
+  }
+
+  if (
+    !/^[A-Z0-9]{10,64}$/.test(
+      triggerCode
+    )
+  ) {
+
+    throw createSessionError({
+
+      message:
+        "Cing Wallet POS trigger code chưa hợp lệ",
+
+      code:
+        "CING_WALLET_POS_TRIGGER_CODE_INVALID",
+
+      statusCode:
+        503,
+
+    });
+
+  }
+
+  if (
+    !triggerCode.startsWith(
+      voucherPrefix
+    )
+  ) {
+
+    throw createSessionError({
+
+      message:
+        "Cing Wallet POS trigger không thuộc voucher prefix",
+
+      code:
+        "CING_WALLET_POS_TRIGGER_PREFIX_MISMATCH",
+
+      statusCode:
+        503,
+
+    });
+
+  }
+
+  return {
+
+    voucherPrefix,
+
+    triggerCode,
+
+  };
+
 }
 
 
@@ -331,47 +441,74 @@ function normalizeEvent2Request(
 
 
 function isCingWalletPosTriggerRequest(
+
   body
+
 ) {
+
   const event =
+
     String(
+
       body?.event || ""
+
     ).trim();
 
   const eventId =
+
     Number(
+
       body?.event_id
+
     );
 
   if (
+
     event !==
       "using_voucher" &&
+
     eventId !== 2
+
   ) {
+
     return false;
+
   }
 
-  const configuredCode =
-    getConfiguredTriggerCode();
+  let authority;
 
-  if (!configuredCode) {
+  try {
+
+    authority =
+      getConfiguredTriggerAuthority();
+
+  } catch {
+
     return false;
+
   }
 
   const requestCode =
+
     String(
+
       body
         ?.voucher_request
         ?.Coupon_Code ||
       ""
-    ).trim();
+
+    )
+      .trim()
+      .toUpperCase();
 
   return (
-    requestCode ===
-    configuredCode
-  );
-}
 
+    requestCode ===
+    authority.triggerCode
+
+  );
+
+}
 
 function buildEventFingerprint({
   posParent,

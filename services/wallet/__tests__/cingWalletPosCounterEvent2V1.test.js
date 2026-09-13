@@ -85,8 +85,16 @@ test(
 
 
 test(
-  "only exact configured trigger code can enter Wallet Event 2 lane",
+
+  "Foodbook prefix and exact full trigger jointly own Wallet Event 2 admission",
+
   () => {
+
+    assert.match(
+      service,
+      /CING_WALLET_POS_VOUCHER_PREFIX/
+    );
+
     assert.match(
       service,
       /CING_WALLET_POS_TRIGGER_CODE/
@@ -94,9 +102,31 @@ test(
 
     assert.match(
       service,
-      /requestCode\s*===\s*configuredCode/
+      /\^\[A-Z0-9\]\{2\}\$/
     );
+
+    assert.match(
+      service,
+      /\^\[A-Z0-9\]\{10,64\}\$/
+    );
+
+    assert.match(
+      service,
+      /triggerCode\.startsWith\(\s*voucherPrefix\s*\)/
+    );
+
+    assert.match(
+      service,
+      /requestCode\s*===\s*authority\.triggerCode/
+    );
+
+    assert.doesNotMatch(
+      service,
+      /return\s*\(\s*requestCode\.startsWith/
+    );
+
   }
+
 );
 
 
