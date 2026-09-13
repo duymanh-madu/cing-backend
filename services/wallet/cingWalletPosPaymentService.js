@@ -1083,7 +1083,9 @@ async function previewCustomerPosPayment({
   customer,
   capability,
 }) {
-  const userId =
+    assertPosEpaymentEnabled();
+
+const userId =
     resolveCustomerUserId(
       customer
     );
@@ -1174,7 +1176,9 @@ async function confirmCustomerPosPayment({
   customer,
   capability,
 }) {
-  const userId =
+    assertPosEpaymentEnabled();
+
+const userId =
     resolveCustomerUserId(
       customer
     );

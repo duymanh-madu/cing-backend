@@ -223,3 +223,147 @@ test(
     );
   }
 );
+
+
+test(
+
+  "customer preview is globally blocked before capability or database authority when e-payment is disabled",
+
+  () => {
+
+    const start =
+      paymentSource.indexOf(
+        "async function previewCustomerPosPayment"
+      );
+
+    const end =
+      paymentSource.indexOf(
+        "async function confirmCustomerPosPayment",
+        start
+      );
+
+    assert.ok(
+      start >= 0
+    );
+
+    assert.ok(
+      end > start
+    );
+
+    const body =
+      paymentSource.slice(
+        start,
+        end
+      );
+
+    const gate =
+      body.indexOf(
+        "assertPosEpaymentEnabled();"
+      );
+
+    const resolveCustomer =
+      body.indexOf(
+        "resolveCustomerUserId("
+      );
+
+    const verifyCapability =
+      body.indexOf(
+        "verifyQrCapability("
+      );
+
+    const rpc =
+      body.indexOf(
+        "cing_wallet_get_pos_payment_for_customer_v1"
+      );
+
+    assert.ok(
+      gate >= 0
+    );
+
+    assert.ok(
+      resolveCustomer > gate
+    );
+
+    assert.ok(
+      verifyCapability > gate
+    );
+
+    assert.ok(
+      rpc > gate
+    );
+
+  }
+
+);
+
+
+test(
+
+  "customer confirm is globally blocked before capability verification and atomic settlement when e-payment is disabled",
+
+  () => {
+
+    const start =
+      paymentSource.indexOf(
+        "async function confirmCustomerPosPayment"
+      );
+
+    const end =
+      paymentSource.indexOf(
+        "module.exports",
+        start
+      );
+
+    assert.ok(
+      start >= 0
+    );
+
+    assert.ok(
+      end > start
+    );
+
+    const body =
+      paymentSource.slice(
+        start,
+        end
+      );
+
+    const gate =
+      body.indexOf(
+        "assertPosEpaymentEnabled();"
+      );
+
+    const resolveCustomer =
+      body.indexOf(
+        "resolveCustomerUserId("
+      );
+
+    const verifyCapability =
+      body.indexOf(
+        "verifyQrCapability("
+      );
+
+    const settlement =
+      body.indexOf(
+        "cing_wallet_settle_pos_payment_atomic_v1"
+      );
+
+    assert.ok(
+      gate >= 0
+    );
+
+    assert.ok(
+      resolveCustomer > gate
+    );
+
+    assert.ok(
+      verifyCapability > gate
+    );
+
+    assert.ok(
+      settlement > gate
+    );
+
+  }
+
+);
