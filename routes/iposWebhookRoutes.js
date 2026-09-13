@@ -206,8 +206,142 @@ router.post("/callback", async (req, res) => {
     await redisClient.setex("foodbook:last_callback", 3600,
       JSON.stringify({ headers: req.headers, body, ts: Date.now() }));
 
+    /*
+     * =====================================================
+     * CING WALLET POS EVENT 2 SYNCHRONOUS LANE
+     * =====================================================
+     *
+     * Foodbook Event 2 `using_voucher` is request/response.
+     * It cannot use the generic fire-and-forget ACK below.
+     *
+     * Only the exact configured Wallet trigger code enters
+     * this lane. Other voucher events preserve legacy flow.
+     *
+     * Event 2 discovers bill identity only.
+     * Voucher line totals NEVER become Wallet amount.
+     */
+    {
+      const {
+        isCingWalletPosTriggerRequest,
+        handleIposUsingVoucher,
+        buildUsingVoucherFailureResponse,
+      } = require(
+        "../services/wallet/cingWalletPosSessionService"
+      );
+
+      if (
+        isCingWalletPosTriggerRequest(
+          body
+        )
+      ) {
+        try {
+          const result =
+            await handleIposUsingVoucher(
+              body
+            );
+
+          return res.json(
+            result.response
+          );
+        } catch (event2Error) {
+          console.error(
+            "[CING WALLET POS] Event 2 failed:",
+            event2Error.message
+          );
+
+          /*
+           * Foodbook expects a synchronous voucher-shaped
+           * response. Fail closed at voucher validation
+           * without creating/faking payment success.
+           */
+          return res
+            .status(200)
+            .json(
+              buildUsingVoucherFailureResponse(
+                body,
+                "Không thể kết nối Cing Wallet"
+              )
+            );
+        }
+      }
+    }
+
     // Trả về 200 ngay — không để iPos timeout
     res.json({ success: true });
+
+    /*
+     * =====================================================
+     * CING WALLET POS EVENT 11 RECONCILIATION LANE
+     * =====================================================
+     *
+     * Generic HTTP ACK has already been returned.
+     *
+     * Reconciliation runs before legacy Redis event dedup and
+     * before the membership-phone guard because:
+     *
+     * - Event 11 identity is POS bill identity, not event_id=11.
+     * - a Cing Wallet bill must reconcile even if member phone
+     *   is absent from sale_manager.
+     *
+     * PostgreSQL owns durable Event 11 idempotency/audit.
+     */
+    if (
+      event ===
+        "sale_manager" ||
+      Number(
+        body.event_id
+      ) === 11
+    ) {
+      try {
+        const {
+          reconcileIposEvent11,
+        } = require(
+          "../services/wallet/cingWalletPosSessionService"
+        );
+
+        const reconciliation =
+          await reconcileIposEvent11(
+            body
+          );
+
+        if (
+          reconciliation
+            ?.found_session
+        ) {
+          console.log(
+            "[CING WALLET POS] Event 11 reconciliation:",
+            {
+              session_id:
+                reconciliation.session_id,
+
+              status:
+                reconciliation
+                  .reconciliation_status,
+
+              expected_amount:
+                reconciliation
+                  .expected_amount,
+
+              actual_amount:
+                reconciliation
+                  .actual_amount,
+
+              state_repaired:
+                reconciliation
+                  .state_repaired ===
+                true,
+            }
+          );
+        }
+      } catch (
+        reconciliationError
+      ) {
+        console.error(
+          "[CING WALLET POS] Event 11 reconciliation failed:",
+          reconciliationError.message
+        );
+      }
+    }
 
     /**
      * =====================================================

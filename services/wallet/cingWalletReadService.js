@@ -289,6 +289,68 @@ async function assertCanonicalWalletPlayer(
 }
 
 
+function resolveCustomerSafePosPaymentMetadata(
+  row
+) {
+  if (
+    row?.reference_type !==
+      "pos_payment_intent"
+  ) {
+    return null;
+  }
+
+  const metadata =
+    row?.metadata;
+
+  if (
+    !metadata ||
+    typeof metadata !==
+      "object" ||
+    Array.isArray(
+      metadata
+    )
+  ) {
+    return null;
+  }
+
+  const safeText =
+    value => {
+      const normalized =
+        String(
+          value ?? ""
+        ).trim();
+
+      if (
+        !normalized ||
+        normalized.length >
+          256
+      ) {
+        return null;
+      }
+
+      return normalized;
+    };
+
+  return {
+    bill_reference:
+      safeText(
+        metadata.bill_reference
+      ),
+
+    pos_parent:
+      safeText(
+        metadata.pos_parent
+      ),
+
+    pos_id:
+      safeText(
+        metadata.pos_id
+      ),
+  };
+}
+
+
+
 function normalizeWalletTransaction(
   row
 ) {
@@ -325,6 +387,11 @@ function normalizeWalletTransaction(
 
     note:
       row.note,
+
+    pos_payment:
+      resolveCustomerSafePosPaymentMetadata(
+        row
+      ),
 
     created_at:
       row.created_at,
@@ -463,6 +530,7 @@ async function readWalletTransactionsByUserId({
           "reference_id",
           "reason",
           "note",
+          "metadata",
           "created_at",
         ].join(",")
       )

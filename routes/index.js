@@ -272,6 +272,11 @@ router.use(
 );
 
 router.use(
+  "/admin/wallet/pos",
+  require("./adminWalletPosRoutes")
+);
+
+router.use(
   "/admin/wallet",
   require("./adminWalletRoutes")
 );

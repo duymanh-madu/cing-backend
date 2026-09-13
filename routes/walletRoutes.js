@@ -39,6 +39,12 @@ const {
   "../services/wallet/cingWalletPosPaymentService"
 );
 
+const {
+  projectPaidPaymentToPosSession,
+} = require(
+  "../services/wallet/cingWalletPosSessionService"
+);
+
 const router =
   express.Router();
 
@@ -318,6 +324,38 @@ router.post(
           capability:
             req.params?.capability,
         });
+
+      /*
+       * Wallet settlement above is already canonical and committed.
+       *
+       * POS projection is intentionally secondary. A projection
+       * failure must NEVER turn a successful Wallet debit into an
+       * HTTP payment failure or invite the customer to pay twice.
+       *
+       * Event 11 reconciliation can later self-heal this state.
+       */
+      try {
+        await projectPaidPaymentToPosSession({
+          paymentIntentId:
+            data.intent_id,
+        });
+      } catch (
+        projectionError
+      ) {
+        console.error(
+          "[CING WALLET POS] Paid projection failed after committed settlement:",
+          {
+            intent_id:
+              data.intent_id,
+
+            wallet_transaction_id:
+              data.wallet_transaction_id,
+
+            error:
+              projectionError.message,
+          }
+        );
+      }
 
       return res.json({
         success:
