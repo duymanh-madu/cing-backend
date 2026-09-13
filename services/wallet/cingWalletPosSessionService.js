@@ -13,6 +13,7 @@ const {
 );
 
 const {
+  assertPosEpaymentEnabled,
   createIposPosPayment,
   createQrCapability,
   normalizeAmount,
@@ -810,6 +811,7 @@ async function recoverPosSessionQr(
   sessionId
 ) {
   assertPosCounterEnabled();
+  assertPosEpaymentEnabled();
 
   const session =
     await getPosSessionById(
@@ -1147,6 +1149,7 @@ async function freezeAmountAndCreateQr({
   actorId,
 }) {
   assertPosCounterEnabled();
+  assertPosEpaymentEnabled();
 
   const normalizedSessionId =
     normalizeUuid(

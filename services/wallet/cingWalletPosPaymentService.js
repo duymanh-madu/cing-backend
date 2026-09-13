@@ -818,6 +818,7 @@ async function createIposPosPayment({
   amount,
   ttlSeconds,
 }) {
+  assertPosEpaymentEnabled();
   const normalizedTransactionId =
     normalizeNonEmptyText(
       transactionId,
