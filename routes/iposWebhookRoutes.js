@@ -202,10 +202,6 @@ router.post("/callback", async (req, res) => {
 
     console.log(`[FOODBOOK] Event: ${event}`, JSON.stringify(body).slice(0, 200));
 
-    // Lưu last callback để debug
-    await redisClient.setex("foodbook:last_callback", 3600,
-      JSON.stringify({ headers: req.headers, body, ts: Date.now() }));
-
     /*
      * =====================================================
      * CING WALLET POS EVENT 2 SYNCHRONOUS LANE
@@ -843,51 +839,5 @@ router.post("/order-completed", async (req, res) => {
   router.handle(req, res, () => {});
 });
 
-/**
- * POST /webhook/ipos/test
- * Capture raw format từ Foodbook để debug
- */
-router.post("/test", async (req, res) => {
-  console.log("[FOODBOOK TEST] Headers:", JSON.stringify(req.headers, null, 2));
-  console.log("[FOODBOOK TEST] Body:", JSON.stringify(req.body, null, 2));
-  try {
-    await redisClient.setex("foodbook:last_callback", 3600,
-      JSON.stringify({ headers: req.headers, body: req.body, ts: Date.now() }));
-  } catch(e) {}
-  return res.json({ success: true, received: true });
-});
-
-/**
- * GET /webhook/ipos/last-callback
- * Xem webhook cuối cùng từ Foodbook
- */
-router.get("/last-callback", async (req, res) => {
-  const data = await redisClient.get("foodbook:last_callback");
-  return res.json({ data: data ? JSON.parse(data) : null });
-});
-
-/**
- * GET /webhook/ipos/test-update-point
- * Test trừ điểm từ Railway
- */
-router.get("/test-update-point", async (req, res) => {
-  try {
-    const axios = require("axios");
-    const params = new URLSearchParams();
-    params.append("pos_parent",   process.env.IPOS_POS_PARENT);
-    params.append("phone_number", "84984966336");
-    params.append("type_change",  "MINUS");
-    params.append("point_change", "1");
-    params.append("note",         "Test tru diem tu app Railway");
-    const result = await axios.post(
-      "https://api.foodbook.vn/ipos/ws/partner/mbs/update_point",
-      params,
-      { headers: { access_token: process.env.IPOS_ACCESS_TOKEN } }
-    );
-    res.json({ success: true, data: result.data });
-  } catch(e) {
-    res.status(500).json({ success: false, error: e.response?.data || e.message });
-  }
-});
 
 module.exports = router;
