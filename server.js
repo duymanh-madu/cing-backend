@@ -1153,6 +1153,18 @@ try {
 }
 
 try {
+  const {
+    startCingWalletPosExpiredSessionReaperWorker,
+  } = require("./services/wallet/workers/cingWalletPosExpiredSessionReaperWorker");
+  startCingWalletPosExpiredSessionReaperWorker();
+} catch (error) {
+  console.warn(
+    "[CING WALLET POS EXPIRED SESSION REAPER] bootstrap failed:",
+    error?.message || error
+  );
+}
+
+try {
   const { startZaloTokenRefreshWorker } = require("./services/zalo/zaloTokenRefreshWorker");
   startZaloTokenRefreshWorker();
 } catch (e) {
