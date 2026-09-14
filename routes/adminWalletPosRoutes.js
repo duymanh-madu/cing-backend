@@ -790,21 +790,38 @@ router.get(
     res
   ) => {
     try {
+      if (
+        req.admin?.role !==
+          "super_admin"
+      ) {
+        return res
+          .status(403)
+          .json({
+            success:
+              false,
+            code:
+              "CING_WALLET_SUPER_ADMIN_REQUIRED",
+            message:
+              "Chỉ Super Admin được xem cảnh báo đối soát",
+          });
+      }
+
       const data =
         await listPosReconciliationAlerts({
           status:
             req.query?.status ||
             "open",
-
           limit:
             req.query?.limit ||
             100,
+          storeId:
+            req.query?.store_id ||
+            null,
         });
 
       return res.json({
         success:
           true,
-
         data,
       });
     } catch (error) {
@@ -815,7 +832,6 @@ router.get(
     }
   }
 );
-
 
 
 router.get(

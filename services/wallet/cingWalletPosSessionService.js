@@ -2568,6 +2568,7 @@ async function resolvePosReconciliation({
 async function listPosReconciliationAlerts({
   status = "open",
   limit = 100,
+  storeId = null,
 }) {
   const normalizedStatus =
     String(
@@ -2614,48 +2615,68 @@ async function listPosReconciliationAlerts({
     });
   }
 
+  const normalizedStoreId =
+    storeId === undefined ||
+    storeId === null ||
+    storeId === ""
+      ? null
+      : normalizeUuid(
+          storeId,
+          "CING_WALLET_POS_ALERT_STORE_ID_INVALID"
+        );
+
   const {
     data,
     error,
   } =
-    await supabase
-      .from(
-        "cing_wallet_pos_reconciliation_alerts"
-      )
-      .select(
-        [
-          "id",
-          "session_id",
-          "alert_type",
-          "severity",
-          "status",
-          "expected_amount",
-          "actual_amount",
-          "difference_amount",
-          "details",
-          "first_detected_at",
-          "last_detected_at",
-          "resolved_at",
-          "resolved_by",
-          "resolution_note",
-        ].join(",")
-      )
-      .eq(
-        "status",
-        normalizedStatus
-      )
-      .order(
-        "last_detected_at",
-        {
-          ascending:
-            false,
-        }
-      )
-      .limit(
-        normalizedLimit
-      );
+    await supabase.rpc(
+      "cing_wallet_list_pos_reconciliation_alerts_v2",
+      {
+        p_status:
+          normalizedStatus,
+        p_limit:
+          normalizedLimit,
+        p_store_id:
+          normalizedStoreId,
+      }
+    );
 
   if (error) {
+    const errorMessage =
+      String(
+        error.message || ""
+      );
+
+    if (
+      errorMessage.includes(
+        "CING_WALLET_POS_ALERT_STATUS_INVALID"
+      )
+    ) {
+      throw createSessionError({
+        message:
+          "Trạng thái cảnh báo không hợp lệ",
+        code:
+          "CING_WALLET_POS_ALERT_STATUS_INVALID",
+        statusCode:
+          400,
+      });
+    }
+
+    if (
+      errorMessage.includes(
+        "CING_WALLET_POS_ALERT_LIMIT_INVALID"
+      )
+    ) {
+      throw createSessionError({
+        message:
+          "Giới hạn cảnh báo không hợp lệ",
+        code:
+          "CING_WALLET_POS_ALERT_LIMIT_INVALID",
+        statusCode:
+          400,
+      });
+    }
+
     throw createSessionError({
       message:
         error.message,
