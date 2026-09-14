@@ -232,7 +232,7 @@ test(
   () => {
     assert.match(
       serviceSource,
-      /cing_wallet_get_pos_payment_for_customer_v1/
+      /cing_wallet_get_pos_payment_for_customer_v2/
     );
   }
 );

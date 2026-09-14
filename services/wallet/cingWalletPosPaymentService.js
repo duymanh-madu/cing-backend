@@ -800,6 +800,27 @@ function normalizeIntentRow(
             row.wallet_balance_after
           ),
 
+    store_id:
+      typeof row.store_id ===
+        "string" &&
+      row.store_id.trim()
+        ? row.store_id.trim()
+        : null,
+
+    store_code:
+      typeof row.store_code ===
+        "string" &&
+      row.store_code.trim()
+        ? row.store_code.trim()
+        : null,
+
+    store_display_name:
+      typeof row.store_display_name ===
+        "string" &&
+      row.store_display_name.trim()
+        ? row.store_display_name.trim()
+        : null,
+
     wallet_transaction_id:
       row.wallet_transaction_id ??
       null,
@@ -1100,7 +1121,7 @@ const userId =
     error,
   } =
     await supabase.rpc(
-      "cing_wallet_get_pos_payment_for_customer_v1",
+      "cing_wallet_get_pos_payment_for_customer_v2",
       {
         p_payment_token_id:
           verified.paymentTokenId,
@@ -1157,6 +1178,15 @@ const userId =
 
     wallet_balance:
       row.wallet_balance,
+
+    store_id:
+      row.store_id,
+
+    store_code:
+      row.store_code,
+
+    store_display_name:
+      row.store_display_name,
 
     sufficient_balance:
       row.wallet_balance >=

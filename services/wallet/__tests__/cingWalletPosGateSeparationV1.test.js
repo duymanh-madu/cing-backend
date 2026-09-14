@@ -273,7 +273,7 @@ test(
 
     const rpc =
       body.indexOf(
-        "cing_wallet_get_pos_payment_for_customer_v1"
+        "cing_wallet_get_pos_payment_for_customer_v2"
       );
 
     assert.ok(
