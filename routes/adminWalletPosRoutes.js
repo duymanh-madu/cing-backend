@@ -15,6 +15,10 @@ const {
   getPosSessionById,
   recoverPosSessionQr,
   freezeAmountAndCreateQr,
+  getCurrentManualPosSession,
+  prepareManualPosPaymentQr,
+  resolvePosReconciliation,
+
   listPosReconciliationAlerts,
 } = require(
   "../services/wallet/cingWalletPosSessionService"
@@ -97,6 +101,685 @@ router.use(
 
 router.use(
   requireCounterEnabled
+);
+
+
+
+
+router.get(
+  "/manual-session",
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const actorId =
+        resolveActorId(
+          req
+        );
+
+      if (!actorId) {
+        return res
+          .status(403)
+          .json({
+            success:
+              false,
+            code:
+              "CING_WALLET_POS_COUNTER_ACTOR_REQUIRED",
+            message:
+              "Không xác định được tài khoản thu ngân",
+          });
+      }
+
+      const data =
+        await getCurrentManualPosSession({
+          actorId,
+        });
+
+      return res.json({
+        success:
+          true,
+        data,
+      });
+    } catch (error) {
+      return sendError(
+        res,
+        error
+      );
+    }
+  }
+);
+
+
+router.post(
+  "/manual-payment",
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const actorId =
+        resolveActorId(
+          req
+        );
+
+      if (!actorId) {
+        return res
+          .status(403)
+          .json({
+            success:
+              false,
+            code:
+              "CING_WALLET_POS_COUNTER_ACTOR_REQUIRED",
+            message:
+              "Không xác định được tài khoản thu ngân",
+          });
+      }
+
+      const allowedKeys =
+        new Set([
+          "amount",
+          "request_id",
+        ]);
+
+      const body =
+        req.body;
+
+      if (
+        !body ||
+        typeof body !==
+          "object" ||
+        Array.isArray(
+          body
+        ) ||
+        Object.keys(
+          body
+        ).some(
+          key =>
+            !allowedKeys.has(
+              key
+            )
+        )
+      ) {
+        return res
+          .status(400)
+          .json({
+            success:
+              false,
+            code:
+              "CING_WALLET_POS_COUNTER_BODY_INVALID",
+            message:
+              "Dữ liệu tạo QR không hợp lệ",
+          });
+      }
+
+      if (
+        !Object.prototype
+          .hasOwnProperty.call(
+            body,
+            "amount"
+          ) ||
+        !Object.prototype
+          .hasOwnProperty.call(
+            body,
+            "request_id"
+          )
+      ) {
+        return res
+          .status(400)
+          .json({
+            success:
+              false,
+            code:
+              "CING_WALLET_POS_COUNTER_BODY_INVALID",
+            message:
+              "Thiếu số tiền hoặc request_id",
+          });
+      }
+
+      const data =
+        await prepareManualPosPaymentQr({
+          amount:
+            body.amount,
+          requestId:
+            body.request_id,
+          actorId,
+        });
+
+      return res.json({
+        success:
+          true,
+        data,
+      });
+    } catch (error) {
+      return sendError(
+        res,
+        error
+      );
+    }
+  }
+);
+
+
+router.post(
+
+  "/reconciliation-alerts/:alertId/resolve",
+
+  async (
+
+    req,
+
+    res
+
+  ) => {
+
+    try {
+
+      if (
+
+        req.admin?.role !==
+
+          "super_admin"
+
+      ) {
+
+        return res
+
+          .status(403)
+
+          .json({
+
+            success:
+
+              false,
+
+            code:
+
+              "CING_WALLET_SUPER_ADMIN_REQUIRED",
+
+            message:
+
+              "Chỉ Super Admin được xử lý cảnh báo đối soát",
+
+          });
+
+      }
+
+      const actorId =
+
+        resolveActorId(
+
+          req
+
+        );
+
+      if (!actorId) {
+
+        return res
+
+          .status(403)
+
+          .json({
+
+            success:
+
+              false,
+
+            code:
+
+              "CING_WALLET_POS_RESOLUTION_ACTOR_REQUIRED",
+
+            message:
+
+              "Không xác định được Super Admin",
+
+          });
+
+      }
+
+      const body =
+
+        req.body;
+
+      const allowedKeys =
+
+        new Set([
+
+          "request_id",
+
+          "resolution_action",
+
+          "reason_code",
+
+          "note",
+
+        ]);
+
+      if (
+
+        !body ||
+
+        typeof body !==
+
+          "object" ||
+
+        Array.isArray(
+
+          body
+
+        ) ||
+
+        Object.keys(
+
+          body
+
+        ).some(
+
+          key =>
+
+            !allowedKeys.has(
+
+              key
+
+            )
+
+        )
+
+      ) {
+
+        return res
+
+          .status(400)
+
+          .json({
+
+            success:
+
+              false,
+
+            code:
+
+              "CING_WALLET_POS_RESOLUTION_BODY_INVALID",
+
+            message:
+
+              "Dữ liệu xử lý đối soát không hợp lệ",
+
+          });
+
+      }
+
+      const requiredKeys = [
+
+        "request_id",
+
+        "resolution_action",
+
+        "reason_code",
+
+      ];
+
+      if (
+
+        requiredKeys.some(
+
+          key =>
+
+            !Object.prototype
+
+              .hasOwnProperty.call(
+
+                body,
+
+                key
+
+              )
+
+        )
+
+      ) {
+
+        return res
+
+          .status(400)
+
+          .json({
+
+            success:
+
+              false,
+
+            code:
+
+              "CING_WALLET_POS_RESOLUTION_BODY_INVALID",
+
+            message:
+
+              "Thiếu dữ liệu xử lý đối soát",
+
+          });
+
+      }
+
+      const uuidPattern =
+
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+      const alertId =
+
+        typeof req.params
+          ?.alertId ===
+          "string"
+
+          ? req.params
+              .alertId
+              .trim()
+
+          : "";
+
+      const requestId =
+
+        typeof body
+          .request_id ===
+          "string"
+
+          ? body
+              .request_id
+              .trim()
+              .toLowerCase()
+
+          : "";
+
+      if (
+
+        !uuidPattern.test(
+          alertId
+        ) ||
+
+        !uuidPattern.test(
+          requestId
+        )
+
+      ) {
+
+        return res
+
+          .status(400)
+
+          .json({
+
+            success:
+
+              false,
+
+            code:
+
+              "CING_WALLET_POS_RESOLUTION_ID_INVALID",
+
+            message:
+
+              "Mã xử lý đối soát không hợp lệ",
+
+          });
+
+      }
+
+      const resolutionAction =
+
+        typeof body
+          .resolution_action ===
+          "string"
+
+          ? body
+              .resolution_action
+              .trim()
+              .toLowerCase()
+
+          : "";
+
+      const allowedActions =
+
+        new Set([
+
+          "accept_as_is",
+
+          "compensating_debit",
+
+          "compensating_credit",
+
+          "pos_correction_confirmed",
+
+          "manual_review",
+
+        ]);
+
+      if (
+
+        !allowedActions.has(
+          resolutionAction
+        )
+
+      ) {
+
+        return res
+
+          .status(400)
+
+          .json({
+
+            success:
+
+              false,
+
+            code:
+
+              "CING_WALLET_POS_RESOLUTION_ACTION_INVALID",
+
+            message:
+
+              "Hành động xử lý đối soát không hợp lệ",
+
+          });
+
+      }
+
+      const reasonCode =
+
+        typeof body
+          .reason_code ===
+          "string"
+
+          ? body
+              .reason_code
+              .trim()
+              .toLowerCase()
+
+          : "";
+
+      if (
+
+        !/^[a-z0-9][a-z0-9_]{1,63}$/
+          .test(
+            reasonCode
+          )
+
+      ) {
+
+        return res
+
+          .status(400)
+
+          .json({
+
+            success:
+
+              false,
+
+            code:
+
+              "CING_WALLET_POS_RESOLUTION_REASON_INVALID",
+
+            message:
+
+              "Lý do xử lý đối soát không hợp lệ",
+
+          });
+
+      }
+
+      let note =
+        null;
+
+      if (
+
+        Object.prototype
+          .hasOwnProperty.call(
+            body,
+            "note"
+          )
+
+      ) {
+
+        if (
+
+          typeof body.note !==
+            "string"
+
+        ) {
+
+          return res
+
+            .status(400)
+
+            .json({
+
+              success:
+
+                false,
+
+              code:
+
+                "CING_WALLET_POS_RESOLUTION_NOTE_INVALID",
+
+              message:
+
+                "Ghi chú xử lý đối soát không hợp lệ",
+
+            });
+
+        }
+
+        note =
+          body.note.trim();
+
+        if (
+
+          !note ||
+          note.length > 1000
+
+        ) {
+
+          return res
+
+            .status(400)
+
+            .json({
+
+              success:
+
+                false,
+
+              code:
+
+                "CING_WALLET_POS_RESOLUTION_NOTE_INVALID",
+
+              message:
+
+                "Ghi chú xử lý đối soát không hợp lệ",
+
+            });
+
+        }
+
+      }
+
+      if (
+
+        [
+
+          "compensating_debit",
+
+          "compensating_credit",
+
+        ].includes(
+          resolutionAction
+        ) &&
+
+        !note
+
+      ) {
+
+        return res
+
+          .status(400)
+
+          .json({
+
+            success:
+
+              false,
+
+            code:
+
+              "CING_WALLET_POS_RESOLUTION_NOTE_REQUIRED",
+
+            message:
+
+              "Điều chỉnh số dư bắt buộc phải có ghi chú",
+
+          });
+
+      }
+
+      const data =
+
+        await resolvePosReconciliation({
+
+          alertId,
+
+          requestId,
+
+          resolutionAction,
+
+          reasonCode,
+
+          note,
+
+          actorId,
+
+        });
+
+      return res.json({
+
+        success:
+
+          true,
+
+        data,
+
+      });
+
+    } catch (error) {
+
+      return sendError(
+        res,
+        error
+      );
+
+    }
+
+  }
+
 );
 
 

@@ -34,6 +34,126 @@ const POS_VOUCHER_PREFIX_ENV =
 const DEFAULT_QR_TTL_SECONDS =
   300;
 
+
+async function resolveCounterStore(
+  actorId
+) {
+  const normalizedActorId =
+    String(
+      actorId || ""
+    ).trim();
+
+  if (!normalizedActorId) {
+    throw createSessionError({
+      message:
+        "Không xác định được tài khoản thu ngân",
+      code:
+        "CING_WALLET_POS_COUNTER_ACTOR_REQUIRED",
+      statusCode:
+        403,
+    });
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      "cing_wallet_resolve_counter_store_v1",
+      {
+        p_actor_admin_id:
+          normalizedActorId,
+      }
+    );
+
+  if (error) {
+    const errorMessage =
+      String(
+        error.message || ""
+      );
+
+    if (
+      errorMessage.includes(
+        "CING_WALLET_POS_COUNTER_STORE_NOT_CONFIGURED"
+      )
+    ) {
+      throw createSessionError({
+        message:
+          "Tài khoản thu ngân chưa được gán cửa hàng Cing Wallet",
+        code:
+          "CING_WALLET_POS_COUNTER_STORE_NOT_CONFIGURED",
+        statusCode:
+          503,
+      });
+    }
+
+    throw createSessionError({
+      message:
+        "Không thể xác định cửa hàng Cing Wallet",
+      code:
+        "CING_WALLET_POS_COUNTER_STORE_LOOKUP_FAILED",
+      statusCode:
+        500,
+    });
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  const storeId =
+    String(
+      row?.store_id || ""
+    ).trim();
+
+  const storeCode =
+    String(
+      row?.store_code || ""
+    ).trim();
+
+  const displayName =
+    String(
+      row?.display_name || ""
+    ).trim();
+
+  const posParent =
+    String(
+      row?.pos_parent || ""
+    ).trim();
+
+  const posId =
+    String(
+      row?.pos_id || ""
+    ).trim();
+
+  if (
+    !storeId ||
+    !storeCode ||
+    !displayName ||
+    !posParent ||
+    !posId
+  ) {
+    throw createSessionError({
+      message:
+        "Cấu hình cửa hàng Cing Wallet không hợp lệ",
+      code:
+        "CING_WALLET_POS_COUNTER_STORE_INVALID",
+      statusCode:
+        500,
+    });
+  }
+
+  return {
+    storeId,
+    storeCode,
+    displayName,
+    posParent,
+    posId,
+  };
+}
+
+
 const SESSION_STATUSES =
   new Set([
     "awaiting_amount",
@@ -1280,6 +1400,297 @@ async function listPosSessions({
 }
 
 
+
+
+async function getCurrentManualPosSession({
+  actorId,
+}) {
+  assertPosCounterEnabled();
+
+  const normalizedActorId =
+    String(
+      actorId || ""
+    ).trim();
+
+  if (!normalizedActorId) {
+    throw createSessionError({
+      message:
+        "Không xác định được tài khoản thu ngân",
+      code:
+        "CING_WALLET_POS_COUNTER_ACTOR_REQUIRED",
+      statusCode:
+        403,
+    });
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      "cing_wallet_get_current_manual_pos_session_v1",
+      {
+        p_actor_admin_id:
+          normalizedActorId,
+      }
+    );
+
+  if (error) {
+    const errorMessage =
+      String(
+        error.message || ""
+      );
+
+    if (
+      errorMessage.includes(
+        "CING_WALLET_POS_COUNTER_STORE_NOT_CONFIGURED"
+      )
+    ) {
+      throw createSessionError({
+        message:
+          "Tài khoản thu ngân chưa được gán cửa hàng Cing Wallet",
+        code:
+          "CING_WALLET_POS_COUNTER_STORE_NOT_CONFIGURED",
+        statusCode:
+          503,
+      });
+    }
+
+    if (
+      errorMessage.includes(
+        "CING_WALLET_POS_COUNTER_ACTOR_REQUIRED"
+      )
+    ) {
+      throw createSessionError({
+        message:
+          "Không xác định được tài khoản thu ngân",
+        code:
+          "CING_WALLET_POS_COUNTER_ACTOR_REQUIRED",
+        statusCode:
+          403,
+      });
+    }
+
+    throw createSessionError({
+      message:
+        "Không thể đọc phiên Cing Wallet hiện tại",
+      code:
+        "CING_WALLET_POS_CURRENT_MANUAL_SESSION_READ_FAILED",
+      statusCode:
+        500,
+    });
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  return row || null;
+}
+
+
+async function prepareManualPosPaymentQr({
+  amount,
+  actorId,
+  requestId,
+}) {
+  assertPosCounterEnabled();
+  assertPosEpaymentEnabled();
+
+  const normalizedAmount =
+    normalizeAmount(
+      amount
+    );
+
+  const normalizedActorId =
+    normalizeText(
+      actorId,
+      {
+        code:
+          "CING_WALLET_POS_COUNTER_ACTOR_INVALID",
+        message:
+          "Không xác định được thu ngân",
+        maxLength:
+          512,
+      }
+    );
+
+  const normalizedRequestId =
+    normalizeUuid(
+      requestId
+    );
+
+  const expiresAt =
+    new Date(
+      Date.now() +
+      DEFAULT_QR_TTL_SECONDS *
+        1000
+    ).toISOString();
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      "cing_wallet_prepare_manual_pos_payment_v3",
+      {
+        p_amount:
+          normalizedAmount,
+        p_actor_admin_id:
+          normalizedActorId,
+        p_request_id:
+          normalizedRequestId,
+        p_expires_at:
+          expiresAt,
+        }
+    );
+
+  throwRpcError(
+    error,
+    "CING_WALLET_POS_MANUAL_PAYMENT_PREPARE_FAILED"
+  );
+
+  const prepared =
+    firstRpcRow(
+      data
+    );
+
+  if (
+    !prepared?.session_id ||
+    !prepared
+      ?.payment_intent_id ||
+    !prepared
+      ?.payment_token_id ||
+    !prepared?.expires_at
+  ) {
+    throw createSessionError({
+      message:
+        "Không tạo được QR Cing Wallet",
+      code:
+        "CING_WALLET_POS_MANUAL_PAYMENT_PREPARE_INVALID",
+      statusCode:
+        500,
+    });
+  }
+
+  if (
+    prepared.sale_tran_id !==
+      null &&
+    prepared.sale_tran_id !==
+      undefined
+  ) {
+    throw createSessionError({
+      message:
+        "Phiên manual đã có bill iPOS ngoài dự kiến",
+      code:
+        "CING_WALLET_POS_MANUAL_PREBILL_IDENTITY_CONFLICT",
+      statusCode:
+        409,
+    });
+  }
+
+  if (
+    Number(
+      prepared.amount
+    ) !==
+      normalizedAmount ||
+    prepared.amount_source !==
+      "cashier_manual"
+  ) {
+    throw createSessionError({
+      message:
+        "Số tiền QR không khớp số tiền thu ngân nhập",
+      code:
+        "CING_WALLET_POS_MANUAL_AMOUNT_MISMATCH",
+      statusCode:
+        409,
+    });
+  }
+
+  if (
+    prepared.session_status !==
+      "qr_ready" ||
+    prepared.payment_status !==
+      "pending"
+  ) {
+    throw createSessionError({
+      message:
+        "Phiên thanh toán không ở trạng thái sẵn sàng",
+      code:
+        "CING_WALLET_POS_MANUAL_STATE_INVALID",
+      statusCode:
+        409,
+    });
+  }
+
+  const qrContent =
+    createQrCapability({
+      paymentTokenId:
+        prepared
+          .payment_token_id,
+      expiresAt:
+        prepared.expires_at,
+    });
+
+  realtimeEventBus.publish({
+    event:
+      "wallet.pos.qr.ready",
+    delivery_type:
+      "BROADCAST",
+    payload: {
+      session_id:
+        prepared.session_id,
+      sale_tran_id:
+        null,
+      amount:
+        normalizedAmount,
+      status:
+        "qr_ready",
+      expires_at:
+        prepared.expires_at,
+    },
+    channel:
+      "wallet",
+    timestamp:
+      new Date()
+        .toISOString(),
+  });
+
+  return {
+    session_id:
+      prepared.session_id,
+    payment_intent_id:
+      prepared
+        .payment_intent_id,
+    sale_tran_id:
+      null,
+    store_id:
+      prepared.store_id,
+    store_code:
+      prepared.store_code,
+    store_display_name:
+      prepared.store_display_name,
+    pos_parent:
+      prepared.pos_parent,
+    pos_id:
+      prepared.pos_id,
+    amount:
+      normalizedAmount,
+    amount_source:
+      "cashier_manual",
+    status:
+      "qr_ready",
+    expires_at:
+      prepared.expires_at,
+    qr_content:
+      qrContent,
+    created:
+      prepared.created_session ===
+      true,
+  };
+}
+
 async function freezeAmountAndCreateQr({
   sessionId,
   amount,
@@ -1625,28 +2036,16 @@ function extractEvent11Data(
         return (
           method ===
             "CING_WALLET" ||
-          method.includes(
+          method ===
             "CING WALLET"
-          )
         );
       }
     ) ||
-    payments[0] ||
     null;
 
   const paymentMethod =
     walletPayment
-      ? String(
-          walletPayment
-            .method_id ??
-          walletPayment
-            .Method_Id ??
-          walletPayment
-            .name ??
-          walletPayment
-            .Name ??
-          ""
-        ).trim() || null
+      ? "CING_WALLET"
       : null;
 
   const traceNo =
@@ -1801,7 +2200,7 @@ async function reconcileIposEvent11(
     error,
   } =
     await supabase.rpc(
-      "cing_wallet_reconcile_pos_event11_v1",
+      "cing_wallet_reconcile_pos_event11_v2",
       {
         p_pos_parent:
           normalized.posParent,
@@ -1904,6 +2303,265 @@ async function reconcileIposEvent11(
   });
 
   return result;
+}
+
+
+async function resolvePosReconciliation({
+  alertId,
+  requestId,
+  resolutionAction,
+  reasonCode,
+  note = null,
+  actorId,
+}) {
+  const normalizedAlertId =
+    String(
+      alertId || ""
+    ).trim();
+
+  const normalizedRequestId =
+    String(
+      requestId || ""
+    ).trim();
+
+  const normalizedAction =
+    String(
+      resolutionAction || ""
+    )
+      .trim()
+      .toLowerCase();
+
+  const normalizedReasonCode =
+    String(
+      reasonCode || ""
+    )
+      .trim()
+      .toLowerCase();
+
+  const normalizedActorId =
+    String(
+      actorId || ""
+    ).trim();
+
+  const normalizedNote =
+    note === null ||
+    note === undefined
+      ? null
+      : String(
+          note
+        ).trim();
+
+  if (!normalizedAlertId) {
+    throw createSessionError({
+      message:
+        "Thiếu mã cảnh báo đối soát",
+      code:
+        "CING_WALLET_POS_RESOLUTION_ALERT_ID_REQUIRED",
+      statusCode:
+        400,
+    });
+  }
+
+  if (!normalizedRequestId) {
+    throw createSessionError({
+      message:
+        "Thiếu request_id xử lý đối soát",
+      code:
+        "CING_WALLET_POS_RESOLUTION_REQUEST_ID_REQUIRED",
+      statusCode:
+        400,
+    });
+  }
+
+  if (!normalizedActorId) {
+    throw createSessionError({
+      message:
+        "Không xác định được Super Admin",
+      code:
+        "CING_WALLET_POS_RESOLUTION_ACTOR_REQUIRED",
+      statusCode:
+        403,
+    });
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.rpc(
+      "cing_wallet_resolve_pos_reconciliation_v1",
+      {
+        p_alert_id:
+          normalizedAlertId,
+        p_request_id:
+          normalizedRequestId,
+        p_resolution_action:
+          normalizedAction,
+        p_reason_code:
+          normalizedReasonCode,
+        p_note:
+          normalizedNote,
+        p_actor_id:
+          normalizedActorId,
+      }
+    );
+
+  if (error) {
+    const message =
+      String(
+        error.message || ""
+      );
+
+    if (
+      message.includes(
+        "CING_WALLET_POS_RESOLUTION_ALERT_NOT_FOUND"
+      )
+    ) {
+      throw createSessionError({
+        message:
+          "Không tìm thấy cảnh báo đối soát",
+        code:
+          "CING_WALLET_POS_RESOLUTION_ALERT_NOT_FOUND",
+        statusCode:
+          404,
+        cause:
+          error,
+      });
+    }
+
+    if (
+      message.includes(
+        "CING_WALLET_POS_RESOLUTION_ACTOR_REQUIRED"
+      )
+    ) {
+      throw createSessionError({
+        message:
+          "Không xác định được Super Admin",
+        code:
+          "CING_WALLET_POS_RESOLUTION_ACTOR_REQUIRED",
+        statusCode:
+          403,
+        cause:
+          error,
+      });
+    }
+
+    const badRequestCodes = [
+      "CING_WALLET_POS_RESOLUTION_ALERT_ID_REQUIRED",
+      "CING_WALLET_POS_RESOLUTION_REQUEST_ID_REQUIRED",
+      "CING_WALLET_POS_RESOLUTION_ACTION_INVALID",
+      "CING_WALLET_POS_RESOLUTION_REASON_INVALID",
+      "CING_WALLET_POS_RESOLUTION_NOTE_INVALID",
+      "CING_WALLET_POS_RESOLUTION_NOTE_REQUIRED",
+    ];
+
+    const badRequestCode =
+      badRequestCodes.find(
+        code =>
+          message.includes(
+            code
+          )
+      );
+
+    if (badRequestCode) {
+      throw createSessionError({
+        message:
+          "Dữ liệu xử lý đối soát không hợp lệ",
+        code:
+          badRequestCode,
+        statusCode:
+          400,
+        cause:
+          error,
+      });
+    }
+
+    const conflictCodes = [
+      "CING_WALLET_POS_RESOLUTION_REPLAY_CONFLICT",
+      "CING_WALLET_POS_RESOLUTION_ALERT_NOT_OPEN",
+      "CING_WALLET_POS_RESOLUTION_ALERT_STATE_CONFLICT",
+      "CING_WALLET_POS_RESOLUTION_SESSION_NOT_FOUND",
+      "CING_WALLET_POS_RESOLUTION_SESSION_CONFLICT",
+      "CING_WALLET_POS_RESOLUTION_EVIDENCE_CONFLICT",
+      "CING_WALLET_POS_RESOLUTION_FINANCIAL_ALERT_TYPE_INVALID",
+      "CING_WALLET_POS_RESOLUTION_PAID_PROOF_REQUIRED",
+      "CING_WALLET_POS_RESOLUTION_INTENT_CONFLICT",
+      "CING_WALLET_POS_RESOLUTION_ORIGINAL_AMOUNT_CONFLICT",
+      "CING_WALLET_POS_RESOLUTION_DIFFERENCE_INVALID",
+      "CING_WALLET_POS_RESOLUTION_DIRECTION_CONFLICT",
+      "CING_WALLET_INSUFFICIENT_BALANCE",
+    ];
+
+    const conflictCode =
+      conflictCodes.find(
+        code =>
+          message.includes(
+            code
+          )
+      );
+
+    if (conflictCode) {
+      throw createSessionError({
+        message:
+          "Không thể áp dụng quyết định đối soát ở trạng thái hiện tại",
+        code:
+          conflictCode,
+        statusCode:
+          409,
+        cause:
+          error,
+      });
+    }
+
+    throw createSessionError({
+      message:
+        error.message ||
+        "Không thể xử lý cảnh báo đối soát",
+      code:
+        "CING_WALLET_POS_RESOLUTION_FAILED",
+      statusCode:
+        500,
+      cause:
+        error,
+    });
+  }
+
+  const row =
+    Array.isArray(
+      data
+    )
+      ? data[0]
+      : data;
+
+  if (
+    !row ||
+    typeof row !==
+      "object" ||
+    !row.resolution_id ||
+    !row.alert_id ||
+    !row.session_id ||
+    typeof row.resolution_action !==
+      "string" ||
+    ![
+      "open",
+      "resolved",
+    ].includes(
+      row.alert_status
+    ) ||
+    typeof row.applied !==
+      "boolean"
+  ) {
+    throw createSessionError({
+      message:
+        "Kết quả xử lý đối soát không hợp lệ",
+      code:
+        "CING_WALLET_POS_RESOLUTION_RESULT_INVALID",
+      statusCode:
+        500,
+    });
+  }
+
+  return row;
 }
 
 
@@ -2019,6 +2677,7 @@ async function listPosReconciliationAlerts({
 
 
 module.exports = {
+  resolveCounterStore,
   POS_COUNTER_ENABLED_ENV,
   POS_TRIGGER_CODE_ENV,
   DEFAULT_QR_TTL_SECONDS,
@@ -2035,9 +2694,13 @@ module.exports = {
   getPosSessionById,
   recoverPosSessionQr,
   listPosSessions,
+  getCurrentManualPosSession,
+  prepareManualPosPaymentQr,
   freezeAmountAndCreateQr,
   extractEvent11Data,
   projectPaidPaymentToPosSession,
   reconcileIposEvent11,
+  resolvePosReconciliation,
+
   listPosReconciliationAlerts,
 };

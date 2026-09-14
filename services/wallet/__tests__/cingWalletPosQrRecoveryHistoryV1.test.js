@@ -193,32 +193,56 @@ test(
 
 
 test(
-  "customer history exposes only safe POS fields",
+  "customer history exposes only immutable store display attribution",
   () => {
-    assert.match(
-      walletRead,
-      /bill_reference:/
+    const start =
+      walletRead.indexOf(
+        "function resolveCustomerSafePosPaymentMetadata"
+      );
+
+    const end =
+      walletRead.indexOf(
+        "\nfunction normalizeWalletTransaction",
+        start
+      );
+
+    assert.ok(
+      start >= 0 &&
+      end > start
     );
+
+    const projection =
+      walletRead.slice(
+        start,
+        end
+      );
 
     assert.match(
-      walletRead,
-      /pos_parent:/
+      projection,
+      /store_display_name/
     );
 
-    assert.match(
-      walletRead,
-      /pos_id:/
-    );
-
-    assert.doesNotMatch(
-      walletRead,
-      /pos_payment:[\s\S]{0,300}payment_token_id/
-    );
-
-    assert.doesNotMatch(
-      walletRead,
-      /pos_payment:[\s\S]{0,300}provider_request_key/
-    );
+    for (
+      const forbidden
+      of [
+        "bill_reference",
+        "pos_parent",
+        "pos_id",
+        "store_id",
+        "store_code",
+        "provider_request_key",
+        "payment_token_id",
+        "reconciliation",
+      ]
+    ) {
+      assert.equal(
+        projection.includes(
+          forbidden
+        ),
+        false,
+        forbidden
+      );
+    }
   }
 );
 

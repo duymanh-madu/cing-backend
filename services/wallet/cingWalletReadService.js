@@ -313,39 +313,22 @@ function resolveCustomerSafePosPaymentMetadata(
     return null;
   }
 
-  const safeText =
-    value => {
-      const normalized =
-        String(
-          value ?? ""
-        ).trim();
-
-      if (
-        !normalized ||
-        normalized.length >
-          256
-      ) {
-        return null;
-      }
-
-      return normalized;
-    };
+  const storeDisplayName =
+    String(
+      metadata
+        .store_display_name ??
+      ""
+    ).trim();
 
   return {
-    bill_reference:
-      safeText(
-        metadata.bill_reference
-      ),
-
-    pos_parent:
-      safeText(
-        metadata.pos_parent
-      ),
-
-    pos_id:
-      safeText(
-        metadata.pos_id
-      ),
+    store_display_name:
+      (
+        storeDisplayName &&
+        storeDisplayName.length <=
+          256
+      )
+        ? storeDisplayName
+        : null,
   };
 }
 

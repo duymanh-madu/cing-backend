@@ -15,6 +15,19 @@ const { syncSingleUserSpending } = require("../services/crm/crmSpendingSyncServi
 
 const IPOS_WEBHOOK_SECRET = process.env.IPOS_WEBHOOK_SECRET || "";
 
+function isCingWalletPosEvent11TrustEnabled() {
+  return (
+    String(
+      process.env
+        .CING_WALLET_POS_EVENT11_TRUST_ENABLED ||
+      ""
+    )
+      .trim()
+      .toLowerCase() ===
+    "true"
+  );
+}
+
 // Chuyển đổi đầu số cũ sang đầu số mới (theo quy định Bộ TT&TT)
 function normalizePhone(phone) {
   if (!phone) return "";
@@ -282,11 +295,14 @@ router.post("/callback", async (req, res) => {
      * PostgreSQL owns durable Event 11 idempotency/audit.
      */
     if (
-      event ===
-        "sale_manager" ||
-      Number(
-        body.event_id
-      ) === 11
+      (
+        event ===
+          "sale_manager" ||
+        Number(
+          body.event_id
+        ) === 11
+      ) &&
+      isCingWalletPosEvent11TrustEnabled()
     ) {
       try {
         const {

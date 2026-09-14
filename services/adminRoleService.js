@@ -63,6 +63,7 @@ const ROLE_CONFIG = {
       "orders.update",
 
       "payments.view",
+      "wallet.pos.operate",
 
     ],
 
