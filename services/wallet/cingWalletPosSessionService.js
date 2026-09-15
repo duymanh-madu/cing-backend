@@ -2697,7 +2697,151 @@ async function listPosReconciliationAlerts({
 }
 
 
+async function cancelManualPosSession({
+  sessionId,
+  actorId,
+  requestId,
+  reason
+}) {
+  assertPosCounterEnabled();
+
+  const normalizedSessionId =
+    typeof sessionId === "string"
+      ? sessionId.trim()
+      : "";
+
+  const normalizedActorId =
+    actorId == null
+      ? ""
+      : String(actorId).trim();
+
+  const normalizedRequestId =
+    typeof requestId === "string"
+      ? requestId.trim()
+      : "";
+
+  const normalizedReason =
+    typeof reason === "string"
+      ? reason.trim()
+      : "";
+
+  if (!normalizedSessionId) {
+    const error = new Error(
+      "CING_WALLET_POS_CANCEL_SESSION_ID_REQUIRED"
+    );
+    error.statusCode = 400;
+    error.code =
+      "CING_WALLET_POS_CANCEL_SESSION_ID_REQUIRED";
+    throw error;
+  }
+
+  if (!normalizedActorId) {
+    const error = new Error(
+      "CING_WALLET_POS_CANCEL_ACTOR_REQUIRED"
+    );
+    error.statusCode = 400;
+    error.code =
+      "CING_WALLET_POS_CANCEL_ACTOR_REQUIRED";
+    throw error;
+  }
+
+  if (!normalizedRequestId) {
+    const error = new Error(
+      "CING_WALLET_POS_CANCEL_REQUEST_ID_REQUIRED"
+    );
+    error.statusCode = 400;
+    error.code =
+      "CING_WALLET_POS_CANCEL_REQUEST_ID_REQUIRED";
+    throw error;
+  }
+
+  if (!normalizedReason) {
+    const error = new Error(
+      "CING_WALLET_POS_CANCEL_REASON_REQUIRED"
+    );
+    error.statusCode = 400;
+    error.code =
+      "CING_WALLET_POS_CANCEL_REASON_REQUIRED";
+    throw error;
+  }
+
+  const { data, error } = await supabase.rpc(
+    "cing_wallet_cancel_manual_pos_session_v1",
+    {
+      p_actor_admin_id: normalizedActorId,
+      p_session_id: normalizedSessionId,
+      p_cancel_request_id: normalizedRequestId,
+      p_reason: normalizedReason
+    }
+  );
+
+  if (error) {
+    throwRpcError(
+      error,
+      "CING_WALLET_POS_CANCEL_FAILED"
+    );
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (!row || !row.session_id) {
+    const authorityError = new Error(
+      "CING_WALLET_POS_CANCEL_RESULT_INVALID"
+    );
+    authorityError.statusCode = 502;
+    authorityError.code =
+      "CING_WALLET_POS_CANCEL_RESULT_INVALID";
+    throw authorityError;
+  }
+
+  if (row.session_status !== "cancelled") {
+    const authorityError = new Error(
+      "CING_WALLET_POS_CANCEL_STATE_INVALID"
+    );
+    authorityError.statusCode = 502;
+    authorityError.code =
+      "CING_WALLET_POS_CANCEL_STATE_INVALID";
+    throw authorityError;
+  }
+
+  if (
+    row.payment_status != null &&
+    row.payment_status !== "cancelled"
+  ) {
+    const authorityError = new Error(
+      "CING_WALLET_POS_CANCEL_PAYMENT_STATE_INVALID"
+    );
+    authorityError.statusCode = 502;
+    authorityError.code =
+      "CING_WALLET_POS_CANCEL_PAYMENT_STATE_INVALID";
+    throw authorityError;
+  }
+
+  return {
+    session_id: row.session_id,
+    payment_intent_id:
+      row.payment_intent_id || null,
+    session_status: row.session_status,
+    payment_status:
+      row.payment_status || null,
+    cancel_request_id:
+      row.cancel_request_id ||
+      normalizedRequestId,
+    reason:
+      row.reason ||
+      normalizedReason,
+    cancelled_at:
+      row.cancelled_at || null,
+    replayed:
+      row.replayed === true
+  };
+}
+
 module.exports = {
+  cancelManualPosSession,
   resolveCounterStore,
   POS_COUNTER_ENABLED_ENV,
   POS_TRIGGER_CODE_ENV,

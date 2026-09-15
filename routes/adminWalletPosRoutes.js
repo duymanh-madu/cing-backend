@@ -16,6 +16,7 @@ const {
   recoverPosSessionQr,
   freezeAmountAndCreateQr,
   getCurrentManualPosSession,
+  cancelManualPosSession,
   prepareManualPosPaymentQr,
   resolvePosReconciliation,
 
@@ -1013,6 +1014,64 @@ router.post(
       return sendError(
         res,
         error
+      );
+    }
+  }
+);
+
+
+
+router.post(
+  "/manual-session/:sessionId/cancel",
+  async (req, res) => {
+    try {
+      const body =
+        req.body &&
+        typeof req.body === "object" &&
+        !Array.isArray(req.body)
+          ? req.body
+          : {};
+
+      const allowedKeys =
+        new Set([
+          "request_id",
+          "reason"
+        ]);
+
+      const unknownKeys =
+        Object.keys(body).filter(
+          (key) => !allowedKeys.has(key)
+        );
+
+      if (unknownKeys.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "CING_WALLET_POS_CANCEL_BODY_INVALID"
+        });
+      }
+
+      const result =
+        await cancelManualPosSession({
+          sessionId:
+            req.params?.sessionId,
+          actorId:
+            resolveActorId(req),
+          requestId:
+            body.request_id,
+          reason:
+            body.reason
+        });
+
+      return res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      return sendError(
+        res,
+        error,
+        "CING_WALLET_POS_CANCEL_FAILED"
       );
     }
   }
