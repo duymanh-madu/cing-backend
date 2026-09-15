@@ -63,6 +63,21 @@ const REALTIME_EVENTS = {
   PAYMENT_SUCCESS: "payment.success",
   PAYMENT_FAILED:  "payment.failed",
 
+  WALLET_POS_SESSION_DISCOVERED:
+    "wallet.pos.session.discovered",
+
+  WALLET_POS_QR_READY:
+    "wallet.pos.qr.ready",
+
+  WALLET_POS_PAYMENT_PAID:
+    "wallet.pos.payment.paid",
+
+  WALLET_POS_RECONCILIATION_MATCHED:
+    "wallet.pos.reconciliation.matched",
+
+  WALLET_POS_RECONCILIATION_ALERT:
+    "wallet.pos.reconciliation.alert",
+
   CHALLENGE_WON:
     "challenge.won",
 

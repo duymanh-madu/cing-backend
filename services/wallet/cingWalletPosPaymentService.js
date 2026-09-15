@@ -1234,6 +1234,42 @@ const userId =
     );
 
   if (error) {
+    /*
+     * Diagnostic only.
+     *
+     * Never log customer identity, QR capability,
+     * payment token, Wallet balance, or request payload.
+     * Public HTTP semantics remain owned by mapRpcError().
+     */
+    console.error(
+      "[CING WALLET POS] settlement RPC failed",
+      {
+        rpc_code:
+          String(
+            error?.code ||
+            ""
+          ),
+
+        rpc_message:
+          String(
+            error?.message ||
+            ""
+          ),
+
+        rpc_details:
+          String(
+            error?.details ||
+            ""
+          ),
+
+        rpc_hint:
+          String(
+            error?.hint ||
+            ""
+          ),
+      }
+    );
+
     throw mapRpcError(
       error
     );

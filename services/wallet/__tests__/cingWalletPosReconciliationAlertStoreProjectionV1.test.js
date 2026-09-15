@@ -176,9 +176,17 @@ test(
 
     const end =
       service.indexOf(
-        "module.exports",
+        "async function cancelManualPosSession",
         start
       );
+
+    assert.ok(
+      start >= 0
+    );
+
+    assert.ok(
+      end > start
+    );
 
     const body =
       service.slice(
