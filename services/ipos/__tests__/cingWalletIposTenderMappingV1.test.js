@@ -8,32 +8,51 @@ const source = fs.readFileSync(
   "utf8"
 );
 
-function extractBuildPayloadSource() {
-  const start = source.indexOf("function buildPayload(");
-  const end = source.indexOf(
-    "/**\n * ============================================\n * CREATE IPOS LOG",
-    start
+function extractFunction(name, nextName) {
+  const start = source.indexOf(`function ${name}(`);
+
+  assert.notEqual(
+    start,
+    -1,
+    `${name} must exist`
   );
 
-  assert.ok(start >= 0, "buildPayload must exist");
-  assert.ok(end > start, "buildPayload boundary must be detectable");
+  const end = nextName
+    ? source.indexOf(`function ${nextName}(`, start)
+    : source.length;
+
+  assert.notEqual(
+    end,
+    -1,
+    `${nextName} must exist after ${name}`
+  );
 
   return source.slice(start, end);
 }
 
-const buildPayloadSource = extractBuildPayloadSource();
+const projectionSource =
+  extractFunction(
+    "resolveIposPaymentProjection",
+    "normalizeIposOrderType"
+  );
+
+const buildPayloadSource =
+  extractFunction(
+    "buildPayload",
+    "emitRealtime"
+  );
 
 test(
   "Cing Wallet maps to exact iPOS CING_WALLET tender",
   () => {
     assert.match(
-      buildPayloadSource,
-      /Payment_Method:\s*[\s\S]*?order\.payment_method\s*===\s*"cing_wallet"[\s\S]*?\?\s*"CING_WALLET"[\s\S]*?:\s*"MOMO_QR_AIO"/
+      projectionSource,
+      /paymentMethod\s*===\s*"cing_wallet"[\s\S]*?Payment_Method:\s*"CING_WALLET"/
     );
 
     assert.match(
-      buildPayloadSource,
-      /Payment_Info:\s*[\s\S]*?order\.payment_method\s*===\s*"cing_wallet"[\s\S]*?\?\s*"CING_WALLET"/
+      projectionSource,
+      /paymentMethod\s*===\s*"cing_wallet"[\s\S]*?Payment_Info:\s*"CING_WALLET"/
     );
   }
 );
@@ -42,8 +61,8 @@ test(
   "Cing Wallet is internally verified before iPOS handoff",
   () => {
     assert.match(
-      buildPayloadSource,
-      /Trans_Verified:\s*[\s\S]*?order\.payment_method\s*===\s*"cing_wallet"[\s\S]*?\?\s*1[\s\S]*?:\s*\(momo_trans_id\s*\?\s*1\s*:\s*0\)/
+      projectionSource,
+      /paymentMethod\s*===\s*"cing_wallet"[\s\S]*?Trans_Verified:\s*1/
     );
   }
 );
@@ -52,18 +71,33 @@ test(
   "Cing Wallet tender cannot redefine canonical payable amount",
   () => {
     assert.match(
-      buildPayloadSource,
-      /Amount:\s*order\.total_amount\s*\|\|\s*0/
+      projectionSource,
+      /const amount\s*=\s*normalizeNonNegativeMoney\(\s*order\.total_amount/
     );
 
-    assert.doesNotMatch(
-      buildPayloadSource,
-      /Amount:\s*order\.payment_method/i
+    assert.match(
+      projectionSource,
+      /paymentMethod\s*===\s*"cing_wallet"[\s\S]*?Amount:\s*amount/
     );
 
-    assert.doesNotMatch(
+    assert.match(
       buildPayloadSource,
-      /Amount:\s*.*wallet.*balance/i
+      /const canonicalTotal\s*=\s*normalizeNonNegativeMoney\(\s*order\.total_amount/
+    );
+
+    assert.match(
+      buildPayloadSource,
+      /amount:\s*canonicalTotal/
+    );
+
+    assert.match(
+      buildPayloadSource,
+      /total_amount:\s*canonicalTotal/
+    );
+
+    assert.match(
+      buildPayloadSource,
+      /PaymentInfo:\s*resolveIposPaymentProjection\(\s*order,\s*momo_trans_id\s*\)/
     );
   }
 );
@@ -72,18 +106,18 @@ test(
   "MoMo keeps existing MOMO_QR_AIO behavior",
   () => {
     assert.match(
-      buildPayloadSource,
-      /"MOMO_QR_AIO"/
+      projectionSource,
+      /paymentMethod\s*===\s*"momo"[\s\S]*?Payment_Method:\s*"MOMO_QR_AIO"/
     );
 
     assert.match(
-      buildPayloadSource,
-      /"MOMO-"\s*\+\s*momo_trans_id/
+      projectionSource,
+      /paymentMethod\s*===\s*"momo"[\s\S]*?Payment_Info:\s*momoTransId\s*\?\s*"MOMO-"\s*\+\s*momoTransId\s*:\s*"MOMO"/
     );
 
     assert.match(
-      buildPayloadSource,
-      /order\.payment_method\s*===\s*"momo"\s*\?\s*"MOMO"\s*:\s*""/
+      projectionSource,
+      /paymentMethod\s*===\s*"momo"[\s\S]*?Trans_Verified:\s*momoTransId\s*\?\s*1\s*:\s*0/
     );
   }
 );
@@ -98,7 +132,27 @@ test(
 
     assert.doesNotMatch(
       buildPayloadSource,
-      /client:\s*["']cing_wallet["']/i
+      /client:\s*"cing_wallet"/
+    );
+  }
+);
+
+test(
+  "payment projection is centralized and buildPayload does not inline tender authority",
+  () => {
+    assert.match(
+      buildPayloadSource,
+      /PaymentInfo:\s*resolveIposPaymentProjection\(/
+    );
+
+    assert.doesNotMatch(
+      buildPayloadSource,
+      /Payment_Method:\s*"CING_WALLET"/
+    );
+
+    assert.doesNotMatch(
+      buildPayloadSource,
+      /Payment_Method:\s*"MOMO_QR_AIO"/
     );
   }
 );

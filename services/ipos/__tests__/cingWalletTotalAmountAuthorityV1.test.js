@@ -11,26 +11,30 @@ const source = fs.readFileSync(
   "utf8"
 );
 
-function extractBuildPayloadSource() {
+function extractFunction(name, nextName) {
   const start =
     source.indexOf(
-      "function buildPayload("
+      `function ${name}(`
     );
 
-  const end =
-    source.indexOf(
-      "/**\n * ============================================\n * CREATE IPOS LOG",
-      start
-    );
-
-  assert.ok(
-    start >= 0,
-    "buildPayload must exist"
+  assert.notEqual(
+    start,
+    -1,
+    `${name} must exist`
   );
 
-  assert.ok(
-    end > start,
-    "buildPayload boundary must be detectable"
+  const end =
+    nextName
+      ? source.indexOf(
+          `function ${nextName}(`,
+          start
+        )
+      : source.length;
+
+  assert.notEqual(
+    end,
+    -1,
+    `${nextName} must exist after ${name}`
   );
 
   return source.slice(
@@ -39,30 +43,59 @@ function extractBuildPayloadSource() {
   );
 }
 
+const projectionSource =
+  extractFunction(
+    "resolveIposPaymentProjection",
+    "normalizeIposOrderType"
+  );
+
 const buildPayloadSource =
-  extractBuildPayloadSource();
+  extractFunction(
+    "buildPayload",
+    "emitRealtime"
+  );
 
 test(
-  "iPOS order amount authority is canonical order.total_amount",
+  "iPOS order amount authority is canonical validated order.total_amount",
   () => {
     assert.match(
       buildPayloadSource,
-      /amount:\s*order\.total_amount\s*\|\|\s*0/
+      /const canonicalTotal\s*=\s*normalizeNonNegativeMoney\(\s*order\.total_amount,\s*"IPOS_ORDER_TOTAL_INVALID"\s*\)/
     );
 
     assert.match(
       buildPayloadSource,
-      /total_amount:\s*order\.total_amount\s*\|\|\s*0/
+      /amount:\s*canonicalTotal/
+    );
+
+    assert.match(
+      buildPayloadSource,
+      /total_amount:\s*canonicalTotal/
     );
   }
 );
 
 test(
-  "iPOS PaymentInfo amount uses the same canonical order total",
+  "iPOS PaymentInfo amount derives independently from the same canonical order total",
   () => {
     assert.match(
+      projectionSource,
+      /const amount\s*=\s*normalizeNonNegativeMoney\(\s*order\.total_amount,\s*"IPOS_ORDER_TOTAL_INVALID"\s*\)/
+    );
+
+    assert.match(
       buildPayloadSource,
-      /PaymentInfo:\s*\{[\s\S]*?Amount:\s*order\.total_amount\s*\|\|\s*0/
+      /PaymentInfo:\s*resolveIposPaymentProjection\(\s*order,\s*momo_trans_id\s*\)/
+    );
+
+    assert.match(
+      projectionSource,
+      /paymentMethod\s*===\s*"cing_wallet"[\s\S]*?Amount:\s*amount/
+    );
+
+    assert.match(
+      projectionSource,
+      /paymentMethod\s*===\s*"momo"[\s\S]*?Amount:\s*amount/
     );
   }
 );
@@ -80,9 +113,19 @@ test(
       /total_amount:\s*order\.payment_method/i
     );
 
+    assert.match(
+      projectionSource,
+      /const amount\s*=\s*normalizeNonNegativeMoney\(\s*order\.total_amount,\s*"IPOS_ORDER_TOTAL_INVALID"\s*\)/
+    );
+
     assert.doesNotMatch(
-      buildPayloadSource,
-      /Amount:\s*order\.payment_method/i
+      projectionSource,
+      /const amount\s*=\s*normalizeNonNegativeMoney\(\s*(?:paymentMethod|order\.payment_method)/
+    );
+
+    assert.doesNotMatch(
+      projectionSource,
+      /Amount:\s*(?:paymentMethod|order\.payment_method)/
     );
   }
 );
@@ -90,72 +133,90 @@ test(
 test(
   "Cing Wallet financial state can never become iPOS invoice total",
   () => {
+    const paymentAuthority =
+      buildPayloadSource +
+      "\n" +
+      projectionSource;
+
     assert.doesNotMatch(
-      buildPayloadSource,
+      paymentAuthority,
       /\bwallet_balance\b/i
     );
 
     assert.doesNotMatch(
-      buildPayloadSource,
+      paymentAuthority,
       /\bbalance_after\b/i
     );
 
     assert.doesNotMatch(
-      buildPayloadSource,
+      paymentAuthority,
       /\bcing_wallet_accounts\b/i
     );
 
     assert.doesNotMatch(
-      buildPayloadSource,
+      paymentAuthority,
       /\bcing_wallet_transactions\b/i
     );
 
     assert.doesNotMatch(
-      buildPayloadSource,
+      paymentAuthority,
       /\btopup\b/i
     );
   }
 );
 
 test(
-  "payment method may describe tender but cannot redefine payable amount",
+  "payment method describes tender but cannot redefine payable amount",
   () => {
     assert.match(
-      buildPayloadSource,
-      /payment_method/
+      projectionSource,
+      /const paymentMethod\s*=/
     );
 
     assert.match(
-      buildPayloadSource,
-      /Payment_Method/
+      projectionSource,
+      /Payment_Method:/
     );
 
     assert.match(
-      buildPayloadSource,
-      /Payment_Info/
+      projectionSource,
+      /Payment_Info:/
     );
 
     assert.match(
-      buildPayloadSource,
-      /Amount:\s*order\.total_amount\s*\|\|\s*0/
+      projectionSource,
+      /const amount\s*=\s*normalizeNonNegativeMoney\(\s*order\.total_amount/
+    );
+
+    assert.doesNotMatch(
+      projectionSource,
+      /Amount:\s*paymentMethod/
     );
   }
 );
 
 test(
-  "ZBS total_amount upstream authority remains the actual order payable amount",
+  "ZBS total_amount upstream authority remains the actual canonical order payable amount",
   () => {
     /*
-     * iPOS owns the CRM/ZBS transaction variables.
+     * order.total_amount is validated once into canonicalTotal before
+     * buildPayload exposes the value to iPOS/ZBS.
      *
-     * Therefore Cing must send the actual final payable value
-     * as order.total_amount regardless of tender type:
-     *
-     * cash / momo / cing_wallet => same invoice total semantics.
+     * Tender selection remains a separate payment projection concern.
      */
     assert.match(
       buildPayloadSource,
-      /total_amount:\s*order\.total_amount\s*\|\|\s*0/
+      /const canonicalTotal\s*=\s*normalizeNonNegativeMoney\(\s*order\.total_amount/
+    );
+
+    assert.match(
+      buildPayloadSource,
+      /total_amount:\s*canonicalTotal/
+    );
+
+    assert.doesNotMatch(
+      buildPayloadSource,
+      /total_amount:\s*(?:order\.)?payment_method/i
     );
   }
 );
