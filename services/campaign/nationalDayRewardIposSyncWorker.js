@@ -1,3 +1,4 @@
+const { randomUUID } = require("crypto");
 const supabase = require("../../supabase");
 const redisClient = require("../infrastructure/cache/redisClient");
 const {
@@ -14,6 +15,63 @@ const {
 
 function buildIposRewardNote(claimId) {
   return `CING-ND2026-${claimId}`;
+}
+
+function nationalDayLookupWindow(page) {
+  return {
+    page,
+    page_size: 100,
+    create_from: "2026-08-15 00:00:00",
+    // Keep marker discovery valid for durable retries that may
+    // complete after the customer-facing campaign window closes.
+    create_to: "2030-01-01 00:00:00",
+  };
+}
+
+async function findNationalDayRewardMarker(
+  userId84,
+  iposNote
+) {
+  const MAX_PAGES = 100;
+
+  for (
+    let page = 1;
+    page <= MAX_PAGES;
+    page++
+  ) {
+    const result =
+      await findMembershipLogByNote(
+        userId84,
+        iposNote,
+        nationalDayLookupWindow(page)
+      );
+
+    if (!result.success) {
+      return result;
+    }
+
+    if (result.found) {
+      return result;
+    }
+
+    const scannedCount =
+      Number(result.scanned_count || 0);
+
+    if (scannedCount < 100) {
+      return {
+        ...result,
+        found: false,
+      };
+    }
+  }
+
+  return {
+    success: false,
+    found: false,
+    data: null,
+    error:
+      "membership_log_pagination_limit_exceeded",
+  };
 }
 
 
@@ -82,12 +140,42 @@ async function releaseStuckClaims() {
   }
 }
 
+function processingLeaseIso() {
+  return new Date(
+    Date.now() + 10 * 60 * 1000
+  ).toISOString();
+}
+
+async function claimPendingClaimById(claimId) {
+  const eligibleAt = nowIso();
+
+  const { data: locked, error } =
+    await supabase
+      .from("campaign_reward_claims")
+      .update({
+        ipos_sync_status: "processing",
+        ipos_locked_until: processingLeaseIso(),
+        updated_at: nowIso(),
+      })
+      .eq("id", claimId)
+      .eq("reward_code", "national_day_2026_login_29")
+      .eq("ipos_sync_status", "pending")
+      .lte("ipos_next_retry_at", eligibleAt)
+      .select("*");
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return locked?.[0] || null;
+}
+
 async function claimPendingClaims(
   limit = DEFAULT_BATCH_SIZE
 ) {
   const { data: pending, error } = await supabase
     .from("campaign_reward_claims")
-    .select("*")
+    .select("id")
     .eq("reward_code", "national_day_2026_login_29")
     .eq("ipos_sync_status", "pending")
     .lte("ipos_next_retry_at", nowIso())
@@ -102,28 +190,18 @@ async function claimPendingClaims(
     return [];
   }
 
-  const ids = pending.map(row => row.id);
+  const locked = [];
 
-  const { data: locked, error: lockError } =
-    await supabase
-      .from("campaign_reward_claims")
-      .update({
-        ipos_sync_status: "processing",
-        ipos_locked_until:
-          new Date(
-            Date.now() + 10 * 60 * 1000
-          ).toISOString(),
-        updated_at: nowIso(),
-      })
-      .in("id", ids)
-      .eq("ipos_sync_status", "pending")
-      .select("*");
+  for (const row of pending) {
+    const claim =
+      await claimPendingClaimById(row.id);
 
-  if (lockError) {
-    throw new Error(lockError.message);
+    if (claim) {
+      locked.push(claim);
+    }
   }
 
-  return locked || [];
+  return locked;
 }
 
 async function markSynced(claim) {
@@ -136,7 +214,9 @@ async function markSynced(claim) {
       ipos_last_error: null,
       updated_at: nowIso(),
     })
-    .eq("id", claim.id);
+    .eq("id", claim.id)
+    .eq("ipos_sync_status", "processing")
+    .eq("ipos_locked_until", claim.ipos_locked_until);
 
   if (error) {
     throw new Error(error.message);
@@ -169,7 +249,9 @@ async function markFailedAttempt(
       ipos_locked_until: null,
       updated_at: nowIso(),
     })
-    .eq("id", claim.id);
+    .eq("id", claim.id)
+    .eq("ipos_sync_status", "processing")
+    .eq("ipos_locked_until", claim.ipos_locked_until);
 
   if (error) {
     throw new Error(error.message);
@@ -190,6 +272,108 @@ async function markFailedAttempt(
   }
 }
 
+async function deliverClaimToIpos(claim) {
+  try {
+    const phone =
+      claim.phone_normalized ||
+      claim.user_id;
+
+    const iposNote =
+      buildIposRewardNote(claim.id);
+
+    const digits =
+      String(phone).replace(/\D/g, "");
+
+    const userId84 =
+      digits.startsWith("84")
+        ? digits
+        : "84" + digits.slice(1);
+
+    const existingIposLog =
+      await findNationalDayRewardMarker(
+        userId84,
+        iposNote
+      );
+
+    if (!existingIposLog.success) {
+      throw new Error(
+        `campaign_ipos_preflight:${existingIposLog.error || "lookup_failed"}`
+      );
+    }
+
+    if (!existingIposLog.found) {
+      await updateMemberPoint({
+        phone,
+        type_change: "ADD",
+        point_change:
+          Number(claim.reward_amount || 0),
+        note: iposNote,
+      });
+
+      const verifiedIposLog =
+        await findNationalDayRewardMarker(
+          userId84,
+          iposNote
+        );
+
+      if (!verifiedIposLog.success) {
+        throw new Error(
+          `campaign_ipos_postflight:${verifiedIposLog.error || "lookup_failed"}`
+        );
+      }
+
+      if (!verifiedIposLog.found) {
+        throw new Error(
+          "campaign_ipos_postflight:reward_marker_not_found"
+        );
+      }
+    }
+
+    await markSynced(claim);
+
+    return {
+      success: true,
+      claimId: claim.id,
+    };
+  } catch (error) {
+    await markFailedAttempt(
+      claim,
+      error.message
+    );
+
+    return {
+      success: false,
+      claimId: claim.id,
+      error: error.message,
+    };
+  }
+}
+
+async function processNationalDayRewardIposClaim(
+  claimId
+) {
+  if (!claimId) {
+    return {
+      success: false,
+      error: "claim_id_required",
+    };
+  }
+
+  const claim =
+    await claimPendingClaimById(claimId);
+
+  if (!claim) {
+    return {
+      success: true,
+      skipped: true,
+      reason: "claim_not_pending",
+      claimId,
+    };
+  }
+
+  return deliverClaimToIpos(claim);
+}
+
 async function processNationalDayRewardIposSyncQueue({
   batchSize = DEFAULT_BATCH_SIZE,
 } = {}) {
@@ -206,16 +390,24 @@ async function processNationalDayRewardIposSyncQueue({
   const redisLockKey =
     "campaign:national-day-2026:ipos-sync:lock";
 
+  const redisLockToken =
+    randomUUID();
+
+  let ownsRedisLock = false;
+
   try {
     const locked = await redisClient
       .set(
         redisLockKey,
-        "1",
+        redisLockToken,
         "NX",
         "EX",
         240
       )
       .catch(() => null);
+
+    ownsRedisLock =
+      !!locked;
 
     if (!locked) {
       return {
@@ -237,80 +429,12 @@ async function processNationalDayRewardIposSyncQueue({
     };
 
     for (const claim of claims) {
-      try {
-        const phone =
-          claim.phone_normalized ||
-          claim.user_id;
+      const result =
+        await deliverClaimToIpos(claim);
 
-        const iposNote =
-          buildIposRewardNote(claim.id);
-
-        const userId84 =
-          String(phone).replace(/\D/g, "").startsWith("84")
-            ? String(phone).replace(/\D/g, "")
-            : "84" + String(phone).replace(/\D/g, "").slice(1);
-
-        const existingIposLog =
-          await findMembershipLogByNote(
-            userId84,
-            iposNote,
-            {
-              page: 1,
-              page_size: 100,
-              create_from: "2026-08-15 00:00:00",
-              create_to: "2026-10-01 00:00:00",
-            }
-          );
-
-        if (!existingIposLog.success) {
-          throw new Error(
-            `campaign_ipos_preflight:${existingIposLog.error || "lookup_failed"}`
-          );
-        }
-
-        if (!existingIposLog.found) {
-          await updateMemberPoint({
-            phone,
-            type_change: "ADD",
-            point_change:
-              Number(claim.reward_amount || 0),
-            note: iposNote,
-          });
-
-          const verifiedIposLog =
-            await findMembershipLogByNote(
-              userId84,
-              iposNote,
-              {
-                page: 1,
-                page_size: 100,
-                create_from: "2026-08-15 00:00:00",
-                create_to: "2026-10-01 00:00:00",
-              }
-            );
-
-          if (!verifiedIposLog.success) {
-            throw new Error(
-              `campaign_ipos_postflight:${verifiedIposLog.error || "lookup_failed"}`
-            );
-          }
-
-          if (!verifiedIposLog.found) {
-            throw new Error(
-              "campaign_ipos_postflight:reward_marker_not_found"
-            );
-          }
-        }
-
-        await markSynced(claim);
-
+      if (result.success) {
         stats.success++;
-      } catch (error) {
-        await markFailedAttempt(
-          claim,
-          error.message
-        );
-
+      } else {
         stats.failed++;
       }
     }
@@ -327,9 +451,21 @@ async function processNationalDayRewardIposSyncQueue({
   } finally {
     running = false;
 
-    await redisClient
-      .del(redisLockKey)
-      .catch(() => {});
+    if (ownsRedisLock) {
+      await redisClient
+        .eval(
+          [
+            "if redis.call('get', KEYS[1]) == ARGV[1] then",
+            "  return redis.call('del', KEYS[1])",
+            "end",
+            "return 0",
+          ].join("\n"),
+          1,
+          redisLockKey,
+          redisLockToken
+        )
+        .catch(() => {});
+    }
   }
 }
 
@@ -390,6 +526,7 @@ function startNationalDayRewardIposSyncWorker() {
 }
 
 module.exports = {
+  processNationalDayRewardIposClaim,
   processNationalDayRewardIposSyncQueue,
   startNationalDayRewardIposSyncWorker,
 };

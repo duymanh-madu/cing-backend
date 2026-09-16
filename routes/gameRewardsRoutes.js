@@ -1,4 +1,10 @@
 const express = require("express");
+const {
+  processNationalDayRewardIposClaim,
+} = require(
+  "../services/campaign/nationalDayRewardIposSyncWorker"
+);
+
 const router = express.Router();
 const supabase = require("../supabase");
 const redis = require("../services/infrastructure/cache/redisClient");
@@ -197,19 +203,45 @@ router.post("/claim/:rewardId", async (req, res) => {
       }
 
       /**
-       * iPOS delivery is intentionally outside the HTTP claim path.
+       * Durable iPOS delivery remains transactionally decoupled from
+       * the customer HTTP claim.
        *
-       * - campaign reward:
-       *   claim_pending_reward_atomic() releases the existing
-       *   campaign durable delivery.
+       * Campaign reward:
+       * - claim_pending_reward_atomic() commits the local points claim
+       * - the same transaction releases campaign_reward_claims to pending
+       * - only the first successful claim receives already_claimed=false
+       * - after commit, kick that exact campaign claim immediately
+       * - any fast-path failure remains recoverable by the durable worker
        *
-       * - ordinary / leaderboard reward:
-       *   the same RPC persists pending_rewards.ipos_sync_status
-       *   = 'pending' in the local claim transaction.
+       * Ordinary / leaderboard reward:
+       * - pending_rewards itself remains the durable iPOS outbox
+       * - its existing worker remains the delivery authority
        *
-       * A durable worker performs preflight/postflight verification
-       * using the immutable pending_reward UUID as its iPOS note.
+       * The fast path never performs an iPOS mutation directly here.
        */
+      if (
+        !result.already_claimed &&
+        result.campaign_claim_id
+      ) {
+        const campaignClaimId =
+          result.campaign_claim_id;
+
+        setImmediate(() => {
+          processNationalDayRewardIposClaim(
+            campaignClaimId
+          ).catch(error => {
+            console.error(
+              "[NATIONAL DAY REWARD] immediate iPOS sync failed",
+              {
+                campaignClaimId,
+                error:
+                  error?.message ||
+                  "unknown_error",
+              }
+            );
+          });
+        });
+      }
 
       await invalidateMembershipCache(
         userId
