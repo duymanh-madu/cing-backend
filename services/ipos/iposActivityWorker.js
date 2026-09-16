@@ -16,6 +16,7 @@ async function runIposActivityCheck() {
       .from("ipos_webhook_log")
       .select("id, phone, event, received_at")
       .eq("synced", false)
+      .is("terminal_at", null)
       .not("phone", "is", null)
       .lt("received_at", cutoff)
       .order("received_at", { ascending: true })
@@ -26,6 +27,37 @@ async function runIposActivityCheck() {
     let resynced = 0;
     for (const row of stuckRows || []) {
       try {
+        const isCustomerPhone =
+          /^(0|84)\d{8,10}$/.test(String(row.phone || ""));
+
+        if (!isCustomerPhone) {
+          const { error: markTerminalError } = await supabase
+            .from("ipos_webhook_log")
+            .update({
+              terminal_at: new Date().toISOString(),
+              terminal_reason: "non_phone_identity",
+            })
+            .eq("id", row.id)
+            .eq("synced", false)
+            .is("terminal_at", null);
+
+          if (markTerminalError) {
+            throw new Error(
+              "failed to mark webhook terminal: " +
+              markTerminalError.message
+            );
+          }
+
+          console.warn(
+            "[IPOS ACTIVITY] Terminal non-phone identity skipped",
+            {
+              id: row.id,
+              event: row.event,
+            }
+          );
+          continue;
+        }
+
         const syncResult = await syncSingleUserSpending(row.phone);
 
         if (!syncResult || syncResult.success !== true) {

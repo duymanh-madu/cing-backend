@@ -452,7 +452,7 @@ async function getSystemHealth(req, res) {
     const oneHourAgo = new Date(Date.now() - 60*60*1000).toISOString();
 
     const [{ count: pending }, { count: recentTotal }] = await Promise.all([
-      supabase.from("ipos_webhook_log").select("*",{count:'exact',head:true}).eq("synced",false).not("phone","is",null),
+      supabase.from("ipos_webhook_log").select("*",{count:'exact',head:true}).eq("synced",false).is("terminal_at",null).not("phone","is",null),
       supabase.from("ipos_webhook_log").select("*",{count:'exact',head:true}).gte("received_at", oneHourAgo),
     ]);
 
