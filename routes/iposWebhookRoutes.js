@@ -46,6 +46,10 @@ function normalizePhone(phone) {
   return p;
 }
 
+function isCustomerPhone(phone) {
+  return /^(0|84)\d{8,10}$/.test(String(phone || ""));
+}
+
 function mapTierKey(name) {
   if (!name) return "member";
   const n = name.toLowerCase().trim();
@@ -421,6 +425,17 @@ router.post("/callback", async (req, res) => {
 
     if (!phone) return;
 
+    // membership_id/member_id from iPOS is not guaranteed to be a phone.
+    // Customer sync authorities below are phone-keyed, so reject non-phone
+    // identifiers before logging or performing any customer side effect.
+    if (!isCustomerPhone(phone)) {
+      console.warn("[FOODBOOK] Customer sync skipped: non-phone iPOS identity", {
+        event,
+        uniqueId: uniqueId || null,
+      });
+      return;
+    }
+
     // 1. Xóa Redis cache
     const p0  = normalizePhone(phone);
     const p84 = "84" + p0.slice(1);
@@ -739,7 +754,18 @@ router.post("/callback", async (req, res) => {
         }
 
         if (!skipSync) {
-          await syncSingleUserSpending(p0);
+          const syncResult = await syncSingleUserSpending(p0);
+
+          if (!syncResult || syncResult.success !== true) {
+            const reason =
+              syncResult?.error ||
+              (syncResult === null
+                ? "invalid customer phone"
+                : "CRM sync returned unsuccessful result");
+
+            throw new Error("CRM spending sync not confirmed: " + reason);
+          }
+
           console.log(`[FOODBOOK] Spending synced for ${p0} - event: ${event}`);
         }
 
@@ -801,9 +827,19 @@ router.post("/callback", async (req, res) => {
         // dọn job CRM recovery dự phòng từ MoMo để tránh recovery tick sync lại cùng dữ liệu.
         await clearMomoPaidCrmRecoveryJob(p0, event);
 
-        // Đánh dấu log đã sync (kể cả skip vì đã sync từ MoMo)
+        // ACK activity log only after CRM spending is durably confirmed.
+        // skipSync is already backed by orders.spending_synced=true above.
         if (_logId) {
-          await supabase.from("ipos_webhook_log").update({ synced: true }).eq("id", _logId).then(()=>{}).catch(()=>{});
+          const { error: markSyncedError } = await supabase
+            .from("ipos_webhook_log")
+            .update({ synced: true })
+            .eq("id", _logId);
+
+          if (markSyncedError) {
+            throw new Error(
+              "failed to mark iPOS webhook synced: " + markSyncedError.message
+            );
+          }
         }
       } catch (syncErr) {
         console.warn(`[FOODBOOK] Spending sync failed for ${p0}:`, syncErr.message);

@@ -26,8 +26,26 @@ async function runIposActivityCheck() {
     let resynced = 0;
     for (const row of stuckRows || []) {
       try {
-        await syncSingleUserSpending(row.phone);
-        await supabase.from("ipos_webhook_log").update({ synced: true }).eq("id", row.id);
+        const syncResult = await syncSingleUserSpending(row.phone);
+
+        if (!syncResult || syncResult.success !== true) {
+          const reason =
+            syncResult?.error ||
+            (syncResult === null ? "invalid customer phone" : "CRM sync returned unsuccessful result");
+
+          console.warn("[IPOS ACTIVITY] Re-sync failed for " + row.phone + ":", reason);
+          continue;
+        }
+
+        const { error: markSyncedError } = await supabase
+          .from("ipos_webhook_log")
+          .update({ synced: true })
+          .eq("id", row.id);
+
+        if (markSyncedError) {
+          throw new Error("failed to mark webhook synced: " + markSyncedError.message);
+        }
+
         resynced++;
         console.log("[IPOS ACTIVITY] Auto re-synced " + row.phone + " (event: " + row.event + ", stuck " + STUCK_MINUTES + "min+)");
         await new Promise(r => setTimeout(r, 300));
