@@ -753,6 +753,8 @@ router.post("/callback", async (req, res) => {
           }
         }
 
+        let crmSyncError = null;
+
         if (!skipSync) {
           const syncResult = await syncSingleUserSpending(p0);
 
@@ -763,10 +765,12 @@ router.post("/callback", async (req, res) => {
                 ? "invalid customer phone"
                 : "CRM sync returned unsuccessful result");
 
-            throw new Error("CRM spending sync not confirmed: " + reason);
+            crmSyncError = new Error(
+              "CRM spending sync not confirmed: " + reason
+            );
+          } else {
+            console.log(`[FOODBOOK] Spending synced for ${p0} - event: ${event}`);
           }
-
-          console.log(`[FOODBOOK] Spending synced for ${p0} - event: ${event}`);
         }
 
         const orderForPlays = body.notify_order_online || body.sale_manager || body.membership_log;
@@ -823,6 +827,13 @@ router.post("/callback", async (req, res) => {
             has_foodbook_code: Boolean(foodbookCodeForPlays),
           });
         }
+        // Preserve the existing idempotent order/game side effects above even
+        // when CRM spending sync has a transient logical failure. However,
+        // recovery state and activity ACK must remain pending until CRM success.
+        if (crmSyncError) {
+          throw crmSyncError;
+        }
+
         // Nếu iPOS membership_log đã sync hoặc xác nhận đơn app đã sync,
         // dọn job CRM recovery dự phòng từ MoMo để tránh recovery tick sync lại cùng dữ liệu.
         await clearMomoPaidCrmRecoveryJob(p0, event);

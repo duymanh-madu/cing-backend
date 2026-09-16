@@ -95,6 +95,109 @@ test("known non-phone iPOS membership identifier cannot satisfy customer phone c
   assert.equal(isCustomerPhone, false);
 });
 
+test("webhook preserves idempotent order/game side effects before surfacing CRM logical failure", () => {
+  const src = read("routes/iposWebhookRoutes.js");
+
+  const syncCall = src.indexOf(
+    "const syncResult = await syncSingleUserSpending(p0);"
+  );
+
+  assert.ok(syncCall >= 0, "webhook CRM sync call must exist");
+
+  const successGate = src.indexOf(
+    "if (!syncResult || syncResult.success !== true)",
+    syncCall
+  );
+  const captureFailure = src.indexOf(
+    "crmSyncError = new Error(",
+    successGate
+  );
+  const orderForPlays = src.indexOf(
+    "const orderForPlays =",
+    captureFailure
+  );
+  const directOrderCodeForPlays = src.indexOf(
+    "const directOrderCodeForPlays =",
+    orderForPlays
+  );
+  const fallbackOrder = src.indexOf(
+    '.from("crm_orders")',
+    directOrderCodeForPlays
+  );
+  const gameAward = src.indexOf(
+    "await awardOrderGamePlays({",
+    directOrderCodeForPlays
+  );
+  const delayedFailureGate = src.indexOf(
+    "if (crmSyncError)",
+    gameAward
+  );
+  const delayedThrow = src.indexOf(
+    "throw crmSyncError;",
+    delayedFailureGate
+  );
+  const clearRecovery = src.indexOf(
+    "await clearMomoPaidCrmRecoveryJob(p0, event);",
+    delayedThrow
+  );
+  const activityLog = src.indexOf(
+    '.from("ipos_webhook_log")',
+    clearRecovery
+  );
+  const updateSynced = src.indexOf(
+    ".update({ synced: true })",
+    activityLog
+  );
+
+  assert.ok(
+    successGate > syncCall,
+    "CRM logical result must be validated after sync"
+  );
+  assert.ok(
+    captureFailure > successGate,
+    "CRM logical failure must be captured rather than thrown immediately"
+  );
+  assert.ok(
+    orderForPlays > captureFailure,
+    "order/game processing must remain reachable after CRM failure capture"
+  );
+  assert.ok(
+    directOrderCodeForPlays > orderForPlays,
+    "direct order identity must be derived after CRM failure capture"
+  );
+  assert.ok(
+    fallbackOrder > directOrderCodeForPlays,
+    "fallback crm_orders authority must remain reachable"
+  );
+  assert.ok(
+    gameAward > directOrderCodeForPlays,
+    "game award authority must remain reachable"
+  );
+  assert.ok(
+    delayedFailureGate > gameAward,
+    "CRM failure must surface only after game/order side effects"
+  );
+  assert.ok(
+    delayedThrow > delayedFailureGate,
+    "captured CRM failure must be thrown"
+  );
+  assert.ok(
+    clearRecovery > delayedThrow,
+    "momo_paid recovery must not clear before captured CRM failure is surfaced"
+  );
+  assert.ok(
+    updateSynced > clearRecovery,
+    "activity ACK must remain after recovery clear"
+  );
+
+  assert.ok(
+    !src.includes(
+      'throw new Error("CRM spending sync not confirmed: " + reason)'
+    ),
+    "CRM logical failure must not throw before order/game side effects"
+  );
+});
+
 test("webhook only ACKs CRM activity after confirmed spending sync", () => {
   const src = read("routes/iposWebhookRoutes.js");
 
