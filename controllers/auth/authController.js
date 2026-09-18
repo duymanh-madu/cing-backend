@@ -14,6 +14,12 @@ const logger =
     "../../services/loggerService"
   );
 
+const {
+  logAuthInstallationObservation,
+} = require(
+  "../../services/auth/authInstallationObservability"
+);
+
 /**
  * =====================================================
  * LOGIN
@@ -27,6 +33,17 @@ async function loginWithZalo(
 ) {
 
   try {
+
+    logAuthInstallationObservation({
+      surface: "zalo_login",
+      installationId:
+        req.body?.installation_id ||
+        req.body?.installationId ||
+        "",
+      requestId:
+        req.request_id ||
+        null,
+    });
 
     const result =
       await authService.loginWithZalo({
@@ -153,6 +170,17 @@ async function openCachedMemberApp(
 
   try {
 
+    logAuthInstallationObservation({
+      surface: "member_app_open",
+      installationId:
+        req.body?.installation_id ||
+        req.body?.installationId ||
+        "",
+      requestId:
+        req.request_id ||
+        null,
+    });
+
     await evaluateCachedMemberAppOpen({
       phone:
         req.body?.phone ||
@@ -203,6 +231,17 @@ async function openSession(
 ) {
 
   try {
+
+    logAuthInstallationObservation({
+      surface: "session_open",
+      installationId:
+        req.body?.installation_id ||
+        req.body?.installationId ||
+        "",
+      requestId:
+        req.request_id ||
+        null,
+    });
 
     const evaluation =
       await authService
