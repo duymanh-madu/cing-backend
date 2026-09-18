@@ -73,6 +73,15 @@ router.post(
   authController.openCachedMemberApp
 );
 
+/*
+ * Public endpoint, but possession of the opaque
+ * device credential is the authentication factor.
+ */
+router.post(
+  "/device/recover",
+  authController.recoverDeviceReauth
+);
+
 /**
  * =====================================================
  * AUTHENTICATED
@@ -89,6 +98,12 @@ router.post(
   "/session/open",
   authMiddleware,
   authController.openSession
+);
+
+router.post(
+  "/device/register",
+  authMiddleware,
+  authController.registerDeviceReauth
 );
 
 router.post(

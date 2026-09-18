@@ -41,6 +41,7 @@ const GENERIC_AUTH_NAMES = new Set([
   "guest",
   "hội viên",
   "hoi vien",
+  "cing iu",
 ]);
 
 function cleanDisplayName(value) {
@@ -131,13 +132,34 @@ async function loginWithZalo({
       const { getMember, addMember } = require("../foodbook");
       const existing = await getMember(customer.phone).catch(() => null);
       if (!existing?.success || !existing?.data?.data) {
-        // Chưa có trong CRM → tạo mới
-        await addMember({
-          phone: customer.phone,
-          name: pickDisplayName(crmMemberData?.name, zaloUser.name, customer.name) || "Cing iu",
-          birthday: zaloUser.birthday || "",
-        });
-        console.log("[AUTH] iPOS member created for:", customer.phone);
+        /*
+         * New CRM members must never be created with a generic
+         * placeholder name. The canonical Zalo name may come from
+         * the Mini App SDK or the OA profile recovery above.
+         *
+         * If neither source has produced a real name yet, preserve
+         * the authenticated customer/session and defer CRM creation
+         * until a later login carries a canonical identity.
+         */
+        const canonicalNewMemberName =
+          pickDisplayName(
+            zaloUser.name,
+            customer.name
+          );
+
+        if (canonicalNewMemberName) {
+          await addMember({
+            phone: customer.phone,
+            name: canonicalNewMemberName,
+            birthday: zaloUser.birthday || "",
+          });
+          console.log("[AUTH] iPOS member created for:", customer.phone);
+        } else {
+          logger.warn("iPOS member creation deferred: canonical Zalo name missing", {
+            customerId: customer.id,
+            phone: customer.phone,
+          });
+        }
       } else {
         crmMemberData = existing.data.data || crmMemberData;
         console.log("[AUTH] iPOS member already exists:", customer.phone);
@@ -232,7 +254,12 @@ async function loginWithZalo({
     }
   } catch(e) { console.warn("[AUTH] zalo_user_id sync error:", e.message); }
 
-  customer.name = pickDisplayName(customer.name, crmMemberData?.name, zaloUser.name) || "Cing iu";
+  customer.name =
+    pickDisplayName(
+      customer.name,
+      crmMemberData?.name,
+      zaloUser.name
+    );
 
   const accessToken =
     tokenService.generateAccessToken({
@@ -307,8 +334,7 @@ async function refreshSession({
   customer.name =
     pickDisplayName(
       customer.name
-    ) ||
-    "Cing iu";
+    );
 
   const accessToken =
     tokenService.generateAccessToken({

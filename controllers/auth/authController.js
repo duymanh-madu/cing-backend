@@ -20,6 +20,24 @@ const {
   "../../services/auth/authInstallationObservability"
 );
 
+
+const deviceReauthService =
+  require(
+    "../../services/auth/deviceReauthService"
+  );
+
+const {
+  decodePhoneToken,
+} = require(
+  "../../services/auth/zaloPhoneService"
+);
+
+const {
+  normalizePhone,
+} = require(
+  "../../utils/phoneIdentity"
+);
+
 /**
  * =====================================================
  * LOGIN
@@ -295,6 +313,164 @@ async function openSession(
  * =====================================================
  */
 
+async function registerDeviceReauth(
+  req,
+  res,
+  next
+) {
+  try {
+    /*
+     * Durable re-auth enrollment is a stronger authority
+     * than possession of an existing backend JWT.
+     *
+     * Zalo phone proof must be independently verified by
+     * the backend and resolve to the authenticated customer.
+     */
+    const phoneToken =
+      String(
+        req.body?.phone_token ||
+        req.body?.phoneToken ||
+        ""
+      ).trim();
+
+    const miniAccessToken =
+      String(
+        req.body?.mini_access_token ||
+        req.body?.miniAccessToken ||
+        ""
+      ).trim();
+
+    if (
+      !phoneToken ||
+      !miniAccessToken
+    ) {
+      return res.status(403).json({
+        success: false,
+        code:
+          "STRONG_ZALO_PROOF_REQUIRED",
+      });
+    }
+
+    const decodedPhone =
+      await decodePhoneToken({
+        phoneToken,
+        miniAccessToken,
+      });
+
+    const verifiedPhone =
+      normalizePhone(
+        decodedPhone ||
+        ""
+      );
+
+    const customerPhone =
+      normalizePhone(
+        req.customer?.phone ||
+        ""
+      );
+
+    if (
+      !verifiedPhone ||
+      !customerPhone ||
+      verifiedPhone !==
+        customerPhone
+    ) {
+      return res.status(403).json({
+        success: false,
+        code:
+          "INVALID_ZALO_PHONE_PROOF",
+      });
+    }
+
+    const result =
+      await deviceReauthService.register({
+        customer:
+          req.customer,
+        bindingId:
+          req.body?.binding_id ||
+          req.body?.bindingId ||
+          "",
+      });
+
+    if (!result.ok) {
+      return res.status(400).json({
+        success: false,
+        code:
+          result.code,
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        credential:
+          result.credential,
+        expires_at:
+          result.expiresAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * =====================================================
+ * DEVICE REAUTH RECOVER
+ * =====================================================
+ */
+
+async function recoverDeviceReauth(
+  req,
+  res,
+  next
+) {
+  try {
+    const result =
+      await deviceReauthService.recover({
+        bindingId:
+          req.body?.binding_id ||
+          req.body?.bindingId ||
+          "",
+        credential:
+          req.body?.credential ||
+          "",
+      });
+
+    if (!result.ok) {
+      return res.status(401).json({
+        success: false,
+        code:
+          "INVALID_DEVICE_REAUTH",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        customer:
+          result.customer,
+        accessToken:
+          result.accessToken,
+        refreshToken:
+          result.refreshToken,
+        credential:
+          result.credential,
+        credential_expires_at:
+          result.credentialExpiresAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * =====================================================
+ * LOGOUT
+ * =====================================================
+ */
+
 async function logout(
   req,
   res,
@@ -302,6 +478,12 @@ async function logout(
 ) {
 
   try {
+
+    await deviceReauthService
+      .revokeCustomer({
+        customerId:
+          req.customer.id,
+      });
 
     await authService.logout({
       customerId:
@@ -329,6 +511,8 @@ module.exports = {
   getSession,
   openCachedMemberApp,
   openSession,
+  registerDeviceReauth,
+  recoverDeviceReauth,
   logout,
 
 };
