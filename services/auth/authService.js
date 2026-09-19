@@ -1,6 +1,9 @@
 const jwt =
   require("jsonwebtoken");
 
+const AppError =
+  require("../../utils/AppError");
+
 const { decodePhoneToken } =
   require("./zaloPhoneService");
 
@@ -309,25 +312,86 @@ async function loginWithZalo({
 async function refreshSession({
   refreshToken,
 }) {
+  if (
+    typeof refreshToken !== "string" ||
+    !refreshToken.trim()
+  ) {
+    throw new AppError({
+      statusCode: 401,
+      code: "INVALID_REFRESH_TOKEN",
+      message: "Refresh token is invalid",
+    });
+  }
 
-  const payload =
-    jwt.verify(
+  const refreshSecret =
+    process.env.JWT_REFRESH_SECRET;
+
+  if (
+    typeof refreshSecret !== "string" ||
+    !refreshSecret.trim()
+  ) {
+    throw new AppError({
+      statusCode: 503,
+      code: "AUTH_REFRESH_UNAVAILABLE",
+      message: "Authentication temporarily unavailable",
+    });
+  }
+
+  let payload;
+
+  try {
+    payload = jwt.verify(
       refreshToken,
-      process.env.JWT_REFRESH_SECRET
+      refreshSecret
     );
+  } catch (error) {
+    if (
+      error?.name === "TokenExpiredError" ||
+      error?.name === "JsonWebTokenError" ||
+      error?.name === "NotBeforeError"
+    ) {
+      throw new AppError({
+        statusCode: 401,
+        code: "INVALID_REFRESH_TOKEN",
+        message: "Refresh token is invalid or expired",
+      });
+    }
+
+    throw error;
+  }
+
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    typeof payload.customerId !== "string" ||
+    !payload.customerId.trim()
+  ) {
+    throw new AppError({
+      statusCode: 401,
+      code: "INVALID_REFRESH_TOKEN",
+      message: "Refresh token is invalid",
+    });
+  }
 
   const customer =
-    await customerRepository.findById(
+    await customerRepository.findByIdForRefresh(
       payload.customerId
     );
 
-  // Invalidate Redis membership cache để force fresh data
+  if (!customer) {
+    throw new AppError({
+      statusCode: 401,
+      code: "REFRESH_CUSTOMER_NOT_FOUND",
+      message: "Authenticated customer no longer exists",
+    });
+  }
+
   if (customer.phone) {
     try {
       await redisClient.del(`membership:${customer.phone}`);
       console.log("[AUTH] Redis cache invalidated for:", customer.phone);
-    } catch(e) {
-      console.warn("[AUTH] Redis invalidation failed:", e.message);
+    } catch (error) {
+      console.warn("[AUTH] Redis invalidation failed:", error.message);
     }
   }
 
@@ -342,13 +406,9 @@ async function refreshSession({
     });
 
   return {
-
     accessToken,
-
     customer,
-
   };
-
 }
 
 /**

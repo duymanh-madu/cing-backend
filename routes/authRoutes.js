@@ -14,6 +14,9 @@ const authMiddleware =
     "../middlewares/authMiddleware"
   );
 
+const AppError =
+  require("../utils/AppError");
+
 /**
  * =====================================================
  * PUBLIC AUTH
@@ -65,7 +68,20 @@ router.post(
 
 router.post(
   "/refresh",
-  authController.refreshSession
+  authController.refreshSession,
+  (error, req, res, next) => {
+    if (!(error instanceof AppError)) {
+      return next(error);
+    }
+
+    return res
+      .status(error.statusCode)
+      .json({
+        success: false,
+        code: error.code,
+        message: error.message,
+      });
+  }
 );
 
 router.post(

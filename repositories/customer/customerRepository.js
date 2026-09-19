@@ -1,4 +1,5 @@
 const supabase = require("../../supabase");
+const AppError = require("../../utils/AppError");
 
 const GENERIC_CUSTOMER_NAMES = new Set([
   "khách hàng",
@@ -65,6 +66,34 @@ async function findById(customerId) {
   return normalizeCustomer(data);
 }
 
+async function findByIdForRefresh(customerId) {
+  let result;
+
+  try {
+    result = await supabase
+      .from("customers")
+      .select("*")
+      .eq("id", customerId)
+      .maybeSingle();
+  } catch (error) {
+    throw new AppError({
+      statusCode: 503,
+      code: "AUTH_CUSTOMER_LOOKUP_UNAVAILABLE",
+      message: "Customer lookup temporarily unavailable",
+    });
+  }
+
+  if (result.error) {
+    throw new AppError({
+      statusCode: 503,
+      code: "AUTH_CUSTOMER_LOOKUP_UNAVAILABLE",
+      message: "Customer lookup temporarily unavailable",
+    });
+  }
+
+  return normalizeCustomer(result.data);
+}
+
 async function findByZaloId(zaloId) {
   const { data, error } = await supabase.from("customers").select("*").eq("zalo_id", zaloId).single();
   if (error) return null;
@@ -98,4 +127,10 @@ function normalizeCustomer(row) {
   };
 }
 
-module.exports = { upsertCustomer, findById, findByZaloId, findByPhone };
+module.exports = {
+  upsertCustomer,
+  findById,
+  findByIdForRefresh,
+  findByZaloId,
+  findByPhone,
+};
