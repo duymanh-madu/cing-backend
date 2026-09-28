@@ -64,7 +64,7 @@ function validRow(
 }
 
 test(
-  "session issuer matches deterministic V4 contract",
+  "session issuer matches deterministic V5 contract",
   () => {
     assert.equal(
       GAME_KEY,
@@ -73,12 +73,12 @@ test(
 
     assert.equal(
       ENGINE_VERSION,
-      3
+      4
     );
 
     assert.equal(
       RULES_VERSION,
-      3
+      4
     );
 
     assert.equal(
@@ -88,7 +88,7 @@ test(
 
     assert.equal(
       REPLAY_VERSION,
-      4
+      5
     );
 
     assert.equal(
@@ -190,7 +190,7 @@ test(
         normalizeSessionRow(
           validRow({
             engine_version:
-              4,
+              99,
           })
         ),
 
@@ -299,16 +299,16 @@ test(
 );
 
 test(
-  "session issuer activates exact V4 contract after DB capability checkpoint",
+  "session issuer activates exact V5 contract after DB capability checkpoint",
   () => {
     assert.equal(
       ENGINE_VERSION,
-      3
+      4
     );
 
     assert.equal(
       RULES_VERSION,
-      3
+      4
     );
 
     assert.equal(
@@ -318,6 +318,42 @@ test(
 
     assert.equal(
       REPLAY_VERSION,
+      5
+    );
+  }
+);
+
+test(
+  "session validator preserves exact V4 contract for active legacy recovery",
+  () => {
+    const session =
+      normalizeSessionRow(
+        validRow({
+          engine_version: 3,
+          rules_version: 3,
+          score_version: 3,
+          replay_version: 4,
+          play_cost: 0,
+        })
+      );
+
+    assert.equal(
+      session.engine_version,
+      3
+    );
+
+    assert.equal(
+      session.rules_version,
+      3
+    );
+
+    assert.equal(
+      session.score_version,
+      3
+    );
+
+    assert.equal(
+      session.replay_version,
       4
     );
   }

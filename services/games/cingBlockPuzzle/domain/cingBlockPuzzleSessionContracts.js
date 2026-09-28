@@ -1,10 +1,10 @@
 const GAME_KEY =
   "cing-block-puzzle";
 
-const ENGINE_VERSION = 3;
-const RULES_VERSION = 3;
+const ENGINE_VERSION = 4;
+const RULES_VERSION = 4;
 const SCORE_VERSION = 3;
-const REPLAY_VERSION = 4;
+const REPLAY_VERSION = 5;
 
 const SESSION_TTL_SECONDS =
   24 * 60 * 60;
