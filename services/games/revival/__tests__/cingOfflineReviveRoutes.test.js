@@ -120,6 +120,9 @@ test("Offline Revival HTTP authority", async (t) => {
 
       purchaseOfflineRevival:
         makeOperation("revive"),
+      abandonOfflineRevival:
+        makeOperation("abandon"),
+
       finalizeOfflineRevival:
         makeOperation("finalize"),
     });
@@ -142,13 +145,14 @@ test("Offline Revival HTTP authority", async (t) => {
         "/session",
         "/session/:session_id/pending",
         "/session/:session_id/revive",
+        "/session/:session_id/abandon",
         "/session/:session_id/finalize",
       ]
     );
 
     assert.deepEqual(
       routes.map((layer) => layer.route.stack.length),
-      [2, 2, 2, 2, 3, 3, 3]
+      [2, 2, 2, 2, 3, 3, 3, 3]
     );
 
     const app = express();
@@ -372,6 +376,102 @@ test("Offline Revival HTTP authority", async (t) => {
       }
     );
 
+
+    await t.test(
+      "abandon rejects missing JWT before service",
+      async () => {
+        reset();
+
+        const result = await post(
+          `/session/${sessionId}/abandon`,
+          {
+            request_id: requestId,
+            expected_event_seq: 1,
+          }
+        );
+
+        assert.equal(result.status, 401);
+        assert.equal(calls.length, 0);
+        assert.equal(customerLookups.length, 0);
+      }
+    );
+
+    await t.test(
+      "abandon forwards only authorized fields",
+      async () => {
+        reset();
+
+        const result = await post(
+          `/session/${sessionId}/abandon`,
+          {
+            request_id: requestId,
+            expected_event_seq: 1,
+
+            user_id: "forged-user",
+            game_key: "chess",
+            credit_cost: 999,
+            final_score: 999999,
+            applied: true,
+          },
+          `Bearer ${token}`
+        );
+
+        assert.equal(result.status, 200);
+
+        assert.deepEqual(calls, [
+          {
+            name: "abandon",
+            args: {
+              customer,
+              sessionId,
+              requestId,
+              expectedEventSeq: 1,
+            },
+          },
+        ]);
+
+        assert.deepEqual(
+          customerLookups,
+          [customer.id]
+        );
+      }
+    );
+
+    await t.test(
+      "abandon business conflict returns HTTP 409",
+      async () => {
+        reset();
+
+        const error = new Error(
+          "REVIVAL_ABANDON_SEQUENCE_CONFLICT"
+        );
+
+        error.code =
+          "REVIVAL_ABANDON_SEQUENCE_CONFLICT";
+
+        error.statusCode = 409;
+
+        serviceFailure = error;
+
+        const result = await post(
+          `/session/${sessionId}/abandon`,
+          {
+            request_id: requestId,
+            expected_event_seq: 1,
+          },
+          `Bearer ${token}`
+        );
+
+        assert.equal(result.status, 409);
+
+        assert.equal(
+          result.body.code,
+          "REVIVAL_ABANDON_SEQUENCE_CONFLICT"
+        );
+
+        assert.equal(calls.length, 1);
+      }
+    );
 
     await t.test(
       "finalize rejects missing JWT before service",

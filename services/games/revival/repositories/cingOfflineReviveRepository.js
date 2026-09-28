@@ -14,6 +14,9 @@ const APPLY_RPC =
 const FINALIZE_RPC =
   "cing_offline_revive_finalize_v1";
 
+const ABANDON_RPC =
+  "cing_offline_revive_abandon_v1";
+
 /*
  * Each database function returns exactly one
  * result row.
@@ -117,6 +120,25 @@ async function applyOfflineRevival({
   );
 }
 
+async function abandonOfflineReviveSession({
+  userId,
+  sessionId,
+  requestId,
+  expectedEventSeq,
+}) {
+  return callRevivalRpc(
+    ABANDON_RPC,
+    {
+      p_user_id: userId,
+      p_session_id: sessionId,
+      p_request_id: requestId,
+      p_expected_event_seq:
+        expectedEventSeq,
+    }
+  );
+}
+
+
 async function finalizeOfflineReviveSession({
   userId,
   sessionId,
@@ -195,6 +217,7 @@ async function recoverOfflineReviveSession({
         "created_at",
         "expires_at",
         "finalized_at",
+        "abandoned_at",
       ].join(",")
     )
     .eq("user_id", userId)
@@ -235,6 +258,7 @@ module.exports = {
   startOfflineReviveSession,
   markOfflineRevivePending,
   applyOfflineRevival,
+  abandonOfflineReviveSession,
   finalizeOfflineReviveSession,
   readOfflineReviveCreditBalance,
   recoverOfflineReviveSession,

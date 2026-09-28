@@ -8,6 +8,7 @@ const {
   startOfflineReviveSession,
   markOfflineRevivePending,
   applyOfflineRevival,
+  abandonOfflineReviveSession,
   finalizeOfflineReviveSession,
   readOfflineReviveCreditBalance,
   recoverOfflineReviveSession,
@@ -84,6 +85,12 @@ const ERROR_STATUSES = Object.freeze({
   REVIVAL_FINALIZE_REQUEST_CONFLICT: 409,
   REVIVAL_SESSION_ALREADY_FINALIZED: 409,
   REVIVAL_FINALIZE_STATE_CONFLICT: 409,
+
+  // Lost-canvas session closure.
+  REVIVAL_ABANDON_ARGUMENT_INVALID: 400,
+  REVIVAL_ABANDON_REQUEST_CONFLICT: 409,
+  REVIVAL_ABANDON_SEQUENCE_CONFLICT: 409,
+  REVIVAL_ABANDON_STATE_CONFLICT: 409,
 
   // Finalize database consistency.
   REVIVAL_FINALIZE_SCORE_INCONSISTENT: 500,
@@ -439,6 +446,74 @@ async function purchaseOfflineRevival({
   );
 }
 
+async function abandonOfflineRevival({
+  customer,
+  sessionId,
+  requestId,
+  expectedEventSeq,
+}) {
+  const userId =
+    resolveAuthenticatedUserId(customer);
+
+  const normalizedSessionId =
+    normalizeUuid(
+      sessionId,
+      "session_id"
+    );
+
+  const normalizedRequestId =
+    normalizeUuid(
+      requestId,
+      "request_id"
+    );
+
+  const normalizedEventSeq =
+    normalizeEventSeq(
+      expectedEventSeq,
+      0
+    );
+
+  const receipt =
+    await executeRevivalOperation(
+      () => abandonOfflineReviveSession({
+        userId,
+        sessionId: normalizedSessionId,
+        requestId: normalizedRequestId,
+        expectedEventSeq:
+          normalizedEventSeq,
+      })
+    );
+
+  if (
+    !receipt ||
+    receipt.session_id !==
+      normalizedSessionId ||
+    receipt.session_status !==
+      "abandoned" ||
+    receipt.event_seq !==
+      normalizedEventSeq ||
+    !Number.isInteger(
+      receipt.revives_used
+    ) ||
+    receipt.revives_used < 0 ||
+    receipt.revives_used > 5 ||
+    typeof receipt.abandoned_at !==
+      "string" ||
+    !Number.isFinite(
+      Date.parse(receipt.abandoned_at)
+    )
+  ) {
+    throw serviceError(
+      "REVIVAL_ABANDON_RECEIPT_INVALID",
+      500,
+      "Không thể xác minh việc kết thúc phiên cũ"
+    );
+  }
+
+  return receipt;
+}
+
+
 function normalizeFinalResultInteger(
   value,
   field
@@ -659,7 +734,8 @@ async function recoverOfflineRevival({
   if (
     session.status !== "active" &&
     session.status !== "revive_pending" &&
-    session.status !== "finalized"
+    session.status !== "finalized" &&
+    session.status !== "abandoned"
   ) {
     throw serviceError(
       "REVIVAL_READ_STATE_INVALID",
@@ -760,6 +836,8 @@ async function recoverOfflineRevival({
     expires_at: session.expires_at,
     finalized_at:
       session.finalized_at ?? null,
+    abandoned_at:
+      session.abandoned_at ?? null,
     pending_event: pendingEvent,
   };
 }
@@ -768,6 +846,7 @@ module.exports = {
   startOfflineRevival,
   enterOfflineRevivePending,
   purchaseOfflineRevival,
+  abandonOfflineRevival,
   finalizeOfflineRevival,
   getOfflineReviveCreditBalance,
   recoverOfflineRevival,

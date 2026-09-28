@@ -13,6 +13,7 @@ const {
   startOfflineRevival,
   enterOfflineRevivePending,
   purchaseOfflineRevival,
+  abandonOfflineRevival,
   finalizeOfflineRevival,
   getOfflineReviveCreditBalance,
   recoverOfflineRevival,
@@ -359,6 +360,46 @@ router.post(
         res,
         error,
         "REVIVAL_APPLY_FAILED"
+      );
+    }
+  }
+);
+
+/*
+ * POST /session/:session_id/abandon
+ *
+ * Close a previously-authorized session whose
+ * canvas/runtime can no longer be reconstructed.
+ *
+ * No score is persisted.
+ * No Revive Credit / Wallet / loyalty mutation.
+ */
+router.post(
+  "/session/:session_id/abandon",
+  authMiddleware,
+  gameScoreLimiter,
+  async (req, res) => {
+    try {
+      const data =
+        await abandonOfflineRevival({
+          customer: req.customer,
+          sessionId:
+            req.params.session_id,
+          requestId:
+            req.body?.request_id,
+          expectedEventSeq:
+            req.body?.expected_event_seq,
+        });
+
+      return res.json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      return sendRevivalError(
+        res,
+        error,
+        "REVIVAL_ABANDON_FAILED"
       );
     }
   }
