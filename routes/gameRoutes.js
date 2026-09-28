@@ -12,6 +12,18 @@ const router =
   express.Router();
 
 const {
+  verifyAdmin,
+} = require(
+  "./adminAuthRoutes"
+);
+
+const {
+  requireChallengeSuperAdmin,
+} = require(
+  "../services/games/revival/cingOfflineReviveChallengeAdminGate"
+);
+
+const {
   useGamePlay,
   getGameEconomyPolicies,
   saveGameScore,
@@ -237,11 +249,25 @@ router.get("/daily-challenge", async (req, res) => {
 });
 
 // DELETE /api/game/daily-challenge/reset — Admin xóa challenge hôm nay để tạo lại
-router.delete("/daily-challenge/reset", async (req, res) => {
+router.delete(
+  "/daily-challenge/reset",
+  verifyAdmin,
+  requireChallengeSuperAdmin,
+  async (req, res) => {
   try {
     const supabase = require("../supabase");
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
-    await supabase.from("daily_challenges").delete().eq("challenge_date", today);
+    const { error: resetError } = await supabase
+      .from("daily_challenges")
+      .delete()
+      .eq("challenge_date", today)
+      .not(
+        "game_key",
+        "in",
+        '("black-pearl-rush","cing-stack-tower")'
+      );
+
+    if (resetError) throw resetError;
     res.json({ success: true, message: "Đã reset thách thức hôm nay. Sẽ tạo lại khi có request tiếp theo." });
   } catch(e) {
     res.status(500).json({ success: false, error: e.message });
@@ -249,7 +275,11 @@ router.delete("/daily-challenge/reset", async (req, res) => {
 });
 
 // POST /api/game/daily-challenge/sync-today — Admin áp dụng config mới cho hôm nay
-router.post("/daily-challenge/sync-today", async (req, res) => {
+router.post(
+  "/daily-challenge/sync-today",
+  verifyAdmin,
+  requireChallengeSuperAdmin,
+  async (req, res) => {
   try {
     const { syncTodayChallengesFromConfig } = require("../services/dailyChallengeService");
     const data = await syncTodayChallengesFromConfig();

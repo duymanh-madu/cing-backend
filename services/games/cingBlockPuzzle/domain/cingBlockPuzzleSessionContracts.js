@@ -194,7 +194,7 @@ function normalizeSessionRow(row) {
   }
 
   if (
-    session.play_cost !== 1
+    ![0, 1].includes(session.play_cost)
   ) {
     throw new Error(
       "Cing Block Puzzle session play cost không hợp lệ"

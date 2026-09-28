@@ -161,7 +161,9 @@ router.post("/game-ended", async (req, res) => {
 
         if (result.applied) {
           console.log(
-            `[CHESS] Win mission awarded: ${winnerId} +${result.plays_awarded} plays +${result.points_awarded} points`
+            result.reward_currency === "revive_credit"
+              ? `[CHESS] Win mission awarded: ${winnerId} +${result.revive_credits_awarded} Revive Credit +${result.points_awarded} points`
+              : `[CHESS] Win mission awarded: ${winnerId} +${result.plays_awarded} plays +${result.points_awarded} points`
           );
         }
       }
@@ -205,7 +207,21 @@ router.post("/game-ended", async (req, res) => {
 });
 
 // POST /api/chess/tip — tặng vật phẩm trong ván cờ
-router.post("/tip", async (req, res) => {
+router.post(
+  "/tip",
+  (req, res, next) => {
+    if (
+      process.env.CING_GAME_GIFT_V2_CUTOVER_ENABLED === "true"
+    ) {
+      return res.status(410).json({
+        success: false,
+        code: "LEGACY_GIFT_DISABLED",
+      });
+    }
+
+    return next();
+  },
+  async (req, res) => {
   res.json({ success: true });
 
   try {

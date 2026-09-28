@@ -86,6 +86,22 @@ router.use(
   require("./voucherRoutes")
 );
 
+/*
+ * CING_GAME_ECONOMY_V2_DEFAULT_OFF_MOUNT
+ *
+ * Authenticated Economy V2 endpoints.
+ * Every route retains its own default-OFF gate.
+ * This mount does not activate any financial feature.
+ */
+router.use(
+  "/game/economy-v2",
+  require("./cingGameEconomyV2Routes")
+    .createCingGameEconomyV2Router({
+      authMiddleware:
+        require("../middlewares/authMiddleware"),
+    })
+);
+
 router.use(
   "/game",
   require("./gameRoutes")
@@ -94,6 +110,11 @@ router.use(
 router.use(
   "/game/cing-block-puzzle",
   require("./cingBlockPuzzleRoutes")
+);
+
+router.use(
+  "/game/offline-revival",
+  require("./cingOfflineReviveRoutes")
 );
 
 router.use(

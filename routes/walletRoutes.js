@@ -1,3 +1,15 @@
+const {
+  isLegacyGamePlaysMutationDisabled,
+  sendLegacyGamePlaysClosed,
+} = require(
+  "../services/games/revival/cingLegacyGamePlaysCutoverGuard"
+);
+
+const {
+  readCommittedWalletPlayPurchase,
+} = require(
+  "../services/wallet/cingWalletLegacyPlayReplayReadService"
+);
 const express =
   require("express");
 
@@ -43,6 +55,12 @@ const {
   projectPaidPaymentToPosSession,
 } = require(
   "../services/wallet/cingWalletPosSessionService"
+);
+
+const {
+  buyReviveCreditsWithWallet,
+} = require(
+  "../services/wallet/cingWalletBuyReviveCreditsService"
 );
 
 const router =
@@ -380,18 +398,31 @@ router.post(
     req,
     res
   ) => {
-    try {
-      const data =
-        await buyGamePlaysWithWallet({
-          customer:
-            req.customer,
+      try {
+        if (isLegacyGamePlaysMutationDisabled()) {
+          const replay =
+            await readCommittedWalletPlayPurchase({
+              customer: req.customer,
+              quantity: req.body?.quantity,
+              requestId: req.body?.request_id,
+            });
 
-          quantity:
-            req.body?.quantity,
+          if (!replay) {
+            return sendLegacyGamePlaysClosed(res);
+          }
 
-          requestId:
-            req.body?.request_id,
-        });
+          return res.json({
+            success: true,
+            data: replay,
+          });
+        }
+
+        const data =
+          await buyGamePlaysWithWallet({
+            customer: req.customer,
+            quantity: req.body?.quantity,
+            requestId: req.body?.request_id,
+          });
 
       return res.json({
         success: true,
@@ -422,6 +453,44 @@ router.post(
   }
 );
 
+
+/*
+ * POST /api/wallet/buy-revive-credits
+ * Client: quantity and stable request_id only.
+ * Identity: authMiddleware / req.customer.
+ * Price and settlement: PostgreSQL.
+ */
+router.post(
+  "/buy-revive-credits",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const data =
+        await buyReviveCreditsWithWallet({
+          customer: req.customer,
+          quantity: req.body?.quantity,
+          requestId: req.body?.request_id,
+        });
+
+      return res.json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      return res
+        .status(Number(error?.statusCode) || 500)
+        .json({
+          success: false,
+          code:
+            error?.code ||
+            "REVIVE_PURCHASE_FAILED",
+          message:
+            error?.message ||
+            "Không thể mua Revive Credit lúc này",
+        });
+    }
+  }
+);
 
 module.exports =
   router;

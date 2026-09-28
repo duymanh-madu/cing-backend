@@ -15,6 +15,7 @@ const {
   updatePromotion,
   getSummary,
   getTransactions,
+  getGameRevenue,
   createAdjustment,
   getAdjustmentCustomers,
 } = require(
@@ -59,6 +60,12 @@ router.get(
     "wallet.reporting.read"
   ),
   getTransactions
+);
+
+router.get(
+  "/game-revenue",
+  requirePanelPermission("wallet.reporting.read"),
+  getGameRevenue
 );
 
 router.get(

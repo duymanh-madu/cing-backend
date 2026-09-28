@@ -11,66 +11,126 @@ const {
   "./commerceOrderEffectExecutor"
 );
 
-async function runGamePlaysEffect(
+async function runReviveCreditEffect(
   orderNumericId
 ) {
   return executeCommerceOrderEffect({
-    orderId:
-      orderNumericId,
+    orderId: orderNumericId,
 
-    effectKey:
-      "game_plays",
+    /*
+     * V2 uses a distinct effect identity.
+     *
+     * Historical "game_plays" effects must never suppress a
+     * post-cutover Revive Credit attempt.
+     */
+    effectKey: "revive_credit",
 
-    execute:
-      async () => {
-        const {
-          data,
-          error,
-        } = await supabase.rpc(
-          "cing_commerce_award_order_spend_plays_v1",
-          {
-            p_order_id:
-              orderNumericId,
-          }
-        );
-
-        if (error) {
-          throw commerceCompletionError(
-            "COMMERCE_GAME_PLAYS_AUTHORITY_FAILED",
-            error.message
-          );
+    execute: async () => {
+      /*
+       * Commerce Bridge requires durable iPOS dispatch identity.
+       * Verification is idempotent and PostgreSQL-owned.
+       */
+      const {
+        data: identityResult,
+        error: identityError,
+      } = await supabase.rpc(
+        "cing_commerce_verify_ipos_source_identity_v1",
+        {
+          p_order_id: orderNumericId,
         }
+      );
 
-        /*
-         * No-row success is valid for orders below the configured
-         * spend-per-play threshold. PostgreSQL owns that decision.
-         */
+      if (identityError) {
+        throw commerceCompletionError(
+          "COMMERCE_REVIVE_IPOS_IDENTITY_FAILED",
+          identityError.message
+        );
+      }
+
+      if (
+        !identityResult ||
+        typeof identityResult !== "object" ||
+        Array.isArray(identityResult)
+      ) {
+        throw commerceCompletionError(
+          "COMMERCE_REVIVE_IPOS_IDENTITY_INVALID",
+          "verified iPOS identity result invalid"
+        );
+      }
+
+      const {
+        data,
+        error,
+      } = await supabase.rpc(
+        "cing_bridge_commerce_award_revive_v1",
+        {
+          p_order_id: orderNumericId,
+        }
+      );
+
+      if (error) {
+        throw commerceCompletionError(
+          "COMMERCE_REVIVE_AUTHORITY_FAILED",
+          error.message
+        );
+      }
+
+      if (
+        !data ||
+        typeof data !== "object" ||
+        Array.isArray(data)
+      ) {
+        throw commerceCompletionError(
+          "COMMERCE_REVIVE_RESULT_INVALID",
+          "bridge result invalid"
+        );
+      }
+
+      const status =
+        String(data.status || "").trim();
+
+      /*
+       * Only terminal-success outcomes complete the durable
+       * commerce effect.
+       *
+       * deferred / review_required remain retryable.
+       */
+      if (
+        status === "awarded" ||
+        status === "replayed" ||
+        status === "skipped"
+      ) {
         return data;
-      },
+      }
+
+      throw commerceCompletionError(
+        "COMMERCE_REVIVE_NOT_TERMINAL",
+        data.reason || status || "bridge_not_terminal"
+      );
+    },
   });
 }
 
 
-async function runGamePlaysEffectBestEffort(
+async function runReviveCreditEffectBestEffort(
   order
 ) {
   if (!order?.id) {
     return {
       success: false,
       skipped: true,
-      reason:
-        "missing_order_id",
+      reason: "missing_order_id",
     };
   }
 
   try {
     const result =
-      await runGamePlaysEffect(
+      await runReviveCreditEffect(
         order.id
       );
 
     console.log(
-      "[COMMERCE] game_plays effect:",
+      "[COMMERCE] revive_credit effect:",
       order.order_code,
       result?.executed
         ? "executed"
@@ -80,12 +140,11 @@ async function runGamePlaysEffectBestEffort(
     return result;
   } catch (error) {
     /*
-     * Commerce order completion remains durable even when one
-     * downstream effect fails. The effect row is marked failed
-     * by the executor and is reclaimable on durable replay.
+     * Commerce completion remains durable.
+     * The effect executor owns retryable failed state.
      */
     console.warn(
-      "[COMMERCE] game_plays effect failed:",
+      "[COMMERCE] revive_credit effect failed:",
       order.order_code,
       error.message
     );
@@ -93,8 +152,7 @@ async function runGamePlaysEffectBestEffort(
     return {
       success: false,
       failed: true,
-      error:
-        error.message,
+      error: error.message,
     };
   }
 }
@@ -537,7 +595,7 @@ async function buildReplayCompletionWithEffects({
    * Replay therefore also gives failed/pending effects another
    * authority-controlled execution opportunity.
    */
-  await runGamePlaysEffectBestEffort(
+  await runReviveCreditEffectBestEffort(
     order
   );
 
@@ -1189,7 +1247,7 @@ async function processPaidOrderSettlement({
     }
 
     // ─── 3a. Game plays by order — chạy 24/7, không phụ thuộc CRM/after-hours ───
-    await runGamePlaysEffectBestEffort(
+    await runReviveCreditEffectBestEffort(
       order
     );
 

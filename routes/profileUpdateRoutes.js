@@ -12,6 +12,7 @@ const upload = multer({
 const COOLDOWN_DAYS = 10;
 const POINT_COST    = 10;
 const { normalizePhone } = require("../utils/phoneIdentity");
+const authMiddleware = require("../middlewares/authMiddleware");
 
 function getCooldownStatus(profileChangedAt, currentPoints) {
   const now       = new Date();
@@ -275,34 +276,126 @@ router.post("/birthday", async (req, res) => {
   }
 });
 
-// GET /api/profile-update/notifications/:userId — lấy notifications chưa đọc
-router.get("/notifications/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const phone = normalizePhone(userId);
-    const { data } = await supabase.from("notifications")
-      .select("id, type, title, message, metadata, is_read, created_at")
-      .eq("user_id", phone)
-      .eq("is_read", false)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    res.json({ success: true, data: data || [] });
-  } catch(e) { res.status(500).json({ success: false, error: e.message }); }
-});
+// CING_NOTIFICATION_RECOVERY_AUTH_V1
+// Authenticated legacy Notification Center compatibility.
+// URL/body userId is a consistency check, never account authority.
+function notificationOwner(req, requestedUserId) {
+  const phone = normalizePhone(req.customer?.phone || "");
+  const requested = normalizePhone(requestedUserId || "");
+
+  if (
+    !/^0[0-9]{9}$/.test(phone) ||
+    !/^(?:0[0-9]{9}|84[0-9]{9})$/.test(
+      String(requestedUserId || "")
+    ) ||
+    requested !== phone
+  ) {
+    return null;
+  }
+
+  return phone;
+}
+
+// GET /api/profile-update/notifications/:userId
+router.get(
+  "/notifications/:userId",
+  authMiddleware,
+  async (req, res) => {
+    const phone = notificationOwner(
+      req,
+      req.params.userId
+    );
+
+    if (!phone) {
+      return res.status(403).json({
+        success: false,
+        code: "NOTIFICATION_OWNER_REQUIRED",
+      });
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select(
+          "id, type, title, message, metadata, is_read, created_at"
+        )
+        .eq("user_id", phone)
+        .eq("is_read", false)
+        .neq("type", "gift_received")
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+
+      return res.json({
+        success: true,
+        data: data || [],
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        code: "NOTIFICATION_READ_FAILED",
+      });
+    }
+  }
+);
 
 // POST /api/profile-update/notifications/mark-read
-router.post("/notifications/mark-read", async (req, res) => {
-  try {
-    const { userId, ids } = req.body;
-    const phone = normalizePhone(userId);
-    if (ids?.length) {
-      await supabase.from("notifications").update({ is_read: true }).in("id", ids).eq("user_id", phone);
-    } else {
-      await supabase.from("notifications").update({ is_read: true }).eq("user_id", phone);
+router.post(
+  "/notifications/mark-read",
+  authMiddleware,
+  async (req, res) => {
+    const phone = notificationOwner(
+      req,
+      req.body?.userId
+    );
+
+    if (!phone) {
+      return res.status(403).json({
+        success: false,
+        code: "NOTIFICATION_OWNER_REQUIRED",
+      });
     }
-    res.json({ success: true });
-  } catch(e) { res.status(500).json({ success: false, error: e.message }); }
-});
+
+    const ids = req.body?.ids;
+
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.length > 20 ||
+      ids.some(id => {
+        const value = String(id);
+        return !/^[1-9][0-9]{0,18}$/.test(value) ||
+          BigInt(value) > 9223372036854775807n;
+      })
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: "NOTIFICATION_IDS_INVALID",
+      });
+    }
+
+    try {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .in("id", ids.map(String))
+        .eq("user_id", phone)
+        .neq("type", "gift_received");
+
+      if (error) throw error;
+
+      return res.json({
+        success: true,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        code: "NOTIFICATION_MARK_READ_FAILED",
+      });
+    }
+  }
+);
 
 // PATCH /profile/:userId/preferences — save user display badge preferences
 router.patch("/profile/:userId/preferences", async (req, res) => {
@@ -368,6 +461,177 @@ router.get("/plays-history/:userId", async (req, res) => {
     res.json({ success: true, data: deduped });
   } catch(err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /profile-update/revive-credits-history/:userId
+//
+// Revive Credit is a separate asset from legacy
+// game plays and iPOS loyalty points.
+//
+// Read-only compatibility history.
+// Canonical reward identity comes from the
+// Revive Credit ledger history projection.
+//
+router.get(
+  "/revive-credits-history/:userId",
+  authMiddleware,
+  async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    /*
+     * Both JWT verification and customer lookup
+     * have already completed in authMiddleware.
+     *
+     * A URL parameter must never select
+     * another customer's history.
+     */
+
+    const phone =
+      normalizePhone(
+        req.customer?.phone || ""
+      );
+
+    const requestedPhone =
+      normalizePhone(userId);
+
+    const customerZaloId =
+      String(
+        req.customer?.zalo_id || ""
+      ).trim();
+
+    if (
+      !/^0[0-9]{9}$/.test(phone) ||
+      !customerZaloId
+    ) {
+      return res.status(403).json({
+        success: false,
+        code: "REVIVE_HISTORY_IDENTITY_REQUIRED",
+      });
+    }
+
+    if (
+      !/^(?:0[0-9]{9}|84[0-9]{9})$/.test(
+        String(userId)
+      ) ||
+      requestedPhone !== phone
+    ) {
+      return res.status(403).json({
+        success: false,
+        code: "REVIVE_HISTORY_FORBIDDEN",
+      });
+    }
+
+    const { data: playerData, error: playerError } =
+      await supabase
+        .from("players")
+        .select("user_id, zalo_user_id")
+        .eq("user_id", phone)
+        .maybeSingle();
+
+    if (playerError) throw playerError;
+
+    const playerZaloId =
+      String(
+        playerData?.zalo_user_id || ""
+      ).trim();
+
+    /*
+     * Never attach history from a Zalo identity
+     * that disagrees with the authenticated
+     * customer.
+     */
+
+    if (
+      !playerData ||
+      normalizePhone(
+        playerData.user_id || ""
+      ) !== phone ||
+      !playerZaloId ||
+      playerZaloId !== customerZaloId
+    ) {
+      return res.status(403).json({
+        success: false,
+        code: "REVIVE_HISTORY_IDENTITY_MISMATCH",
+      });
+    }
+
+    const ids = [
+      ...new Set(
+        [
+          phone,
+          `84${phone.slice(1)}`,
+          customerZaloId,
+        ].filter(Boolean)
+      ),
+    ];
+
+    const { data, error } =
+      await supabase
+        .from("analytics_events")
+        .select(
+          "user_id, event_name, event_data, metadata, created_at"
+        )
+        .in("user_id", ids)
+        .eq(
+          "event_name",
+          "revive_credits_added"
+        )
+        .order(
+          "created_at",
+          { ascending: false }
+        )
+        .limit(100);
+
+    if (error) throw error;
+
+    const seen = new Set();
+
+    const deduped = (data || []).filter((item) => {
+      const referenceType =
+        item.metadata?.reference_type;
+
+      const referenceId =
+        item.metadata?.reference_id;
+
+      const key =
+        referenceType && referenceId
+          ? [
+              item.user_id,
+              item.event_name,
+              referenceType,
+              referenceId,
+            ].join("|")
+          : [
+              item.user_id,
+              item.created_at,
+              item.event_name,
+              item.event_data?.amount ?? 0,
+            ].join("|");
+
+      if (seen.has(key)) return false;
+
+      seen.add(key);
+
+      return true;
+    });
+
+    res.json({
+      success: true,
+
+      data: deduped.map((item) => ({
+        event_name: item.event_name,
+        event_data: item.event_data,
+        created_at: item.created_at,
+      })),
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
   }
 });
 

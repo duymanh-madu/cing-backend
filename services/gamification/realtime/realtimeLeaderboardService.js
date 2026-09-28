@@ -27,7 +27,7 @@ async function emitLeaderboardUpdate({
 
 }) {
 
-  realtimeEventBus.publish({
+  return realtimeEventBus.publish({
 
     event:
       REALTIME_EVENTS

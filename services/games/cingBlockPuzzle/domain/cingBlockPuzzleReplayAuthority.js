@@ -67,7 +67,8 @@ function usesEventReplay(
 ) {
   return (
     replayVersion === 3 ||
-    replayVersion === 4
+    replayVersion === 4 ||
+    replayVersion === 5
   );
 }
 

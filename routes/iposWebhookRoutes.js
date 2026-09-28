@@ -110,78 +110,20 @@ async function clearMomoPaidCrmRecoveryJob(phone, event) {
 
 
 async function awardOrderGamePlays({ user_id, order_code, amount }) {
-  const phone = normalizePhone(user_id || "");
-  const orderCode = String(order_code || "").trim();
-  const totalAmount = Number(amount || 0);
+  /*
+   * Compatibility wrapper name retained.
+   * Economic authority is CRM/iPOS Revive Credit V2.
+   */
+  const { awardGamePlaysForOrderSpend } = require(
+    "../services/game/orderSpendPlayAwardService"
+  );
 
-  if (!phone || !orderCode || totalAmount <= 0) {
-    return { success: false, skipped: true, reason: "invalid_input" };
-  }
-
-  const { data: existingLog } = await supabase
-    .from("analytics_events")
-    .select("id")
-    .eq("user_id", phone)
-    .eq("event_name", "plays_added")
-    .contains("event_data", {
-      source: "order_spending",
-      order_code: orderCode,
-    })
-    .limit(1)
-    .maybeSingle();
-
-  if (existingLog) {
-    return { success: true, skipped: true, reason: "already_awarded", order_code: orderCode };
-  }
-
-  const spendPerPlay = await supabase
-    .from("app_configs")
-    .select("spend_per_play")
-    .eq("id", 1)
-    .single()
-    .then(r => Number(r.data?.spend_per_play || 20000))
-    .catch(() => 20000);
-
-  const playsToAdd = Math.floor(totalAmount / (spendPerPlay || 20000));
-
-  if (playsToAdd <= 0) {
-    return { success: true, skipped: true, reason: "below_threshold", order_code: orderCode };
-  }
-
-  const { data: player } = await supabase
-    .from("players")
-    .select("game_plays, plays_from_spend")
-    .eq("user_id", phone)
-    .maybeSingle();
-
-  const currentPlays = Number(player?.game_plays || 0);
-  const newTotal = currentPlays + playsToAdd;
-
-  const { addPlays } = require("../services/loyaltyPointService");
-
-  await addPlays({
-    user_id: phone,
-    amount: playsToAdd,
-    reason: `Tiêu dùng ${totalAmount.toLocaleString("vi-VN")}đ — đơn ${orderCode}`,
-    new_total: newTotal,
-    metadata: {
-      source: "order_spending",
-      order_code: orderCode,
-      order_amount: totalAmount,
-      spend_per_play: spendPerPlay,
-    },
+  return awardGamePlaysForOrderSpend({
+    user_id: normalizePhone(user_id || ""),
+    order_code,
+    amount,
+    source_context: "ipos_webhook",
   });
-
-  await supabase
-    .from("players")
-    .update({
-      game_plays: newTotal,
-      plays_from_spend: Number(player?.plays_from_spend || 0) + playsToAdd,
-    })
-    .eq("user_id", phone);
-
-  console.log(`[GAME] Order spend bonus: +${playsToAdd} plays for ${phone} | ${orderCode} | amount=${totalAmount}`);
-  return { success: true, plays: playsToAdd, order_code: orderCode };
 }
 
 function extractIposOrderAmount(orderData) {
@@ -813,11 +755,18 @@ router.post("/callback", async (req, res) => {
             }
           }
 
-          await awardOrderGamePlays({
+          const playAward = await awardOrderGamePlays({
             user_id: p0,
             order_code: directOrderCodeForPlays,
             amount: amountForPlays,
-          }).catch(e => console.warn("[GAME] Order spend bonus failed:", e.message));
+          }).catch(e => ({ success: false, reason: e.message }));
+          if (!playAward || playAward.success !== true) {
+            console.warn("[GAME] iPOS order-spend entitlement NOT delivered; review required:", {
+              order_code: directOrderCodeForPlays,
+              reason: playAward?.reason || "unknown",
+              deferred: playAward?.deferred === true,
+            });
+          }
         } else {
           console.log("[GAME] Direct iPOS order play award skipped: missing order identity", {
             phone: p0,

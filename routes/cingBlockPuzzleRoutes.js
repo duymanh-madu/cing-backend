@@ -25,9 +25,9 @@ const {
 );
 
 const {
-  purchaseGameplayContinue,
+  purchaseVersionedGameplayContinue,
 } = require(
-  "../services/games/cingBlockPuzzle/cingBlockPuzzleContinueService"
+  "../services/games/cingBlockPuzzle/cingBlockPuzzleContinueDispatchService"
 );
 
 const router =
@@ -106,7 +106,7 @@ router.post(
   async (req, res) => {
     try {
       const data =
-        await purchaseGameplayContinue({
+        await purchaseVersionedGameplayContinue({
           customer:
             req.customer,
 

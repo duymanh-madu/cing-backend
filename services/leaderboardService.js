@@ -51,7 +51,7 @@ function getLastMonday() {
   return new Date(mondayVN.getTime() - 7 * 60 * 60 * 1000).toISOString();
 }
 
-async function getGameLeaderboard(gameKey, { limit = 100, weekly = true } = {}) {
+async function getGameLeaderboard(gameKey, { limit = 100, weekly = true, strictPlayerRead = false } = {}) {
   // Weekly: filter theo played_at >= last Monday (đúng logic BXH tuần)
   let query = supabase
     .from("game_scores")
@@ -78,10 +78,14 @@ async function getGameLeaderboard(gameKey, { limit = 100, weekly = true } = {}) 
 
   // Lấy tên + avatar mới nhất từ players table
   const userIds = [...bestMap.keys()];
-  const { data: players } = await supabase
+  const { data: players, error: playersError } = await supabase
     .from("players")
     .select("user_id, display_name, zalo_name, avatar")
     .in("user_id", userIds.slice(0, 500));
+
+  if (strictPlayerRead && playersError) {
+    throw playersError;
+  }
 
   const playerMap = new Map((players||[]).map(p => [String(p.user_id), p]));
 

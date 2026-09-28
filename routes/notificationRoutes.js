@@ -3,6 +3,26 @@ const express =
 
 const router =
   express.Router();
+/*
+ * CING_NOTIFICATION_LEGACY_HTTP_FENCE_V1
+ *
+ * The original HTTP routes below accept client-selected
+ * identities and notification payloads.
+ *
+ * The authenticated Profile Notification Center and
+ * Economy V2 Gift Inbox are the supported customer paths.
+ *
+ * Keep internal notificationService functions unchanged.
+ *
+ * No legacy HTTP request may reach the handlers below.
+ */
+router.use((req, res) => {
+  return res.status(410).json({
+    success: false,
+    code: "NOTIFICATION_LEGACY_HTTP_GONE",
+  });
+});
+
 
 const {
 

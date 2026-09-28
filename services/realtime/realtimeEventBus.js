@@ -180,14 +180,17 @@ class RealtimeEventBus extends EventEmitter {
        * ==========================================
        */
 
-      dispatchRealtimeEvent({
-
+      const dispatched = dispatchRealtimeEvent({
         io: this.io,
-
-        realtimeEvent:
-          normalizedEvent,
-
+        realtimeEvent: normalizedEvent,
       });
+
+      if (dispatched !== true) {
+        logger.warn(
+          "Realtime dispatch did not complete"
+        );
+        return false;
+      }
 
       /**
        * ==========================================

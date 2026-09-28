@@ -29,6 +29,16 @@ const routes =
     "routes/cingBlockPuzzleRoutes.js"
   );
 
+const dispatcher =
+  read(
+    "services/games/cingBlockPuzzle/cingBlockPuzzleContinueDispatchService.js"
+  );
+
+const v5Service =
+  read(
+    "services/games/cingBlockPuzzle/cingBlockPuzzleV5ReviveService.js"
+  );
+
 const submitService =
   read(
     "services/games/cingBlockPuzzle/cingBlockPuzzleSubmitService.js"
@@ -40,15 +50,35 @@ const migration =
   );
 
 test(
-  "continue endpoint is authenticated and replay proven",
+  "continue endpoint is authenticated and version-dispatched with replay proof",
   () => {
     assert.match(
       routes,
-      /\/session\/:session_id\/continue[\s\S]*authMiddleware[\s\S]*purchaseGameplayContinue/
+      /\/session\/:session_id\/continue[\s\S]*authMiddleware[\s\S]*gameScoreLimiter[\s\S]*purchaseVersionedGameplayContinue/
+    );
+
+    assert.doesNotMatch(
+      routes,
+      /purchaseGameplayContinue/
+    );
+
+    assert.match(
+      dispatcher,
+      /getSessionForSubmission[\s\S]*resolveContinueAuthority[\s\S]*purchaseV5GameplayRevive/
+    );
+
+    assert.match(
+      dispatcher,
+      /return purchaseGameplayContinue/
     );
 
     assert.match(
       service,
+      /verifyReplayAuthority[\s\S]*requireEnded:[\s\S]*true/
+    );
+
+    assert.match(
+      v5Service,
       /verifyReplayAuthority[\s\S]*requireEnded:[\s\S]*true/
     );
   }

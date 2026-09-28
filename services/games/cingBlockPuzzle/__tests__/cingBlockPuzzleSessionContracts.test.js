@@ -200,17 +200,54 @@ test(
 );
 
 test(
-  "rejects wrong play cost",
+  "accepts free-start session with zero play cost",
   () => {
-    assert.throws(
-      () =>
-        normalizeSessionRow(
-          validRow({
-            play_cost: 0,
-          })
-        ),
-      /play cost không hợp lệ/
+    const session =
+      normalizeSessionRow(
+        validRow({
+          play_cost: 0,
+        })
+      );
+
+    assert.equal(
+      session.play_cost,
+      0
     );
+  }
+);
+
+test(
+  "preserves historical paid session with one play cost",
+  () => {
+    const session =
+      normalizeSessionRow(
+        validRow({
+          play_cost: 1,
+        })
+      );
+
+    assert.equal(
+      session.play_cost,
+      1
+    );
+  }
+);
+
+test(
+  "rejects play costs outside free and legacy contract",
+  () => {
+    for (const invalidCost of [-1, 2]) {
+      assert.throws(
+        () =>
+          normalizeSessionRow(
+            validRow({
+              play_cost:
+                invalidCost,
+            })
+          ),
+        /play cost không hợp lệ/
+      );
+    }
   }
 );
 

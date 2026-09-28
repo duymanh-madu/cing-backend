@@ -453,13 +453,20 @@ async function checkAndNotifyTop1Changes(
   io,
   {
     throwOnError = false,
+    strictDelivery = false,
   } = {}
 ) {
   try {
-    const { data: cfg } = await supabase.from('app_configs')
+    const { data: cfg, error: cfgError } = await supabase.from('app_configs')
       .select('leaderboard_config, alltime_games_config, top1_cache')
       .eq('id', 1)
       .single();
+
+    if (strictDelivery && (cfgError || !cfg)) {
+      throw cfgError || new Error(
+        "TOP1_CONFIG_UNAVAILABLE"
+      );
+    }
 
     const lbCfg = cfg?.leaderboard_config || {};
     const alltimeGamesCfg = cfg?.alltime_games_config || {};
@@ -498,11 +505,15 @@ async function checkAndNotifyTop1Changes(
 
     const resolveUserDisplayName = async (row) => {
       if (!row?.user_id) return resolvePlayerName(row || {});
-      const { data: p } = await supabase
+      const { data: p, error: playerError } = await supabase
         .from('players')
         .select('display_name, zalo_name, name')
         .eq('user_id', row.user_id)
         .maybeSingle();
+
+      if (strictDelivery && playerError) {
+        throw playerError;
+      }
 
       return resolvePlayerName(p || row);
     };
@@ -518,6 +529,7 @@ async function checkAndNotifyTop1Changes(
 
       if (error) {
         console.warn(`[TOP1] Spending board failed ${period}:`, error.message);
+        if (strictDelivery) throw error;
         return;
       }
 
@@ -549,7 +561,8 @@ async function checkAndNotifyTop1Changes(
 
       if (error) {
         console.warn(`[TOP1] Game board failed ${gameKey}:`, error.message);
-        return null;
+          if (strictDelivery) throw error;
+          return null;
       }
 
       const bestMap = new Map();
@@ -611,6 +624,7 @@ async function checkAndNotifyTop1Changes(
 
       if (error) {
         console.warn(`[TOP1] Chess board failed ${mode}:`, error.message);
+        if (strictDelivery) throw error;
         return;
       }
 
@@ -701,15 +715,36 @@ async function checkAndNotifyTop1Changes(
 
     if (notifications.length === 0) {
       if (cacheTouched) {
-        await supabase.from('app_configs').update({ top1_cache: newCache }).eq('id', 1);
+        const { error: cacheError } =
+          await supabase.from('app_configs')
+            .update({ top1_cache: newCache })
+            .eq('id', 1);
+
+        if (strictDelivery && cacheError) {
+          throw cacheError;
+        }
         console.log('[TOP1] Cache baseline updated with no broadcast');
       }
+
+      if (strictDelivery) {
+        return {
+          verified: true,
+          notifications_count: 0,
+          broadcasted: 0,
+        };
+      }
+
       return;
     }
 
     const ioInstance = io || global._ioInstance || global.io;
     if (!ioInstance) {
       console.warn('[TOP1] No io instance available - skip cache update so notification can retry later');
+
+      if (strictDelivery) {
+        throw new Error("TOP1_IO_UNAVAILABLE");
+      }
+
       return;
     }
 
@@ -743,14 +778,39 @@ async function checkAndNotifyTop1Changes(
         console.log('[TOP1] Broadcasted via socket.io');
       } catch (emitErr) {
         console.warn('[TOP1] Broadcast failed:', emitErr.message);
+
+        if (strictDelivery) {
+          throw emitErr;
+        }
       }
     }
 
     if (broadcasted > 0) {
-      await supabase.from('app_configs').update({ top1_cache: newCache }).eq('id', 1);
+      const { error: cacheError } =
+        await supabase.from('app_configs')
+          .update({ top1_cache: newCache })
+          .eq('id', 1);
+
+      if (strictDelivery && cacheError) {
+        throw cacheError;
+      }
       console.log(`[TOP1] Cache updated after ${broadcasted} broadcast(s)`);
     } else {
       console.warn('[TOP1] No broadcast succeeded - cache not updated');
+    }
+
+    if (strictDelivery) {
+      if (broadcasted !== notifications.length) {
+        throw new Error(
+          "TOP1_BROADCAST_INCOMPLETE"
+        );
+      }
+
+      return {
+        verified: true,
+        notifications_count: notifications.length,
+        broadcasted,
+      };
     }
   } catch(e) {
     console.warn(
@@ -758,7 +818,7 @@ async function checkAndNotifyTop1Changes(
       e.message
     );
 
-    if (throwOnError) {
+    if (throwOnError || strictDelivery) {
       throw e;
     }
   }

@@ -9,7 +9,7 @@ const DELIVERY_TYPES = {
 
 function dispatchRealtimeEvent({ io, realtimeEvent }) {
   try {
-    if (!io) return;
+    if (!io) return false;
     
     if (realtimeEvent.delivery_type === DELIVERY_TYPES.BROADCAST) {
       io.emit(realtimeEvent.event, realtimeEvent.payload);
@@ -24,8 +24,10 @@ function dispatchRealtimeEvent({ io, realtimeEvent }) {
       // Default: broadcast
       io.emit(realtimeEvent.event, realtimeEvent.payload);
     }
+    return true;
   } catch(err) {
     logger.error("dispatchRealtimeEvent failed", { error: err.message });
+    return false;
   }
 }
 

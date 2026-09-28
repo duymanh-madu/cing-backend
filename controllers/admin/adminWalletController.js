@@ -3,6 +3,7 @@ const {
   configureTopupPromotion,
   getWalletSummary,
   getWalletTransactions,
+  getGameEconomyAdminReport,
   adjustWalletBalance,
   searchWalletCustomers,
 } = require(
@@ -1329,11 +1330,49 @@ async function getTransactions(
   }
 }
 
+async function getGameRevenue(req, res) {
+  if (process.env.CING_GAME_REVENUE_ADMIN_HTTP_ENABLED !== "true") {
+    return res.status(503).json({ success: false,
+      error: "CING_GAME_REVENUE_ADMIN_NOT_ENABLED" });
+  }
+  try {
+    const from = normalizeOptionalTimestamp(req.query?.from, "CING_WALLET_REPORT_FROM");
+    const to = normalizeOptionalTimestamp(req.query?.to, "CING_WALLET_REPORT_TO");
+    if (from && to && Date.parse(to) <= Date.parse(from)) {
+      return badRequest(res, "CING_GAME_REPORT_TIME_RANGE_INVALID");
+    }
+    const category = req.query?.category || null;
+    const funding = req.query?.funding_source || null;
+    const allowedCategory = new Set([null, "revive_credit", "gift_charm"]);
+    const allowedFunding = new Set([null, "wallet", "points"]);
+    if (!allowedCategory.has(category) || !allowedFunding.has(funding)) {
+      return badRequest(res, "CING_GAME_REPORT_FILTER_INVALID");
+    }
+    const rawLimit = req.query?.limit ?? "50";
+    if (typeof rawLimit !== "string" || !/^[1-9][0-9]*$/.test(rawLimit)
+      || Number(rawLimit) > 100) {
+      return badRequest(res, "CING_GAME_REPORT_LIMIT_INVALID");
+    }
+    const data = await getGameEconomyAdminReport({
+      from, to, category, funding_source: funding, limit: Number(rawLimit)
+    });
+    return res.json({ success: true, data });
+  } catch (error) {
+    if (error?.code === "22023" || error?.message?.startsWith("CING_WALLET_REPORT_")
+      || error?.message?.startsWith("CING_GAME_REPORT_")
+         && error?.code === "22023") {
+      return badRequest(res, error.message);
+    }
+    return mapWalletError(res, error);
+  }
+}
+
 module.exports = {
   getPromotion,
   updatePromotion,
   getSummary,
   getTransactions,
+  getGameRevenue,
   createAdjustment,
   getAdjustmentCustomers,
 };

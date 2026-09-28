@@ -43,6 +43,167 @@ router.use(
 
 router.use("/stats", require("./adminStatsRoutes"));
 router.use("/players", require("./adminPlayerRoutes"));
+router.use("/revive-credits", require("./adminReviveCreditRoutes"));
+
+
+/*
+ * CING_REVIVE_ADMIN_PRICE_PANEL_MOUNT_V1
+ *
+ * Existing Admin Panel authentication and permission.
+ * Explicit Super Admin role is additionally required.
+ *
+ * Dedicated router retains its own default-OFF HTTP gate.
+ * This mount does not enable any financial operation.
+ */
+{
+  const {
+    requirePanelPermission,
+  } = require(
+    "../middlewares/adminPanelPermissionMiddleware"
+  );
+
+  const {
+    createCingReviveCreditAdminPriceRouter,
+  } = require(
+    "./cingReviveCreditAdminPriceRoutes"
+  );
+
+  const authMiddleware =
+    requirePanelPermission(
+      "revive.credit.adjust"
+    );
+
+  const requireSuperAdmin = (
+    req,
+    res,
+    next
+  ) => {
+    if (
+      req.admin?.role !==
+      "super_admin"
+    ) {
+      return res.status(403).json({
+        success: false,
+        code:
+          "REVIVE_ADMIN_SUPER_ADMIN_REQUIRED",
+      });
+    }
+
+    return next();
+  };
+
+  const resolveAdminActor = req => {
+    const id =
+      req.admin?.id;
+
+    if (
+      id === undefined ||
+      id === null
+    ) {
+      return null;
+    }
+
+    const actor =
+      String(id).trim();
+
+    return (
+      actor.length > 0 &&
+      actor.length <= 128
+    )
+      ? actor
+      : null;
+  };
+
+  router.use(
+    "/game-economy/revive",
+    createCingReviveCreditAdminPriceRouter({
+      authMiddleware,
+      requireSuperAdmin,
+      resolveAdminActor,
+    })
+  );
+}
+
+
+
+/*
+ * CING_GAME_GIFT_CATALOG_ADMIN_PANEL_MOUNT_V1
+ *
+ * Admin Panel JWT -> active Admin DB authority ->
+ * dedicated Gift permission -> explicit Super Admin.
+ *
+ * This mount does not activate Gift Admin HTTP.
+ * The Gift router retains its default-OFF gate.
+ */
+{
+  const {
+    requirePanelPermission,
+  } = require(
+    "../middlewares/adminPanelPermissionMiddleware"
+  );
+
+  const {
+    createCingGameGiftCatalogAdminRouter,
+  } = require(
+    "./cingGameGiftCatalogAdminRoutes"
+  );
+
+  const authMiddleware =
+    requirePanelPermission(
+      "gift.catalog.manage"
+    );
+
+  const requireSuperAdmin = (
+    req,
+    res,
+    next
+  ) => {
+    if (
+      req.admin?.role !==
+      "super_admin"
+    ) {
+      return res.status(403).json({
+        success: false,
+        code:
+          "GAME_GIFT_SUPER_ADMIN_REQUIRED",
+      });
+    }
+
+    return next();
+  };
+
+  const resolveAdminActor = req => {
+    const id =
+      req.admin?.id;
+
+    if (
+      id === undefined ||
+      id === null
+    ) {
+      return null;
+    }
+
+    const actor =
+      String(id).trim();
+
+    return (
+      actor.length > 0 &&
+      actor.length <= 128
+    )
+      ? actor
+      : null;
+  };
+
+  router.use(
+    "/game-economy/gifts",
+    createCingGameGiftCatalogAdminRouter({
+      authMiddleware,
+      requireSuperAdmin,
+      resolveAdminActor,
+    })
+  );
+}
+
 router.use("/missions", require("./adminMissionRoutes"));
 router.use("/cdp", require("./adminCdpRoutes"));
 router.use("/leaderboard", require("./adminLeaderboardRoutes"));

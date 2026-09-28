@@ -313,6 +313,13 @@ function startCrmSyncRecoveryWorker() {
 
   if (timer) return;
 
+  // Independent entitlement worker: explicitly OFF by default. It is not a
+  // prerequisite for CRM sync and does not alter CRM/iPOS webhook ACK.
+  if (process.env.CING_CRM_REWARD_RECOVERY_ENABLED === "true") {
+    require("../game/cingCrmOrderRewardRecoveryWorker")
+      .startCingCrmOrderRewardRecoveryWorker();
+  }
+
   registerScheduler({
     key: "crm_recovery_worker",
     name: "CRM Recovery Worker",

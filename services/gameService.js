@@ -13,6 +13,8 @@ const GAME_ECONOMY_TYPES =
     PAID_OFFLINE:
       "paid_offline",
 
+    FREE_OFFLINE: "free_offline",
+
     FREE_MULTIPLAYER:
       "free_multiplayer",
   });
@@ -140,6 +142,8 @@ async function getGameEconomyPolicy(
     economyType !==
       GAME_ECONOMY_TYPES.PAID_OFFLINE &&
     economyType !==
+      GAME_ECONOMY_TYPES.FREE_OFFLINE &&
+    economyType !==
       GAME_ECONOMY_TYPES.FREE_MULTIPLAYER
   ) {
     const error =
@@ -227,6 +231,8 @@ async function getGameEconomyPolicies() {
     if (
       economyType !==
         GAME_ECONOMY_TYPES.PAID_OFFLINE &&
+      economyType !==
+        GAME_ECONOMY_TYPES.FREE_OFFLINE &&
       economyType !==
         GAME_ECONOMY_TYPES.FREE_MULTIPLAYER
     ) {

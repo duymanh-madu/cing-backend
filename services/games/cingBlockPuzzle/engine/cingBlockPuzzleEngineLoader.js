@@ -42,6 +42,7 @@ let engineV1Promise = null;
 let engineV2Promise = null;
 let engineV3Promise = null;
 let engineV4Promise = null;
+let engineV5Promise = null;
 
 function loadEngineModule(
   version
@@ -96,6 +97,23 @@ function loadEngineV4() {
   return engineV4Promise;
 }
 
+const CONTRACT_V5 =
+  Object.freeze({
+    engineVersion: 4,
+    rulesVersion: 4,
+    scoreVersion: 3,
+    replayVersion: 5,
+  });
+
+function loadEngineV5() {
+  if (!engineV5Promise) {
+    engineV5Promise =
+      loadEngineModule(5);
+  }
+
+  return engineV5Promise;
+}
+
 function matchesContract(
   contract,
   supported
@@ -148,6 +166,10 @@ function isSupportedEngineContract({
     matchesContract(
       contract,
       CONTRACT_V4
+    ) ||
+    matchesContract(
+      contract,
+      CONTRACT_V5
     )
   );
 }
@@ -209,6 +231,15 @@ loadEngineForVersion({
     return loadEngineV4();
   }
 
+  if (
+    matchesContract(
+      contract,
+      CONTRACT_V5
+    )
+  ) {
+    return loadEngineV5();
+  }
+
   const error =
     new Error(
       "Unsupported Cing Block Puzzle deterministic engine contract"
@@ -225,10 +256,12 @@ module.exports = {
   CONTRACT_V2,
   CONTRACT_V3,
   CONTRACT_V4,
+  CONTRACT_V5,
   loadEngineV1,
   loadEngineV2,
   loadEngineV3,
   loadEngineV4,
+  loadEngineV5,
   isSupportedEngineContract,
   loadEngineForVersion,
 };

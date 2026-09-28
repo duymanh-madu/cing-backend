@@ -1094,6 +1094,44 @@ try {
 
 
 
+/*
+ * CING_GAME_GIFT_IPOS_BOOTSTRAP_V1
+ *
+ * No import and no scheduler when flag is OFF.
+ * Gift financial RPC permissions are unchanged.
+ */
+if (
+  process.env
+    .CING_GAME_GIFT_IPOS_SYNC_WORKER_ENABLED ===
+    "true"
+) {
+  try {
+    const {
+      startCingGameGiftIposSyncWorker,
+    } = require(
+      "./services/games/revival/cingGameGiftIposSyncWorker"
+    );
+
+    startCingGameGiftIposSyncWorker();
+  } catch (error) {
+    console.warn(
+      "[CING GIFT IPOS] worker bootstrap failed"
+    );
+  }
+}
+
+/* Points delivery has its own explicit OFF-by-default bootstrap. */
+if (process.env.CING_POINTS_REVIVE_IPOS_SYNC_WORKER_ENABLED === "true") {
+  try {
+    const { startCingPointsReviveIposSyncWorker } = require(
+      "./services/games/revival/cingPointsReviveIposScheduler"
+    );
+    startCingPointsReviveIposSyncWorker();
+  } catch (_error) {
+    console.warn("[CING REVIVE POINTS IPOS] worker bootstrap failed");
+  }
+}
+
 /**
  * =====================================================
  * CING BLOCK PUZZLE SUBMIT TOP1 WORKER
@@ -1115,6 +1153,101 @@ try {
   );
 }
 
+
+/**
+ * CING OFFLINE REVIVAL REWARD DELIVERY WORKER
+ *
+ * Explicit opt-in only.
+ * No import or timer when the flag is absent.
+ */
+if (
+  process.env
+    .CING_OFFLINE_REVIVE_REWARD_WORKER_ENABLED ===
+  "true"
+) {
+  try {
+    const {
+      createProductionScheduler,
+    } = require(
+      "./services/games/revival/workers/cingOfflineReviveRewardDeliveryScheduler"
+    );
+
+    const rewardDeliveryScheduler =
+      createProductionScheduler();
+
+    rewardDeliveryScheduler.start();
+
+  } catch (error) {
+    console.warn(
+      "[OFFLINE REVIVAL REWARD DELIVERY] worker start failed:",
+      error?.message || error
+    );
+  }
+}
+
+/**
+ * CING OFFLINE REVIVAL REWARD NOTIFICATION WORKER
+ *
+ * Explicit opt-in only.
+ * Independent of financial Reward Delivery.
+ */
+if (
+  process.env
+    .CING_OFFLINE_REVIVE_REWARD_NOTIFICATION_WORKER_ENABLED ===
+  "true"
+) {
+  try {
+    const {
+      createProductionScheduler,
+    } = require(
+      "./services/games/revival/workers/cingOfflineReviveRewardNotificationScheduler"
+    );
+
+    const rewardNotificationScheduler =
+      createProductionScheduler();
+
+    rewardNotificationScheduler.start();
+  } catch (error) {
+    console.warn(
+      "[OFFLINE REVIVAL REWARD NOTIFICATION] worker start failed:",
+      error?.message || error
+    );
+  }
+}
+
+/**
+ * =====================================================
+ * CING OFFLINE REVIVAL SCORE DELIVERY WORKER
+ * Durable post-finalize score side effects.
+ *
+ * Explicit opt-in only. No import, scheduler registration
+ * or timer when the exact enable flag is absent.
+ * =====================================================
+ */
+if (
+  process.env
+    .CING_OFFLINE_REVIVE_SCORE_DELIVERY_WORKER_ENABLED ===
+  "true"
+) {
+  try {
+    const {
+      createProductionScheduler,
+    } = require(
+      "./services/games/revival/workers/cingOfflineReviveScoreDeliveryScheduler"
+    );
+
+    const scoreDeliveryScheduler =
+      createProductionScheduler();
+
+    scoreDeliveryScheduler.start();
+
+  } catch (error) {
+    console.warn(
+      "[OFFLINE REVIVAL SCORE DELIVERY] worker start failed:",
+      error?.message || error
+    );
+  }
+}
 
 /**
  * =====================================================

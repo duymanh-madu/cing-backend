@@ -1,3 +1,4 @@
+const { rejectLegacyGamePlaysMutation } = require("../services/games/revival/cingLegacyGamePlaysCutoverGuard");
 const express  = require("express");
 const router   = express.Router();
 const jwt      = require("jsonwebtoken");
@@ -77,6 +78,8 @@ router.get("/search", requireAdmin, async (req, res) => {
 
 // POST /admin/players/adjust-plays
 router.post("/adjust-plays", requireAdmin, async (req, res) => {
+  if (rejectLegacyGamePlaysMutation(req, res)) return;
+
   try {
     const { user_id, phone, amount } = req.body;
     const uid = user_id || phone;

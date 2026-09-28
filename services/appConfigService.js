@@ -71,6 +71,30 @@ async function updateAppConfig({
   payload,
 }) {
 
+  /*
+   * REVIVAL CHALLENGE AUTHORITY:
+   * Daily Challenge configuration must be
+   * applied through the dedicated Admin RPC.
+   * A generic config update cannot create
+   * an authorized historical snapshot.
+   */
+  if (
+    payload !== null &&
+    typeof payload === "object" &&
+    Object.prototype.hasOwnProperty.call(
+      payload,
+      "daily_challenge_config"
+    )
+  ) {
+    const error = new Error(
+      "REVIVAL_CHALLENGE_DEDICATED_ADMIN_APPLY_REQUIRED"
+    );
+    error.code =
+      "REVIVAL_CHALLENGE_DEDICATED_ADMIN_APPLY_REQUIRED";
+    error.statusCode = 409;
+    throw error;
+  }
+
 
   /*
    * LEGAL AUTHORITY:

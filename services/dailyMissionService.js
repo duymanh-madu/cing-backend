@@ -1,4 +1,27 @@
 const supabase = require("../supabase");
+const {
+  completeDailyMissionReviveV2,
+} = require(
+  "./games/revival/cingDailyMissionReviveV2Service"
+);
+
+const {
+  rewardMessage: reviveRewardMessage,
+  checkinResponse: reviveCheckinResponse,
+  orderMissionResult: reviveOrderMissionResult,
+  realtimeMissionPayload: reviveRealtimePayload,
+  missionRewardSnapshot,
+} = require(
+  "./games/revival/cingDailyMissionReviveV2Presentation"
+);
+
+function dailyMissionReviveV2Enabled() {
+  return (
+    process.env.CING_DAILY_MISSION_REVIVE_V2_ENABLED ===
+    "true"
+  );
+}
+
 const { realtimeEventBus } =
   require("./realtime/realtimeEventBus");
 
@@ -136,7 +159,28 @@ async function getDailyMissions(
             cfg.type
         );
 
+      const historicalReward =
+        done
+          ? missionRewardSnapshot(done)
+          : null;
+
       return {
+        reward_currency:
+          historicalReward?.reward_currency ||
+          (
+            dailyMissionReviveV2Enabled()
+              ? "revive_credit"
+              : "legacy_game_play"
+          ),
+
+        revive_credits:
+          dailyMissionReviveV2Enabled()
+            ? Number(cfg.plays || 0)
+            : 0,
+
+        revive_credits_awarded:
+          historicalReward?.revive_credits_awarded || 0,
+
         type:
           cfg.type,
 
@@ -198,6 +242,23 @@ async function completeMissionReward({
   points,
   label,
 }) {
+
+  if (dailyMissionReviveV2Enabled()) {
+    const result = await completeDailyMissionReviveV2({
+      user_id,
+      mission_date,
+      mission_type,
+      revive_credits: plays,
+      points,
+      label,
+    });
+
+    return {
+      ...result,
+      reward_currency: "revive_credit",
+    };
+  }
+
   const {
     data,
     error,
@@ -277,6 +338,28 @@ function pushMissionEvent(
   mission_type,
   result
 ) {
+  if (result.reward_currency === "revive_credit") {
+    const payload = reviveRealtimePayload(
+      user_id,
+      mission_type,
+      result
+    );
+
+    if (!payload) return;
+
+    try {
+      realtimeEventBus.publish({
+        event: "mission.completed",
+        delivery_type: "BROADCAST",
+        payload,
+        channel: "missions",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (e) {}
+
+    return;
+  }
+
   try {
     realtimeEventBus.publish({
       event:
@@ -375,6 +458,13 @@ async function doCheckin(
         "Điểm danh hàng ngày",
     });
 
+  if (
+    result.reward_currency === "revive_credit" &&
+    !result.applied
+  ) {
+    return reviveCheckinResponse(result);
+  }
+
   if (!result.applied) {
     return {
       success: true,
@@ -392,6 +482,10 @@ async function doCheckin(
     "checkin",
     result
   );
+
+  if (result.reward_currency === "revive_credit") {
+    return reviveCheckinResponse(result);
+  }
 
   return {
     success: true,
@@ -485,6 +579,17 @@ async function checkOrderMissions(
       cfg.type,
       result
     );
+
+    if (result.reward_currency === "revive_credit") {
+      results.push(
+        reviveOrderMissionResult(
+          cfg.type,
+          result
+        )
+      );
+
+      continue;
+    }
 
     results.push({
       type:

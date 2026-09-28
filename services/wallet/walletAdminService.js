@@ -104,6 +104,19 @@ async function getWalletTransactions({
   return data;
 }
 
+async function getGameEconomyAdminReport({ from, to, category, funding_source, limit }) {
+  const { data, error } = await supabase.rpc(
+    "cing_game_economy_admin_report_v1",
+    { p_from: from, p_to: to, p_category: category,
+      p_funding_source: funding_source, p_limit: limit }
+  );
+  assertRpcResult(error, "GAME_REPORT_READ");
+  if (!data || data.is_net_revenue !== false || !Array.isArray(data.items)) {
+    throw new Error("CING_GAME_REPORT_RESULT_INVALID");
+  }
+  return data;
+}
+
 async function getWalletSummary({
   from,
   to,
@@ -227,6 +240,7 @@ module.exports = {
   configureTopupPromotion,
   getWalletSummary,
   getWalletTransactions,
+  getGameEconomyAdminReport,
   adjustWalletBalance,
   searchWalletCustomers,
 };

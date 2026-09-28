@@ -34,7 +34,7 @@ test(
   () => {
     assert.match(
       source,
-      /if\s*\(\s*throwOnError\s*\)\s*\{[\s\S]*throw e/
+      /if\s*\(\s*throwOnError\s*\|\|\s*strictDelivery\s*\)\s*\{[\s\S]*throw e/
     );
   }
 );

@@ -245,7 +245,14 @@ function normalizeSubmissionSessionRow(
       session.continue_count
     ) ||
     session.continue_count < 0 ||
-    session.continue_count > 3
+    session.continue_count > (
+      session.engine_version === 4 &&
+      session.rules_version === 4 &&
+      session.score_version === 3 &&
+      session.replay_version === 5
+        ? 5
+        : 3
+    )
   ) {
     throw new Error(
       "Cing Block Puzzle submission continue_count không hợp lệ"
@@ -253,7 +260,7 @@ function normalizeSubmissionSessionRow(
   }
 
   if (
-    session.play_cost !== 1
+    ![0, 1].includes(session.play_cost)
   ) {
     throw new Error(
       "Cing Block Puzzle submission play cost không hợp lệ"
@@ -419,7 +426,7 @@ function normalizeVerifiedReplayResult(
       values.continues_used
     ) ||
     values.continues_used < 0 ||
-    values.continues_used > 3
+    values.continues_used > 5
   ) {
     throw new Error(
       "Cing Block Puzzle continues_used vượt DB contract"

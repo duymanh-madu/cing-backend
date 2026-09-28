@@ -60,6 +60,14 @@ async function getTodayChallenge(game_key = "black-pearl-rush") {
 
   if (existing) return existing;
 
+  // V2 Revival: never create from legacy fallback.
+  if (
+    game_key === "black-pearl-rush" ||
+    game_key === "cing-stack-tower"
+  ) {
+    return null;
+  }
+
   // Đọc config từ DB
   const { data: cfgRow } = await supabase
     .from("app_configs")
@@ -153,7 +161,10 @@ async function syncTodayChallengesFromConfig() {
     .single();
 
   const enabled = (cfgRow?.daily_challenge_config?.challenges || [])
-    .filter(c => c.enabled !== false)
+    .filter(c =>
+        c.enabled !== false &&
+        !["black-pearl-rush", "cing-stack-tower"].includes(c.game_key)
+      )
     .map(c => normalizeChallengeConfig(c, c.game_key));
 
   const activeGameKeys = enabled.map(c => c.game_key);
@@ -207,7 +218,11 @@ async function syncTodayChallengesFromConfig() {
     .eq("challenge_date", today);
 
   const staleIds = (todayRows || [])
-    .filter(row => !row.completed && !activeGameKeys.includes(row.game_key))
+    .filter(row =>
+        !row.completed &&
+        !["black-pearl-rush", "cing-stack-tower"].includes(row.game_key) &&
+        !activeGameKeys.includes(row.game_key)
+      )
     .map(row => row.id);
 
   if (staleIds.length > 0) {
@@ -223,6 +238,18 @@ async function syncTodayChallengesFromConfig() {
 
 // Kiem tra combo va claim reward
 async function claimChallengeReward({ user_id, player_name, avatar, combo, score, progress, game_key = "black-pearl-rush" }) {
+  // V2 Revival rewards require finalized-session authority.
+  if (
+    game_key === "black-pearl-rush" ||
+    game_key === "cing-stack-tower"
+  ) {
+    return {
+      success: false,
+      code: "REVIVAL_CHALLENGE_V2_AUTHORITY_REQUIRED",
+      message: "Phần thưởng game được xử lý qua Revival V2",
+    };
+  }
+
   const challenge = await getTodayChallenge(game_key);
   
   if (!challenge) return { success: false, message: "Không tìm thấy thử thách" };
