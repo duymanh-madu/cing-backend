@@ -186,6 +186,9 @@ function createCingGameEconomyV2Router({
             requestId:
               req.body?.request_id,
 
+            senderMessage:
+              req.body?.sender_message,
+
             fundingSource:
               "wallet",
           });
@@ -222,6 +225,9 @@ function createCingGameEconomyV2Router({
 
             requestId:
               req.body?.request_id,
+
+            senderMessage:
+              req.body?.sender_message,
 
             fundingSource:
               "points",

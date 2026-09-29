@@ -21,6 +21,9 @@ const MAX_INT =
 const MAX_BIGINT =
   9223372036854775807n;
 
+const MAX_MESSAGE_CHARS =
+  200;
+
 function failure(
   code,
   message,
@@ -51,6 +54,45 @@ function validUuid(value) {
       value.trim().toLowerCase()
     )
   );
+}
+
+function normalizeSenderMessage(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw failure(
+      "GAME_GIFT_MESSAGE_INVALID",
+      "Lời nhắn không hợp lệ",
+      400
+    );
+  }
+
+  const normalized =
+    value.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    Array.from(normalized).length >
+      MAX_MESSAGE_CHARS
+  ) {
+    throw failure(
+      "GAME_GIFT_MESSAGE_INVALID",
+      `Lời nhắn tối đa ${MAX_MESSAGE_CHARS} ký tự`,
+      400
+    );
+  }
+
+  return normalized;
 }
 
 function integer(
@@ -206,7 +248,10 @@ function receiptOf(
     row.gift_id !==
       expected.giftId ||
     row.funding_source !==
-      expected.fundingSource
+      expected.fundingSource ||
+    (
+      row.sender_message ?? null
+    ) !== expected.senderMessage
   ) {
     throw failure(
       "GAME_GIFT_RECEIPT_INVALID",
@@ -361,6 +406,9 @@ function receiptOf(
     funding_source:
       expected.fundingSource,
 
+    sender_message:
+      expected.senderMessage,
+
     price_vnd:
       price.toString(),
 
@@ -389,6 +437,7 @@ async function purchaseGameGift({
   recipientUserId,
   giftId,
   requestId,
+  senderMessage,
   fundingSource,
 }) {
   const senderId =
@@ -475,10 +524,15 @@ async function purchaseGameGift({
     );
   }
 
+  const normalizedSenderMessage =
+    normalizeSenderMessage(
+      senderMessage
+    );
+
   const rpcName =
     fundingSource === "wallet"
-      ? "cing_game_gift_purchase_wallet_v1"
-      : "cing_game_gift_purchase_points_v1";
+      ? "cing_game_gift_purchase_wallet_v2"
+      : "cing_game_gift_purchase_points_v2";
 
   const {
     data,
@@ -497,6 +551,9 @@ async function purchaseGameGift({
 
       p_request_id:
         normalizedRequestId,
+
+      p_sender_message:
+        normalizedSenderMessage,
     }
   );
 
@@ -516,6 +573,9 @@ async function purchaseGameGift({
         normalizedRequestId,
 
       fundingSource,
+
+      senderMessage:
+        normalizedSenderMessage,
     }
   );
 }
