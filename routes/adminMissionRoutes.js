@@ -83,6 +83,7 @@ function buildMissionPayload(
     type,
     label,
     description,
+    revive_credits,
     plays,
     points,
     enabled,
@@ -104,10 +105,20 @@ function buildMissionPayload(
     throw error;
   }
 
-  const normalizedPlays =
+  /*
+   * Game Center V2:
+   *
+   * mission_configs.plays remains compatibility storage only.
+   * The active reward represented by this value is Revive Credit.
+   *
+   * `plays` is accepted temporarily as a transport compatibility
+   * alias for older Admin clients, but it NEVER selects or grants
+   * legacy game-play economy.
+   */
+  const normalizedReviveCredits =
     parseNonNegativeInteger(
-      plays,
-      "plays",
+      revive_credits ?? plays,
+      "revive_credits",
       0
     );
 
@@ -119,12 +130,12 @@ function buildMissionPayload(
     );
 
   if (
-    normalizedPlays === 0 &&
+    normalizedReviveCredits === 0 &&
     normalizedPoints === 0
   ) {
     const error =
       new Error(
-        "Nhiệm vụ phải thưởng ít nhất điểm tích luỹ hoặc lượt chơi"
+        "Nhiệm vụ phải thưởng ít nhất Revive Credit hoặc điểm tích luỹ"
       );
 
     error.statusCode = 400;
@@ -136,8 +147,12 @@ function buildMissionPayload(
     label,
     description,
 
+    /*
+     * DB compatibility column only.
+     * Runtime authority interprets this exclusively as Revive Credit.
+     */
     plays:
-      normalizedPlays,
+      normalizedReviveCredits,
 
     points:
       normalizedPoints,
@@ -194,7 +209,16 @@ router.get(
     res.json({
       success: true,
       data:
-        data || [],
+        (data || []).map((row) => ({
+          ...row,
+
+          /*
+           * Public/Admin V2 semantic.
+           * `plays` remains DB compatibility storage only.
+           */
+          revive_credits:
+            Number(row.plays || 0),
+        })),
     });
   }
 );

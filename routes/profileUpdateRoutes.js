@@ -466,174 +466,351 @@ router.get("/plays-history/:userId", async (req, res) => {
 
 // GET /profile-update/revive-credits-history/:userId
 //
-// Revive Credit is a separate asset from legacy
-// game plays and iPOS loyalty points.
+// Customer Revive Credit account statement.
 //
-// Read-only compatibility history.
-// Canonical reward identity comes from the
-// Revive Credit ledger history projection.
+// Authority:
+// - authenticated customer identity
+// - cing_revive_credit_balances for current balance
+// - cing_revive_credit_transactions for durable ledger
+//
+// Legacy analytics_events are deliberately NOT used as
+// financial/resource authority for this V2 surface.
 //
 router.get(
   "/revive-credits-history/:userId",
   authMiddleware,
   async (req, res) => {
-  try {
-    const { userId } = req.params;
+    try {
+      const { userId } = req.params;
 
-    /*
-     * Both JWT verification and customer lookup
-     * have already completed in authMiddleware.
-     *
-     * A URL parameter must never select
-     * another customer's history.
-     */
+      /*
+       * Never let a URL parameter select another
+       * customer's Revive Credit account.
+       */
+      const phone =
+        normalizePhone(
+          req.customer?.phone || ""
+        );
 
-    const phone =
-      normalizePhone(
-        req.customer?.phone || ""
+      const requestedPhone =
+        normalizePhone(userId);
+
+      const customerZaloId =
+        String(
+          req.customer?.zalo_id || ""
+        ).trim();
+
+      if (
+        !/^0[0-9]{9}$/.test(phone) ||
+        !customerZaloId
+      ) {
+        return res.status(403).json({
+          success: false,
+          code:
+            "REVIVE_HISTORY_IDENTITY_REQUIRED",
+        });
+      }
+
+      if (
+        !/^(?:0[0-9]{9}|84[0-9]{9})$/.test(
+          String(userId)
+        ) ||
+        requestedPhone !== phone
+      ) {
+        return res.status(403).json({
+          success: false,
+          code:
+            "REVIVE_HISTORY_FORBIDDEN",
+        });
+      }
+
+      const {
+        data: playerData,
+        error: playerError,
+      } =
+        await supabase
+          .from("players")
+          .select(
+            "user_id, zalo_user_id"
+          )
+          .eq("user_id", phone)
+          .maybeSingle();
+
+      if (playerError) {
+        throw playerError;
+      }
+
+      const playerZaloId =
+        String(
+          playerData?.zalo_user_id || ""
+        ).trim();
+
+      if (
+        !playerData ||
+        normalizePhone(
+          playerData.user_id || ""
+        ) !== phone ||
+        !playerZaloId ||
+        playerZaloId !== customerZaloId
+      ) {
+        return res.status(403).json({
+          success: false,
+          code:
+            "REVIVE_HISTORY_IDENTITY_MISMATCH",
+        });
+      }
+
+      /*
+       * Balance is read from the canonical balance
+       * authority. A missing row means zero balance,
+       * matching the existing Revive repository.
+       */
+      const {
+        data: balanceRow,
+        error: balanceError,
+      } =
+        await supabase
+          .from(
+            "cing_revive_credit_balances"
+          )
+          .select("balance")
+          .eq("user_id", phone)
+          .maybeSingle();
+
+      if (balanceError) {
+        throw balanceError;
+      }
+
+      const balance =
+        Number(
+          balanceRow?.balance ?? 0
+        );
+
+      if (
+        !Number.isSafeInteger(balance) ||
+        balance < 0
+      ) {
+        throw new Error(
+          "REVIVE_HISTORY_BALANCE_INVALID"
+        );
+      }
+
+      /*
+       * Latest 100 rows are returned to the UI.
+       * Totals are calculated across the complete
+       * durable ledger with bounded PostgREST pages,
+       * so total_earned / total_used never depend on
+       * only the visible 100 rows.
+       */
+      const {
+        data: recentRows,
+        error: recentError,
+      } =
+        await supabase
+          .from(
+            "cing_revive_credit_transactions"
+          )
+          .select(
+            [
+              "id",
+              "transaction_type",
+              "amount",
+              "balance_before",
+              "balance_after",
+              "reason",
+              "game_key",
+              "reference_type",
+              "reference_id",
+              "created_at",
+            ].join(",")
+          )
+          .eq("user_id", phone)
+          .order(
+            "created_at",
+            { ascending: false }
+          )
+          .order(
+            "id",
+            { ascending: false }
+          )
+          .limit(100);
+
+      if (recentError) {
+        throw recentError;
+      }
+
+      let totalEarned = 0;
+      let totalUsed = 0;
+      let offset = 0;
+
+      const PAGE_SIZE = 1000;
+
+      while (true) {
+        const {
+          data: amountRows,
+          error: amountError,
+        } =
+          await supabase
+            .from(
+              "cing_revive_credit_transactions"
+            )
+            .select("amount")
+            .eq("user_id", phone)
+            .order(
+              "id",
+              { ascending: true }
+            )
+            .range(
+              offset,
+              offset + PAGE_SIZE - 1
+            );
+
+        if (amountError) {
+          throw amountError;
+        }
+
+        const page =
+          amountRows || [];
+
+        for (const row of page) {
+          const amount =
+            Number(row.amount);
+
+          if (
+            !Number.isSafeInteger(amount) ||
+            amount === 0
+          ) {
+            throw new Error(
+              "REVIVE_HISTORY_AMOUNT_INVALID"
+            );
+          }
+
+          if (amount > 0) {
+            totalEarned += amount;
+          } else {
+            totalUsed +=
+              Math.abs(amount);
+          }
+
+          if (
+            !Number.isSafeInteger(
+              totalEarned
+            ) ||
+            !Number.isSafeInteger(
+              totalUsed
+            )
+          ) {
+            throw new Error(
+              "REVIVE_HISTORY_TOTAL_OVERFLOW"
+            );
+          }
+        }
+
+        if (page.length < PAGE_SIZE) {
+          break;
+        }
+
+        offset += PAGE_SIZE;
+      }
+
+      const transactions =
+        (recentRows || []).map(
+          (row) => {
+            const amount =
+              Number(row.amount);
+
+            const balanceBefore =
+              Number(
+                row.balance_before
+              );
+
+            const balanceAfter =
+              Number(
+                row.balance_after
+              );
+
+            if (
+              !Number.isSafeInteger(amount) ||
+              amount === 0 ||
+              !Number.isSafeInteger(
+                balanceBefore
+              ) ||
+              balanceBefore < 0 ||
+              !Number.isSafeInteger(
+                balanceAfter
+              ) ||
+              balanceAfter < 0 ||
+              balanceAfter !==
+                balanceBefore + amount
+            ) {
+              throw new Error(
+                "REVIVE_HISTORY_LEDGER_INVALID"
+              );
+            }
+
+            return {
+              id:
+                String(row.id),
+
+              transaction_type:
+                row.transaction_type,
+
+              amount,
+
+              balance_before:
+                balanceBefore,
+
+              balance_after:
+                balanceAfter,
+
+              reason:
+                row.reason,
+
+              game_key:
+                row.game_key || null,
+
+              reference_type:
+                row.reference_type,
+
+              reference_id:
+                row.reference_id,
+
+              created_at:
+                row.created_at,
+            };
+          }
+        );
+
+      return res.json({
+        success: true,
+
+        data: {
+          balance,
+
+          total_earned:
+            totalEarned,
+
+          total_used:
+            totalUsed,
+
+          transactions,
+        },
+      });
+
+    } catch (err) {
+      console.error(
+        "[PROFILE] Revive Credit history failed:",
+        err.message
       );
 
-    const requestedPhone =
-      normalizePhone(userId);
-
-    const customerZaloId =
-      String(
-        req.customer?.zalo_id || ""
-      ).trim();
-
-    if (
-      !/^0[0-9]{9}$/.test(phone) ||
-      !customerZaloId
-    ) {
-      return res.status(403).json({
+      return res.status(500).json({
         success: false,
-        code: "REVIVE_HISTORY_IDENTITY_REQUIRED",
+        code:
+          "REVIVE_HISTORY_READ_FAILED",
       });
     }
-
-    if (
-      !/^(?:0[0-9]{9}|84[0-9]{9})$/.test(
-        String(userId)
-      ) ||
-      requestedPhone !== phone
-    ) {
-      return res.status(403).json({
-        success: false,
-        code: "REVIVE_HISTORY_FORBIDDEN",
-      });
-    }
-
-    const { data: playerData, error: playerError } =
-      await supabase
-        .from("players")
-        .select("user_id, zalo_user_id")
-        .eq("user_id", phone)
-        .maybeSingle();
-
-    if (playerError) throw playerError;
-
-    const playerZaloId =
-      String(
-        playerData?.zalo_user_id || ""
-      ).trim();
-
-    /*
-     * Never attach history from a Zalo identity
-     * that disagrees with the authenticated
-     * customer.
-     */
-
-    if (
-      !playerData ||
-      normalizePhone(
-        playerData.user_id || ""
-      ) !== phone ||
-      !playerZaloId ||
-      playerZaloId !== customerZaloId
-    ) {
-      return res.status(403).json({
-        success: false,
-        code: "REVIVE_HISTORY_IDENTITY_MISMATCH",
-      });
-    }
-
-    const ids = [
-      ...new Set(
-        [
-          phone,
-          `84${phone.slice(1)}`,
-          customerZaloId,
-        ].filter(Boolean)
-      ),
-    ];
-
-    const { data, error } =
-      await supabase
-        .from("analytics_events")
-        .select(
-          "user_id, event_name, event_data, metadata, created_at"
-        )
-        .in("user_id", ids)
-        .eq(
-          "event_name",
-          "revive_credits_added"
-        )
-        .order(
-          "created_at",
-          { ascending: false }
-        )
-        .limit(100);
-
-    if (error) throw error;
-
-    const seen = new Set();
-
-    const deduped = (data || []).filter((item) => {
-      const referenceType =
-        item.metadata?.reference_type;
-
-      const referenceId =
-        item.metadata?.reference_id;
-
-      const key =
-        referenceType && referenceId
-          ? [
-              item.user_id,
-              item.event_name,
-              referenceType,
-              referenceId,
-            ].join("|")
-          : [
-              item.user_id,
-              item.created_at,
-              item.event_name,
-              item.event_data?.amount ?? 0,
-            ].join("|");
-
-      if (seen.has(key)) return false;
-
-      seen.add(key);
-
-      return true;
-    });
-
-    res.json({
-      success: true,
-
-      data: deduped.map((item) => ({
-        event_name: item.event_name,
-        event_data: item.event_data,
-        created_at: item.created_at,
-      })),
-    });
-
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
   }
-});
+);
 
 // GET /profile-update/points-history/:userId
 router.get("/points-history/:userId", async (req, res) => {

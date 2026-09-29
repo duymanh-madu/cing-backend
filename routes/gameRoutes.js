@@ -76,73 +76,25 @@ router.get(
 
 /**
  * =====================================================
- * USE GAME PLAY
+ * LEGACY USE GAME PLAY — RETIRED
  * =====================================================
+ *
+ * Game Center V2 starts supported games for free.
+ * Keep the V1 URL only as a fail-closed tombstone for
+ * stale clients. It must never mutate a play balance.
  */
-
 router.post(
   "/use-play",
   async (req, res) => {
-
-    try {
-
-      const {
-        user_id,
-        game_key,
-        game_name,
-      } = req.body;
-
-      if (!user_id) {
-
-        return res.status(400).json({
-
-          success: false,
-
-          message:
-            "Thiếu user_id",
-
-        });
-
-      }
-
-      const data =
-        await useGamePlay(
-          user_id,
-          game_key || game_name
-        );
-
-      res.json({
-
-        success: true,
-
-        ...data,
-
-      });
-
-    } catch (error) {
-
-      console.log(error);
-
-      const statusCode =
-        error.statusCode ||
-        (error.code === "NO_GAME_PLAYS" ? 409 : 500);
-
-      res.status(statusCode).json({
-
-        success: false,
-
-        code:
-          error.code || "GAME_USE_PLAY_FAILED",
-
-        message:
-          error.message,
-
-      });
-
-    }
-
+    return res.status(410).json({
+      success: false,
+      code: "CING_LEGACY_GAME_PLAYS_CLOSED",
+      message:
+        "Chức năng lượt chơi cũ đã ngừng sử dụng",
+    });
   }
 );
+
 
 /**
  * =====================================================

@@ -1,4 +1,4 @@
-const { rejectLegacyGamePlaysMutation } = require("../services/games/revival/cingLegacyGamePlaysCutoverGuard");
+const { sendLegacyGamePlaysClosed } = require("../services/games/revival/cingLegacyGamePlaysCutoverGuard");
 const express = require("express");
 const router = express.Router();
 
@@ -7,7 +7,6 @@ const authMiddleware =
 const supabase = require("../supabase");
 const { deductPoints } = require("../services/loyaltyPointService");
 
-const POINTS_PER_PLAY = 5;
 const { normalizePhone } = require("../utils/phoneIdentity");
 
 // GET /api/points/:user_id
@@ -25,162 +24,13 @@ router.get("/:user_id", async (req, res) => {
 });
 
 // POST /api/points/buy-plays
+//
+// Game Center V2 permanently rejects new conversion of
+// loyalty points into the retired V1 play-count asset.
+// Revive Credit purchases use the dedicated economy V2
+// financial authority instead.
 router.post("/buy-plays", async (req, res) => {
-  if (rejectLegacyGamePlaysMutation(req, res)) return;
-
-  /*
-   * This legacy route is not an atomic points/play purchase.
-   * Once deduction is attempted, an uncertain result must
-   * be reconciled instead of blindly refunded or retried.
-   */
-  let debitAttempted = false;
-
-  try {
-    const { user_id, phone, quantity = 1 } = req.body;
-
-    if (!user_id) {
-      return res.status(400).json({
-        success: false,
-        message: "Thiếu user_id",
-      });
-    }
-
-    if (
-      !Number.isSafeInteger(quantity) ||
-      quantity <= 0 ||
-      quantity > 2147483647 ||
-      quantity > Math.floor(2147483647 / POINTS_PER_PLAY)
-    ) {
-      return res.status(400).json({
-        success: false,
-        code: "CING_LEGACY_PLAY_QUANTITY_INVALID",
-        message: "Số lượt chơi không hợp lệ",
-      });
-    }
-
-    const cost = quantity * POINTS_PER_PLAY;
-
-    // Legacy loyalty debit; iPOS synchronization remains unchanged.
-    debitAttempted = true;
-
-    const result = await deductPoints({
-      phone: phone || user_id,
-      user_id,
-      points: cost,
-      reason: `Mua ${quantity} lượt chơi game`,
-    });
-
-    if (!result || result.success !== true) {
-      throw new Error(
-        "CING_LEGACY_POINTS_DEBIT_UNCONFIRMED"
-      );
-    }
-
-    /*
-     * Point debit and game-play credit are not one transaction.
-     * Require an actual confirmed credit before purchase success.
-     */
-    const {
-      data: player,
-      error: playerReadError,
-    } = await supabase
-      .from("players")
-      .select("game_plays")
-      .eq("user_id", user_id)
-      .maybeSingle();
-
-    if (playerReadError || !player) {
-      throw new Error(
-        "CING_LEGACY_PLAY_CREDIT_PLAYER_READ_FAILED"
-      );
-    }
-
-    const currentPlays = Number(player.game_plays);
-
-    if (
-      !Number.isSafeInteger(currentPlays) ||
-      currentPlays < 0
-    ) {
-      throw new Error(
-        "CING_LEGACY_PLAY_CREDIT_BALANCE_INVALID"
-      );
-    }
-
-    const newPlays = currentPlays + quantity;
-
-    if (
-      !Number.isSafeInteger(newPlays) ||
-      newPlays > 2147483647
-    ) {
-      throw new Error(
-        "CING_LEGACY_PLAY_CREDIT_OVERFLOW"
-      );
-    }
-
-    const {
-      data: creditedPlayer,
-      error: creditError,
-    } = await supabase
-      .from("players")
-      .update({ game_plays: newPlays })
-      .eq("user_id", user_id)
-      .eq("game_plays", currentPlays)
-      .select("game_plays")
-      .maybeSingle();
-
-    if (
-      creditError ||
-      !creditedPlayer ||
-      Number(creditedPlayer.game_plays) !== newPlays
-    ) {
-      throw new Error(
-        "CING_LEGACY_PLAY_CREDIT_UNCONFIRMED"
-      );
-    }
-
-    const { addPlays } = require(
-      "../services/loyaltyPointService"
-    );
-
-    await addPlays({
-      user_id,
-      amount: quantity,
-      reason: "Đổi điểm lấy lượt chơi",
-      new_total: newPlays,
-    }).catch(() => {});
-
-    return res.json({
-      success: true,
-      message:
-        `Mua thành công ${quantity} lượt chơi! (-${cost} điểm)`,
-      data: {
-        plays_added: quantity,
-        points_spent: cost,
-        remaining_points: result.remaining,
-        new_plays: newPlays,
-      },
-    });
-  } catch (err) {
-    if (debitAttempted) {
-      console.error(
-        "[GAME] Legacy loyalty purchase needs reconciliation:",
-        err?.message || "UNKNOWN_PURCHASE_RESULT"
-      );
-
-      return res.status(409).json({
-        success: false,
-        code:
-          "CING_LEGACY_POINTS_DEBIT_PLAY_CREDIT_REVIEW_REQUIRED",
-        message:
-          "Giao dịch cần được đối soát. Vui lòng không mua lại lượt chơi trước khi được xác nhận.",
-      });
-    }
-
-    return res.status(400).json({
-      success: false,
-      message: err.message,
-    });
-  }
+  return sendLegacyGamePlaysClosed(res);
 });
 
 

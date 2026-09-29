@@ -15,13 +15,6 @@ const {
   "./games/revival/cingDailyMissionReviveV2Presentation"
 );
 
-function dailyMissionReviveV2Enabled() {
-  return (
-    process.env.CING_DAILY_MISSION_REVIVE_V2_ENABLED ===
-    "true"
-  );
-}
-
 const { realtimeEventBus } =
   require("./realtime/realtimeEventBus");
 
@@ -165,18 +158,16 @@ async function getDailyMissions(
           : null;
 
       return {
+        /*
+         * Active Game Center V2 reward is Revive Credit.
+         * Historical completed rows retain their durable snapshot.
+         */
         reward_currency:
           historicalReward?.reward_currency ||
-          (
-            dailyMissionReviveV2Enabled()
-              ? "revive_credit"
-              : "legacy_game_play"
-          ),
+          "revive_credit",
 
         revive_credits:
-          dailyMissionReviveV2Enabled()
-            ? Number(cfg.plays || 0)
-            : 0,
+          Number(cfg.plays || 0),
 
         revive_credits_awarded:
           historicalReward?.revive_credits_awarded || 0,
@@ -242,9 +233,15 @@ async function completeMissionReward({
   points,
   label,
 }) {
-
-  if (dailyMissionReviveV2Enabled()) {
-    const result = await completeDailyMissionReviveV2({
+  /*
+   * Game Center V2 authority.
+   *
+   * mission_configs.plays is retained only as the existing
+   * compatibility storage column for the configured Revive
+   * Credit quantity. It no longer selects a game-play reward.
+   */
+  const result =
+    await completeDailyMissionReviveV2({
       user_id,
       mission_date,
       mission_type,
@@ -253,83 +250,9 @@ async function completeMissionReward({
       label,
     });
 
-    return {
-      ...result,
-      reward_currency: "revive_credit",
-    };
-  }
-
-  const {
-    data,
-    error,
-  } = await supabase.rpc(
-    "complete_daily_mission_atomic",
-    {
-      p_user_id:
-        user_id,
-
-      p_mission_date:
-        mission_date,
-
-      p_mission_type:
-        mission_type,
-
-      p_plays:
-        plays,
-
-      p_points:
-        points,
-
-      p_mission_label:
-        label || null,
-    }
-  );
-
-  if (error) {
-    throw error;
-  }
-
-  const row =
-    Array.isArray(data)
-      ? data[0]
-      : data;
-
-  if (!row) {
-    throw new Error(
-      "DAILY_MISSION_AUTHORITY_EMPTY_RESULT"
-    );
-  }
-
   return {
-    applied:
-      row.applied === true,
-
-    mission_id:
-      row.mission_id,
-
-    plays_awarded:
-      Number(
-        row.plays_awarded ||
-        0
-      ),
-
-    points_awarded:
-      Number(
-        row.points_awarded ||
-        0
-      ),
-
-    game_plays_after:
-      Number(
-        row.game_plays_after ||
-        0
-      ),
-
-    total_points_after:
-      Number(
-        row.total_points_after ||
-        0
-      ),
+    ...result,
+    reward_currency: "revive_credit",
   };
 }
 

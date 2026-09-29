@@ -1,4 +1,4 @@
-const { rejectLegacyGamePlaysMutation } = require("../services/games/revival/cingLegacyGamePlaysCutoverGuard");
+const { sendLegacyGamePlaysClosed } = require("../services/games/revival/cingLegacyGamePlaysCutoverGuard");
 const express  = require("express");
 const router   = express.Router();
 const jwt      = require("jsonwebtoken");
@@ -77,37 +77,15 @@ router.get("/search", requireAdmin, async (req, res) => {
 
 
 // POST /admin/players/adjust-plays
+//
+// Game Center V2 permanently retires manual mutation of
+// the legacy play-count asset. Keep the URL only as a
+// compatibility tombstone so stale Admin clients fail
+// closed and can never revive the V1 writer.
 router.post("/adjust-plays", requireAdmin, async (req, res) => {
-  if (rejectLegacyGamePlaysMutation(req, res)) return;
-
-  try {
-    const { user_id, phone, amount } = req.body;
-    const uid = user_id || phone;
-    if (!uid || !amount) return res.status(400).json({ success: false, error: "Thiếu thông tin" });
-
-    const { data: player } = await supabase
-      .from("players").select("game_plays").eq("user_id", uid).single();
-
-    const newPlays = Math.max(0, Number(player?.game_plays || 0) + Number(amount));
-    const { error } = await supabase.from("players")
-      .update({ game_plays: newPlays }).eq("user_id", uid);
-
-    if (error) throw error;
-    // Log analytics
-    try {
-      await supabase.from('analytics_events').insert({
-        event_name: 'plays_adjusted',
-        user_id: String(uid),
-        event_data: { plays: Number(amount), new_total: newPlays, admin: req.admin?.username || 'admin' },
-        created_at: new Date().toISOString()
-      });
-    } catch(e) {}
-    res.json({ success: true, message: `Đã điều chỉnh ${amount > 0 ? "+" : ""}${amount} lượt`, new_plays: newPlays });
-  } catch (err) {
-    console.error('[ADJUST-PLAYS ERROR]', err.message, err.stack);
-    res.status(500).json({ success: false, error: err.message });
-  }
+  return sendLegacyGamePlaysClosed(res);
 });
+
 
 // POST /admin/players/adjust-points
 router.post("/adjust-points", requireAdmin, async (req, res) => {

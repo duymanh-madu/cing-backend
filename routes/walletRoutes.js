@@ -1,5 +1,4 @@
 const {
-  isLegacyGamePlaysMutationDisabled,
   sendLegacyGamePlaysClosed,
 } = require(
   "../services/games/revival/cingLegacyGamePlaysCutoverGuard"
@@ -38,11 +37,6 @@ const {
 );
 
 
-const {
-  buyGamePlaysWithWallet,
-} = require(
-  "../services/wallet/cingWalletBuyGamePlaysService"
-);
 
 const {
   previewCustomerPosPayment,
@@ -398,35 +392,41 @@ router.post(
     req,
     res
   ) => {
-      try {
-        if (isLegacyGamePlaysMutationDisabled()) {
-          const replay =
-            await readCommittedWalletPlayPurchase({
-              customer: req.customer,
-              quantity: req.body?.quantity,
-              requestId: req.body?.request_id,
-            });
+    try {
+      /*
+       * V1 purchase authority is permanently retired.
+       *
+       * This URL remains only so a stale client can retrieve
+       * the exact receipt of a Wallet play purchase that had
+       * already committed before the cutover.
+       *
+       * readCommittedWalletPlayPurchase is read-only:
+       * no Wallet debit, no play credit, no financial RPC.
+       */
+      const replay =
+        await readCommittedWalletPlayPurchase({
+          customer:
+            req.customer,
 
-          if (!replay) {
-            return sendLegacyGamePlaysClosed(res);
-          }
+          quantity:
+            req.body?.quantity,
 
-          return res.json({
-            success: true,
-            data: replay,
-          });
-        }
+          requestId:
+            req.body?.request_id,
+        });
 
-        const data =
-          await buyGamePlaysWithWallet({
-            customer: req.customer,
-            quantity: req.body?.quantity,
-            requestId: req.body?.request_id,
-          });
+      if (!replay) {
+        return sendLegacyGamePlaysClosed(
+          res
+        );
+      }
 
       return res.json({
-        success: true,
-        data,
+        success:
+          true,
+
+        data:
+          replay,
       });
     } catch (error) {
       const statusCode =
@@ -439,15 +439,16 @@ router.post(
           statusCode
         )
         .json({
-          success: false,
+          success:
+            false,
 
           code:
             error?.code ||
-            "CING_WALLET_PLAY_PURCHASE_FAILED",
+            "CING_WALLET_PLAY_REPLAY_FAILED",
 
           message:
             error?.message ||
-            "Không thể mua lượt chơi bằng Cing Wallet",
+            "Không thể xác minh giao dịch lượt chơi cũ",
         });
     }
   }

@@ -220,7 +220,7 @@ function createHarness({
 }
 
 test(
-  "missing flag preserves V1 check-in",
+  "missing legacy flag still uses Revive V2",
   async () => {
     const h = createHarness();
 
@@ -234,22 +234,42 @@ test(
 
     assert.equal(
       h.calls[0].name,
-      "complete_daily_mission_atomic"
+      "complete_daily_mission_revive_v2"
     );
 
     assert.equal(
-      result.plays_awarded,
+      h.calls[0].args.revive_credits,
       4
     );
 
     assert.equal(
-      result.game_plays_after,
+      result.revive_credits_awarded,
+      4
+    );
+
+    assert.equal(
+      result.revive_credit_balance_after,
       14
+    );
+
+    assert.equal(
+      result.points_awarded,
+      6
     );
 
     assert.match(
       result.message,
-      /\+4 lượt chơi/
+      /\+4 Revive Credit/
+    );
+
+    assert.equal(
+      "plays_awarded" in result,
+      false
+    );
+
+    assert.equal(
+      "game_plays_after" in result,
+      false
     );
 
     assert.equal(
@@ -258,14 +278,14 @@ test(
     );
 
     assert.equal(
-      h.events[0].payload.plays_awarded,
+      h.events[0].payload.revive_credits_awarded,
       4
     );
   }
 );
 
 test(
-  "false and invalid flags preserve V1",
+  "legacy flag values are ignored and Revive V2 remains authoritative",
   async () => {
     for (const flag of [
       "false",
@@ -275,24 +295,33 @@ test(
     ]) {
       const h = createHarness({ flag });
 
-      await h.service.doCheckin(
-        "user-1"
-      );
+      const result =
+        await h.service.doCheckin(
+          "user-1"
+        );
 
       assert.deepEqual(
         h.calls.map((call) => call.name),
-        ["complete_daily_mission_atomic"]
+        ["complete_daily_mission_revive_v2"]
+      );
+
+      assert.equal(
+        result.revive_credits_awarded,
+        4
+      );
+
+      assert.equal(
+        "plays_awarded" in result,
+        false
       );
     }
   }
 );
 
 test(
-  "true flag uses V2 and Credit message",
+  "active check-in uses V2 and Credit message",
   async () => {
-    const h = createHarness({
-      flag: "true",
-    });
+    const h = createHarness();
 
     const result =
       await h.service.doCheckin("user-1");
