@@ -456,7 +456,7 @@ router.get("/", requireAdmin, async (req, res) => {
     }));
 
     const mapReviveCredits =
-      (rows || []).map((r) => ({
+      (rows) => (rows || []).map((r) => ({
         ...r,
         _type: "revive_credit",
         amount: Number(r.amount || 0),
