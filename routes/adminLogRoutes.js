@@ -322,6 +322,7 @@ router.get("/", requireAdmin, async (req, res) => {
       playsGiven,
       rewards,
       profileChanges,
+      giftPurchases,
     ] = await Promise.all([
       // Game scores
       (needAll || filter==="games")
@@ -404,6 +405,35 @@ router.get("/", requireAdmin, async (req, res) => {
             .eq("event_name","profile_updated")
             .order("created_at",{ascending:false}).limit(fetchWindow)
         : {data:[]},
+
+      /*
+       * Canonical Game Gift purchase audit.
+       * Immutable purchase receipt is the authority.
+       */
+      (needAll || filter==="gift")
+        ? supabase
+            .from("cing_game_gift_purchases")
+            .select(
+              [
+                "id",
+                "sender_user_id",
+                "recipient_user_id",
+                "gift_id",
+                "gift_name",
+                "gift_icon",
+                "funding_source",
+                "price_vnd",
+                "points_cost",
+                "charm_awarded",
+                "sender_message",
+                "ipos_sync_status",
+                "created_at",
+              ].join(",")
+            )
+            .order("created_at",{ascending:false})
+            .order("id",{ascending:false})
+            .limit(fetchWindow)
+        : {data:[]},
     ]);
 
     const queryErrors = [
@@ -414,6 +444,7 @@ router.get("/", requireAdmin, async (req, res) => {
       ["legacy_plays_given", playsGiven],
       ["rewards", rewards],
       ["profile_changes", profileChanges],
+      ["gift", giftPurchases],
     ].filter(
       ([, result]) =>
         result?.error
@@ -469,6 +500,43 @@ router.get("/", requireAdmin, async (req, res) => {
         created_at: r.created_at,
       }));
 
+    const mapGiftPurchases =
+      (rows) => (rows || []).map((r) => ({
+        ...r,
+        _type: "gift",
+
+        // Sender is the actor / purchaser.
+        user_id:
+          r.sender_user_id,
+
+        amount:
+          Number(r.charm_awarded || 0),
+
+        reason:
+          r.gift_name || "",
+
+        source:
+          r.funding_source || "",
+
+        // Operational history keeps the durable purchase UUID.
+        reference_type:
+          "game_gift_purchase",
+
+        reference_id:
+          r.id,
+
+        transaction_code:
+          r.id,
+
+        status:
+          r.funding_source === "points"
+            ? r.ipos_sync_status
+            : "completed",
+
+        created_at:
+          r.created_at,
+      }));
+
     const mergedLogs = [
       ...(games.data||[]).map(g=>({...g,_type:"game",created_at:g.played_at})),
       ...mapAnalytics(points.data, "points"),
@@ -483,6 +551,7 @@ router.get("/", requireAdmin, async (req, res) => {
       ),
       ...mapAnalytics(profileChanges.data, "profile_change"),
       ...(rewards.data||[]).map(r=>({...r, _type:"reward", created_at:r.claimed_at||r.created_at})),
+      ...mapGiftPurchases(giftPurchases.data),
     ]
     .filter(log => {
       if (!search) return true;
@@ -496,7 +565,10 @@ router.get("/", requireAdmin, async (req, res) => {
         log.reference_type?.toLowerCase().includes(s) ||
         log.reference_id?.toLowerCase().includes(s) ||
         log.reason?.toLowerCase().includes(s) ||
-        log.game_key?.toLowerCase().includes(s)
+        log.game_key?.toLowerCase().includes(s) ||
+        log.recipient_user_id?.toLowerCase().includes(s) ||
+        log.gift_name?.toLowerCase().includes(s) ||
+        log.sender_message?.toLowerCase().includes(s)
       );
     })
     .sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
