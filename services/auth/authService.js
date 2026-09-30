@@ -73,21 +73,118 @@ async function loginWithZalo({
 }) {
 
   console.log("[AUTH] loginWithZalo body:", JSON.stringify({ zalo_id: zaloUser.zalo_id, has_phone_token: !!zaloUser.phone_token, has_mini_token: !!zaloUser.mini_access_token, has_avatar: !!zaloUser.avatar, avatar_len: (zaloUser.avatar||"").length }));
-  // Decode phone token trước khi upsert customer
-  if (zaloUser.phone_token && (!zaloUser.phone || zaloUser.phone === "pending")) {
-    const phone = await decodePhoneToken({
-      phoneToken:      zaloUser.phone_token       || "",
-      miniAccessToken: zaloUser.mini_access_token || "",
-    }).catch(() => null);
-    if (phone) {
-      zaloUser.phone = phone;
-      console.log("[AUTH] Phone decoded before upsert:", phone);
+
+  /*
+   * Authentication identity boundary.
+   *
+   * Fresh Zalo phone proof:
+   *   - always decode the proof;
+   *   - a caller-supplied phone may never disagree with the
+   *     backend-verified Zalo phone.
+   *
+   * Cached-member compatibility:
+   *   - cached phone + Zalo ID may only reuse an already-existing
+   *     canonical customer/player binding;
+   *   - this path may never create or rewrite identity binding.
+   *
+   * Both checks run before customer mutation
+   * and therefore before JWT issuance.
+   */
+  const zaloId =
+    String(
+      zaloUser.zalo_id ||
+      zaloUser.id ||
+      ""
+    ).trim();
+
+  const presentedPhone =
+    normalizePhone(
+      zaloUser.phone || ""
+    );
+
+  const hasFreshPhoneProof =
+    Boolean(
+      zaloUser.phone_token &&
+      zaloUser.mini_access_token
+    );
+
+  if (hasFreshPhoneProof) {
+    const verifiedPhone =
+      normalizePhone(
+        await decodePhoneToken({
+          phoneToken:
+            zaloUser.phone_token || "",
+          miniAccessToken:
+            zaloUser.mini_access_token || "",
+        }).catch(() => null)
+      );
+
+    if (
+      !verifiedPhone ||
+      verifiedPhone.length < 9
+    ) {
+      throw new AppError({
+        statusCode: 401,
+        code: "INVALID_ZALO_PHONE_PROOF",
+        message:
+          "Không thể xác minh số điện thoại Zalo",
+      });
     }
+
+    if (
+      presentedPhone &&
+      presentedPhone !== verifiedPhone
+    ) {
+      throw new AppError({
+        statusCode: 401,
+        code: "ZALO_PHONE_IDENTITY_MISMATCH",
+        message:
+          "Thông tin tài khoản Zalo không khớp",
+      });
+    }
+
+    zaloUser.phone = verifiedPhone;
+  } else if (presentedPhone) {
+    if (!zaloId) {
+      throw new AppError({
+        statusCode: 401,
+        code: "CACHED_MEMBER_IDENTITY_REQUIRED",
+        message:
+          "Không thể xác minh tài khoản thành viên",
+      });
+    }
+
+    const {
+      resolveCanonicalCachedMember,
+    } = require(
+      "../campaign/cachedMemberAppOpenService"
+    );
+
+    const canonicalCachedMember =
+      await resolveCanonicalCachedMember({
+        phone: presentedPhone,
+        zaloUserId: zaloId,
+      });
+
+    if (!canonicalCachedMember) {
+      throw new AppError({
+        statusCode: 401,
+        code: "CACHED_MEMBER_IDENTITY_MISMATCH",
+        message:
+          "Thông tin thành viên đã lưu không khớp tài khoản Zalo hiện tại",
+      });
+    }
+
+    /*
+     * Canonical server-side result wins.
+     * Never let a raw cached frontend phone establish a new binding.
+     */
+    zaloUser.phone =
+      canonicalCachedMember.phone;
   }
 
   // Lấy tên/avatar từ Zalo OA trước khi upsert customer/iPOS.
   // Nếu frontend không trả được getUserInfo, backend vẫn không để user mới bị ghi là "Khách hàng".
-  const zaloId = zaloUser.zalo_id || zaloUser.id || "";
   if (!cleanDisplayName(zaloUser.name) && zaloId) {
     try {
       const { data: cfg } = await require("../../supabase")
