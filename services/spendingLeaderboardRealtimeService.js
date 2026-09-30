@@ -1,3 +1,6 @@
+const {
+  enrichLeaderboardRowsWithBadges,
+} = require("./leaderboardBadgeProjectionService");
 const { realtimeEventBus } = require("./realtime/realtimeEventBus");
 const { getTopSpenders } = require("./leaderboardService");
 
@@ -23,7 +26,13 @@ async function emitSpendingLeaderboardUpdates({
 
   for (const period of safePeriods) {
     try {
-      const leaderboard = await getTopSpenders({ period, limit: 100 });
+      const leaderboard =
+        await enrichLeaderboardRowsWithBadges(
+          await getTopSpenders({
+            period,
+            limit:10,
+          })
+        );
 
       realtimeEventBus.publish({
         event: "leaderboard.updated",

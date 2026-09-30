@@ -1,4 +1,7 @@
 const {
+  enrichLeaderboardRowsWithBadges,
+} = require("../../leaderboardBadgeProjectionService");
+const {
 
   REALTIME_EVENTS,
 
@@ -26,6 +29,13 @@ async function emitLeaderboardUpdate({
   highscore_changed = false,
 
 }) {
+
+  const publicLeaderboard =
+    await enrichLeaderboardRowsWithBadges(
+      Array.isArray(leaderboard)
+        ? leaderboard.slice(0, 10)
+        : []
+    );
 
   return realtimeEventBus.publish({
 
@@ -64,7 +74,7 @@ async function emitLeaderboardUpdate({
 
       highscore_changed,
 
-      leaderboard,
+      leaderboard: publicLeaderboard,
 
       timestamp:
         new Date().toISOString(),

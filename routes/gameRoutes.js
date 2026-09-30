@@ -1,3 +1,11 @@
+const {
+  enrichLeaderboardRowsWithBadges,
+} = require("../services/leaderboardBadgeProjectionService");
+const authMiddleware = require("../middlewares/authMiddleware");
+const {
+  isLeaderboardSelfRequest,
+  denyLeaderboardCrossUserRead,
+} = require("../utils/leaderboardSelfRankAuthority");
 const express =
   require("express");
 
@@ -255,6 +263,206 @@ router.post("/daily-challenge/claim", async (req, res) => {
 });
 
 // GET /api/game/leaderboard/alltime-games
+
+// GET /api/game/leaderboard/alltime-user-rank/:userId/:gameKey
+// Private exact-rank projection. Public alltime boards remain Top 10 only.
+router.get(
+  "/leaderboard/alltime-user-rank/:userId/:gameKey",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const supabase = require("../supabase");
+
+      const { userId, gameKey } = req.params;
+
+      if (
+        !isLeaderboardSelfRequest(
+          req,
+          userId
+        )
+      ) {
+        return denyLeaderboardCrossUserRead(
+          res
+        );
+      }
+
+      const normalizeId = value =>
+        String(value || "")
+          .replace(/\D/g, "")
+          .replace(/^84/, "0");
+
+      let lookupId = normalizeId(userId);
+
+      const isUUID =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+          .test(String(userId || ""));
+
+      if (isUUID) {
+        const { data: customer } = await supabase
+          .from("customers")
+          .select("phone")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (customer?.phone) {
+          lookupId = normalizeId(customer.phone);
+        }
+      }
+
+      if (!lookupId) {
+        return res.json({
+          success: true,
+          data: { rank:null, total:0, score:0 },
+        });
+      }
+
+      if (
+        gameKey === "chess-wins" ||
+        gameKey === "chess-streak"
+      ) {
+        const { data: chessRows, error } = await supabase
+          .from("chess_stats")
+          .select(
+            "user_id,wins,total_games,best_streak,current_streak"
+          )
+          .limit(5000);
+
+        if (error) throw error;
+
+        const rows = (chessRows || [])
+          .filter(row =>
+            gameKey === "chess-wins"
+              ? Number(row.wins || 0) > 0
+              : Number(row.best_streak || 0) > 0
+          )
+          .sort((a, b) => {
+            const primaryA =
+              gameKey === "chess-wins"
+                ? Number(a.wins || 0)
+                : Number(a.best_streak || 0);
+
+            const primaryB =
+              gameKey === "chess-wins"
+                ? Number(b.wins || 0)
+                : Number(b.best_streak || 0);
+
+            if (primaryB !== primaryA) {
+              return primaryB - primaryA;
+            }
+
+            if (Number(b.wins || 0) !== Number(a.wins || 0)) {
+              return Number(b.wins || 0) - Number(a.wins || 0);
+            }
+
+            return (
+              Number(b.total_games || 0) -
+              Number(a.total_games || 0)
+            );
+          });
+
+        const idx = rows.findIndex(
+          row => normalizeId(row.user_id) === lookupId
+        );
+
+        if (idx < 0) {
+          return res.json({
+            success: true,
+            data: {
+              rank:null,
+              total:rows.length,
+              score:0,
+            },
+          });
+        }
+
+        const row = rows[idx];
+
+        return res.json({
+          success:true,
+          data:{
+            rank:idx + 1,
+            total:rows.length,
+            score:
+              gameKey === "chess-wins"
+                ? Number(row.wins || 0)
+                : Number(row.best_streak || 0),
+          },
+        });
+      }
+
+      const { data: scores, error } = await supabase
+        .from("game_scores")
+        .select("user_id,score,played_at")
+        .eq("game_key", gameKey)
+        .order("score", { ascending:false })
+        .limit(5000);
+
+      if (error) throw error;
+
+      const bestMap = new Map();
+
+      for (const row of scores || []) {
+        const id = normalizeId(row.user_id);
+        if (!id) continue;
+
+        const prev = bestMap.get(id);
+
+        if (
+          !prev ||
+          Number(row.score || 0) > Number(prev.score || 0) ||
+          (
+            Number(row.score || 0) === Number(prev.score || 0) &&
+            new Date(row.played_at).getTime() <
+              new Date(prev.played_at).getTime()
+          )
+        ) {
+          bestMap.set(id, row);
+        }
+      }
+
+      const ranked = [...bestMap.values()].sort((a, b) => {
+        if (Number(b.score || 0) !== Number(a.score || 0)) {
+          return Number(b.score || 0) - Number(a.score || 0);
+        }
+
+        return (
+          new Date(a.played_at).getTime() -
+          new Date(b.played_at).getTime()
+        );
+      });
+
+      const idx = ranked.findIndex(
+        row => normalizeId(row.user_id) === lookupId
+      );
+
+      if (idx < 0) {
+        return res.json({
+          success:true,
+          data:{
+            rank:null,
+            total:ranked.length,
+            score:0,
+          },
+        });
+      }
+
+      res.json({
+        success:true,
+        data:{
+          rank:idx + 1,
+          total:ranked.length,
+          score:Number(ranked[idx].score || 0),
+        },
+      });
+    } catch (e) {
+      res.status(500).json({
+        success:false,
+        error:e.message,
+      });
+    }
+  }
+);
+
 router.get("/leaderboard/alltime-games", async (req, res) => {
   try {
     const supabase = require("../supabase");
@@ -421,7 +629,7 @@ if (
     display_name: gamesConfig["chess"]?.display_name || "Kỳ thủ cờ vua",
     icon: gamesConfig["chess"]?.icon || "♟️",
     score_label: "Số trận thắng",
-    data: chessWinsData.slice(0, 100),
+    data: chessWinsData.slice(0, 10),
   };
 }
 
@@ -437,7 +645,7 @@ if (gameKey === "chess-wins") {
     score_label:
       "Số trận thắng",
     data:
-      chessWinsData.slice(0,100),
+      chessWinsData.slice(0,10),
   };
 }
 
@@ -453,7 +661,7 @@ if (gameKey === "chess-streak") {
     score_label:
       "Chuỗi thắng",
     data:
-      chessStreakData.slice(0,100),
+      chessStreakData.slice(0,10),
   };
 }
       if (!byGame[gameKey]) return null;
@@ -464,12 +672,28 @@ if (gameKey === "chess-streak") {
         score_label:  "Điểm cao nhất",
         data:         Object.values(byGame[gameKey])
           .sort((a, b) => b.score - a.score)
-          .slice(0, 100)
+          .slice(0, 10)
           .map((e, i) => ({ ...e, rank: i + 1 })),
       };
     }).filter(Boolean);
 
-    res.json({ success:true, data:result });
+    const enrichedResult =
+      await Promise.all(
+        (result || []).map(
+          async game => ({
+            ...game,
+            data:
+              await enrichLeaderboardRowsWithBadges(
+                game?.data || []
+              ),
+          })
+        )
+      );
+
+    res.json({
+      success:true,
+      data:enrichedResult,
+    });
   } catch(e) {
     res.status(500).json({ success:false, error:e.message });
   }

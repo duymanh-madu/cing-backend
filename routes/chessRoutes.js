@@ -1,6 +1,14 @@
+const {
+  enrichLeaderboardRowsWithBadges,
+} = require("../services/leaderboardBadgeProjectionService");
 const express  = require("express");
 const router   = express.Router();
 const supabase = require("../supabase");
+const authMiddleware = require("../middlewares/authMiddleware");
+const {
+  isLeaderboardSelfRequest,
+  denyLeaderboardCrossUserRead,
+} = require("../utils/leaderboardSelfRankAuthority");
 
 function resolvePlayerName(player, fallback = "Cing iu") {
   return (
@@ -16,6 +24,132 @@ function normalizeUserId(v) {
 }
 
 // GET /game/chess/leaderboard - BXH 2 phần
+
+// GET /game/chess/leaderboard/user-rank/:userId
+// Private projection: exact viewer rank without exposing ranks 11+ publicly.
+router.get("/leaderboard/user-rank/:userId", authMiddleware, async (req, res) => {
+  try {
+    if (
+      !isLeaderboardSelfRequest(
+        req,
+        req.params.userId
+      )
+    ) {
+      return denyLeaderboardCrossUserRead(
+        res
+      );
+    }
+
+    let lookupId = normalizeUserId(req.params.userId);
+
+    const rawId = String(req.params.userId || "");
+    const isUUID =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        .test(rawId);
+
+    if (isUUID) {
+      const { data: customer } = await supabase
+        .from("customers")
+        .select("phone")
+        .eq("id", rawId)
+        .maybeSingle();
+
+      if (customer?.phone) {
+        lookupId = normalizeUserId(customer.phone);
+      }
+    }
+
+    if (!lookupId) {
+      return res.json({
+        success: true,
+        data: {
+          wins: { rank:null, total:0, score:0 },
+          streak: { rank:null, total:0, score:0 },
+        },
+      });
+    }
+
+    const { data: stats, error } = await supabase
+      .from("chess_stats")
+      .select(
+        "user_id,wins,losses,draws,total_games,best_streak,current_streak"
+      )
+      .limit(5000);
+
+    if (error) throw error;
+
+    const rows = stats || [];
+
+    const winsRows = [...rows]
+      .filter(row => Number(row.wins || 0) > 0)
+      .sort((a, b) => {
+        if (Number(b.wins || 0) !== Number(a.wins || 0)) {
+          return Number(b.wins || 0) - Number(a.wins || 0);
+        }
+        return Number(b.total_games || 0) - Number(a.total_games || 0);
+      });
+
+    const streakRows = [...rows]
+      .filter(row => Number(row.best_streak || 0) > 0)
+      .sort((a, b) => {
+        if (
+          Number(b.best_streak || 0) !==
+          Number(a.best_streak || 0)
+        ) {
+          return (
+            Number(b.best_streak || 0) -
+            Number(a.best_streak || 0)
+          );
+        }
+
+        if (Number(b.wins || 0) !== Number(a.wins || 0)) {
+          return Number(b.wins || 0) - Number(a.wins || 0);
+        }
+
+        return Number(b.total_games || 0) - Number(a.total_games || 0);
+      });
+
+    const project = (ranked, scoreKey) => {
+      const idx = ranked.findIndex(
+        row => normalizeUserId(row.user_id) === lookupId
+      );
+
+      if (idx < 0) {
+        return {
+          rank: null,
+          total: ranked.length,
+          score: 0,
+        };
+      }
+
+      const row = ranked[idx];
+
+      return {
+        rank: idx + 1,
+        total: ranked.length,
+        score: Number(row?.[scoreKey] || 0),
+        wins: Number(row?.wins || 0),
+        total_games: Number(row?.total_games || 0),
+        best_streak: Number(row?.best_streak || 0),
+        current_streak: Number(row?.current_streak || 0),
+      };
+    };
+
+    res.json({
+      success: true,
+      data: {
+        wins: project(winsRows, "wins"),
+        streak: project(streakRows, "best_streak"),
+      },
+    });
+  } catch (e) {
+    res.status(500).json({
+      success: false,
+      error: e.message,
+    });
+  }
+});
+
 router.get("/leaderboard", async (req, res) => {
   try {
     const { data: topWins, error: winsErr } = await supabase
@@ -23,7 +157,7 @@ router.get("/leaderboard", async (req, res) => {
       .select("user_id, wins, losses, draws, total_games")
       .order("wins", { ascending: false })
       .order("total_games", { ascending: false })
-      .limit(100);
+      .limit(10);
 
     if (winsErr) throw winsErr;
 
@@ -33,7 +167,7 @@ router.get("/leaderboard", async (req, res) => {
       .order("best_streak", { ascending: false })
       .order("wins", { ascending: false })
       .order("total_games", { ascending: false })
-      .limit(100);
+      .limit(10);
 
     if (streakErr) throw streakErr;
 
@@ -86,11 +220,19 @@ router.get("/leaderboard", async (req, res) => {
       };
     });
 
+    const [
+      ownedTopWins,
+      ownedTopStreak,
+    ] = await Promise.all([
+      enrichLeaderboardRowsWithBadges(enrichWins),
+      enrichLeaderboardRowsWithBadges(enrichStreak),
+    ]);
+
     res.json({
-      success: true,
-      data: {
-        topWins: enrichWins,
-        topStreak: enrichStreak,
+      success:true,
+      data:{
+        topWins:ownedTopWins,
+        topStreak:ownedTopStreak,
       },
     });
   } catch (e) {

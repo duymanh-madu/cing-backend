@@ -1,3 +1,6 @@
+const {
+  enrichLeaderboardRowsWithBadges,
+} = require("../services/leaderboardBadgeProjectionService");
 const express =
   require("express");
 
@@ -18,6 +21,11 @@ const {
 );
 
 const { normalizePhone } = require("../utils/phoneIdentity");
+const authMiddleware = require("../middlewares/authMiddleware");
+const {
+  isLeaderboardSelfRequest,
+  denyLeaderboardCrossUserRead,
+} = require("../utils/leaderboardSelfRankAuthority");
 
 /**
  * ============================================
@@ -54,7 +62,11 @@ router.get(
     try {
 
       const data =
-        await getGlobalLeaderboard();
+        await enrichLeaderboardRowsWithBadges(
+          await getGlobalLeaderboard({
+            limit:10,
+          })
+        );
 
       res.json({
 
@@ -94,9 +106,19 @@ router.get(
 
     try {
 
-      const { period="all", from, to, limit=100 } = req.query;
+      const { period="all", from, to } = req.query;
 
-        const data = await getTopSpenders({ period, from, to, limit: Number(limit) });
+      // Public contract: only Top 10 is public.
+      // Exact personal rank remains available via /user-rank/:userId.
+      const data =
+        await enrichLeaderboardRowsWithBadges(
+          await getTopSpenders({
+            period,
+            from,
+            to,
+            limit:10,
+          })
+        );
 
       res.json({
 
@@ -158,7 +180,7 @@ router.get(
           .gt(orderCol, 0)
           .order(orderCol, { ascending: false })
           .order("wins", { ascending: false })
-          .limit(100);
+          .limit(10);
 
         if (error) throw error;
 
@@ -196,12 +218,33 @@ router.get(
           };
         });
 
-        return res.json({ success: true, data, rewards });
+        const enrichedData =
+          await enrichLeaderboardRowsWithBadges(
+            data
+          );
+
+        return res.json({
+          success:true,
+          data:enrichedData,
+          rewards,
+        });
       }
 
-      const data = await getGameLeaderboard(gameKey, { weekly: true });
+      const data = await getGameLeaderboard(gameKey, {
+        weekly: true,
+        limit: 10,
+      });
 
-      res.json({ success: true, data, rewards });
+      const enrichedData =
+        await enrichLeaderboardRowsWithBadges(
+          data
+        );
+
+      res.json({
+        success:true,
+        data:enrichedData,
+        rewards,
+      });
 
     } catch (error) {
 
@@ -369,6 +412,7 @@ router.get("/top100/game/:gameKey", async (req, res) => {
 
 router.get(
   "/user-rank/:userId",
+  authMiddleware,
   async (req, res) => {
 
     try {
@@ -376,6 +420,17 @@ router.get(
       const {
         userId,
       } = req.params;
+
+      if (
+        !isLeaderboardSelfRequest(
+          req,
+          userId
+        )
+      ) {
+        return denyLeaderboardCrossUserRead(
+          res
+        );
+      }
 
       const period = req.query.period || "alltime";
       const data =
@@ -409,9 +464,21 @@ router.get(
   }
 );
 
-router.get("/user-game-rank/:userId/:gameKey", async (req, res) => {
+router.get("/user-game-rank/:userId/:gameKey", authMiddleware, async (req, res) => {
   try {
     const { userId, gameKey } = req.params;
+
+    if (
+      !isLeaderboardSelfRequest(
+        req,
+        userId
+      )
+    ) {
+      return denyLeaderboardCrossUserRead(
+        res
+      );
+    }
+
     const supabase = require("../supabase");
 
     // Normalize UUID → phone
