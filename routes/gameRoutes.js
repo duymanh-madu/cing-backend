@@ -487,12 +487,52 @@ router.get("/leaderboard/alltime-games", async (req, res) => {
 
     if (validGames.length === 0) return res.json({ success:true, data:[] });
 
-    const { data } = await supabase
-      .from("game_scores")
-      .select("user_id, player_name, avatar, score, game_key")
-      .in("game_key", validGames)
-      .order("score", { ascending: false })
-      .limit(500);
+    // All Time B2.20: score scales differ between games.
+    // A global Top 500 would exclude low-scale games such as
+    // black-pearl-rush even when historical scores exist.
+    const scoreGameKeys = validGames.filter(
+      key => !["chess", "chess-wins", "chess-streak"].includes(key)
+    );
+
+    const gameScoreGroups = await Promise.all(
+      scoreGameKeys.map(async gameKey => {
+        const rows = [];
+        const players = new Set();
+        const batchSize = 500;
+        const maxRows = 20000;
+
+        for (let offset = 0; offset < maxRows; offset += batchSize) {
+          const { data: page, error } = await supabase
+            .from("game_scores")
+            .select("user_id, player_name, avatar, score, game_key")
+            .eq("game_key", gameKey)
+            .order("score", { ascending: false })
+            .range(offset, offset + batchSize - 1);
+
+          if (error) throw error;
+
+          for (const row of page || []) {
+            rows.push(row);
+            if (row.user_id != null) {
+              players.add(String(row.user_id));
+            }
+          }
+
+          // Preserve the original Top 100 per-game contract.
+          // A partial final page proves the scan is exhausted.
+          if ((page || []).length < batchSize || players.size >= 100) {
+            return rows;
+          }
+        }
+
+        // Never silently publish a truncated leaderboard.
+        throw new Error(
+          "alltime_game_score_scan_cap_reached:" + gameKey
+        );
+      })
+    );
+
+    const data = gameScoreGroups.flat();
 
     // Group by game_key + user_id, lấy best score mỗi user mỗi game
     const byGame = {};
