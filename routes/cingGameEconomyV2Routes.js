@@ -256,6 +256,33 @@ function createCingGameEconomyV2Router({
    * Existing generic Notification Center routes are
    * deliberately not modified by this feature route.
    */
+  /* N09: Read-only sender display names for the authenticated recipient.
+   * Never accept sender identity from the client and never expose phone.
+   */
+  async function withGiftSenderNames(rows) {
+    const senders = [...new Set((rows || [])
+      .map(row => String(row?.metadata?.fromUserId || ""))
+      .filter(value => /^0[0-9]{9}$/.test(value)))];
+    if (!senders.length) return rows || [];
+    const { data: players, error } = await supabase
+      .from("players")
+      .select("user_id, display_name, zalo_name, name")
+      .in("user_id", senders);
+    if (error) return rows || [];
+    const names = new Map((players || []).map(player => [
+      String(player.user_id),
+      [player.display_name, player.zalo_name, player.name]
+        .find(value => typeof value === "string" && value.trim())?.trim() || null,
+    ]));
+    return (rows || []).map(row => {
+      const name = names.get(String(row?.metadata?.fromUserId || ""));
+      return name ? {
+        ...row,
+        metadata: { ...row.metadata, fromName: name },
+      } : row;
+    });
+  }
+
   router.get(
     "/gifts/notifications",
     authMiddleware,
@@ -273,7 +300,22 @@ function createCingGameEconomyV2Router({
           });
         }
 
-        const { data, error } = await supabase
+        // N13: Preserve the original latest-50 history response.
+        // Background recovery can request contiguous ID pages after a cursor.
+        const rawAfter = req.query?.after_id;
+        const incremental = rawAfter !== undefined;
+        if (incremental && (
+          typeof rawAfter !== "string" ||
+          !/^(0|[1-9][0-9]{0,18})$/.test(rawAfter) ||
+          BigInt(rawAfter) > 9223372036854775807n
+        )) {
+          return res.status(400).json({
+            success: false,
+            code: "GAME_GIFT_CURSOR_INVALID",
+          });
+        }
+
+        let query = supabase
           .from("notifications")
           .select(
             "id, type, title, message, metadata, is_read, created_at"
@@ -282,11 +324,18 @@ function createCingGameEconomyV2Router({
           .eq("type", "gift_received")
           .contains("metadata", {
             source: "cing_game_gift_purchase_v1",
-          })
-          .order("created_at", {
+          });
+
+        if (incremental) {
+          query = query.gt("id", rawAfter).order("id", {
+            ascending: true,
+          });
+        } else {
+          query = query.order("created_at", {
             ascending: false,
-          })
-          .limit(50);
+          });
+        }
+        const { data, error } = await query.limit(50);
 
         if (error) {
           throw error;
@@ -294,7 +343,7 @@ function createCingGameEconomyV2Router({
 
         return res.json({
           success: true,
-          data: data || [],
+          data: await withGiftSenderNames(data || []),
         });
       } catch (error) {
         return respondError(res, error);
