@@ -6,6 +6,7 @@ const router =
   express.Router();
 
   const crmSyncRoutes = require("./crmSyncRoutes");
+router.use('/admin/plaza',require('./adminPlazaRoutesV7'));
 router.use("/crm", crmSyncRoutes);
 
 /**
