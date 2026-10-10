@@ -1,0 +1,15 @@
+"use strict";
+const express=require('express');
+const rateLimit=require('express-rate-limit');
+const auth=require('../middlewares/authMiddleware');
+const service=require('../services/plaza/plazaSocialServiceV16').createPlazaSocialServiceV16({supabase:require('../supabase')});
+const router=express.Router();
+router.use(auth,rateLimit({windowMs:60000,limit:120,standardHeaders:'draft-7',legacyHeaders:false,keyGenerator:req=>String(req.customer.id),handler:(_,res)=>res.status(429).json({success:false,code:'PLAZA_RATE_LIMITED'})}));
+const endpoint=work=>async(req,res)=>{try{res.json({success:true,data:await work(req)});}catch(error){res.status(error.statusCode||500).json({success:false,code:/^PLAZA_[A-Z_]+$/.test(error.code||'')?error.code:'PLAZA_SOCIAL_UNAVAILABLE'});}};
+router.get('/overview',endpoint(req=>service.overview(req.customer)));
+router.get('/profile/:memberId',endpoint(req=>service.profile(req.customer,req.params.memberId)));
+router.get('/feed',endpoint(req=>service.feed(req.customer)));
+router.post('/command',endpoint(req=>service.command(req.customer,req.body)));
+router.put('/avatar/:commandId',rateLimit({windowMs:60000,limit:3,keyGenerator:req=>String(req.customer.id),standardHeaders:'draft-7',legacyHeaders:false}),express.raw({type:'image/jpeg',limit:'256kb'}),endpoint(req=>service.upload(req.customer,req.params.commandId,req.body)));
+router.use((error,req,res,next)=>{if(error.type==='entity.too.large')return res.status(413).json({success:false,code:'PLAZA_INVALID_AVATAR'});next(error);});
+module.exports=router;

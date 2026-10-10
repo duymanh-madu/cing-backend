@@ -26,6 +26,18 @@ router.get("/", requireAdmin, async (req, res) => {
         off + lim + 1
       );
     const needAll     = filter === "all";
+    if (filter === "plaza") {
+      const reader=require('../services/plaza/plazaActivityReadV16').createPlazaActivityReadV16({supabase});
+      return res.json(await reader.read(req.admin,{page,limit,search}));
+    }
+    let plazaLogs=[];
+    if(needAll && process.env.CING_PLAZA_SOCIAL_ENABLED==='true'){
+      const reader=require('../services/plaza/plazaActivityReadV16').createPlazaActivityReadV16({supabase});
+      let permitted=true;try{await reader.authorize(req.admin);}catch(error){if(error.statusCode===403)permitted=false;else throw error;}
+      if(permitted){const result=await supabase.from('cing_plaza_activity_v16').select('id,member_id,event_name,room_name,details,created_at').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(fetchWindow);
+      if(result.error)throw new Error('Không thể đọc nhật ký Cing Plaza');
+      plazaLogs=(result.data||[]).map(r=>({...r,_type:'plaza',user_id:r.member_id,reason:r.event_name}));}
+    }
 
     /*
      * Canonical Revive Credit audit path.
@@ -538,6 +550,7 @@ router.get("/", requireAdmin, async (req, res) => {
       }));
 
     const mergedLogs = [
+      ...plazaLogs,
       ...(games.data||[]).map(g=>({...g,_type:"game",created_at:g.played_at})),
       ...mapAnalytics(points.data, "points"),
       ...mapReviveCredits(reviveCredits.data),
@@ -591,7 +604,7 @@ router.get("/", requireAdmin, async (req, res) => {
       has_more:hasMore,
     });
   } catch(err) {
-    res.status(500).json({ success:false, error:err.message });
+    res.status(err.statusCode||500).json({ success:false, error:err.message });
   }
 });
 

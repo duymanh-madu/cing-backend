@@ -7,6 +7,7 @@ const router =
 
   const crmSyncRoutes = require("./crmSyncRoutes");
 router.use('/admin/plaza',require('./adminPlazaRoutesV7'));
+router.use('/plaza/social', require('./plazaSocialRoutesV16'));
 router.use("/crm", crmSyncRoutes);
 
 /**
