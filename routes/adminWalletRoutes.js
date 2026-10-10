@@ -76,5 +76,26 @@ router.get(
   getSummary
 );
 
+router.get(
+  "/coin-report",
+  requirePanelPermission("wallet.reporting.read"),
+  async (req,res)=>{
+    try{
+      const {readCoinReport}=require(
+        "../services/plaza/plazaCoinAdminReportV17"
+      );
+      res.json({success:true,data:await readCoinReport(req.query)});
+    }catch(error){
+      const status=error.statusCode===400?400:503;
+      res.status(status).json({
+        success:false,
+        code:status===400
+          ?error.message
+          :"PLAZA_COIN_REPORT_UNAVAILABLE"
+      });
+    }
+  }
+);
+
 module.exports =
   router;

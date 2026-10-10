@@ -11,7 +11,7 @@ function jpegSize(buffer){
  if(!Buffer.isBuffer(buffer)||buffer.length<12||buffer.length>262144||buffer.readUInt16BE(0)!==0xffd8||buffer.readUInt16BE(buffer.length-2)!==0xffd9)fail('PLAZA_INVALID_AVATAR');
  let i=2;
  while(i+4<buffer.length){if(buffer[i++]!==255)fail('PLAZA_INVALID_AVATAR');while(buffer[i]===255)i++;const marker=buffer[i++];if(marker===0xda||marker===0xd9)break;if(marker===0xd8||marker===1||marker>=0xd0&&marker<=0xd7)continue;const length=buffer.readUInt16BE(i);if(length<2||i+length>buffer.length)fail('PLAZA_INVALID_AVATAR');
-  if([0xc0,0xc1,0xc2].includes(marker)){if(length<8)fail('PLAZA_INVALID_AVATAR');const height=buffer.readUInt16BE(i+3),width=buffer.readUInt16BE(i+5);if(width<1||height<1||width>512||height>512)fail('PLAZA_INVALID_AVATAR');return {width,height};}i+=length;
+  if([0xc0,0xc1,0xc2].includes(marker)){if(length<8)fail('PLAZA_INVALID_AVATAR');const height=buffer.readUInt16BE(i+3),width=buffer.readUInt16BE(i+5);if(width<1||height<1||width>1024||height>1024)fail('PLAZA_INVALID_AVATAR');return {width,height};}i+=length;
  }fail('PLAZA_INVALID_AVATAR');
 }
 function createPlazaSocialServiceV16({supabase,enabled=()=>process.env.CING_PLAZA_SOCIAL_ENABLED==='true',commerceEnabled=()=>process.env.CING_PLAZA_COMMERCE_ENABLED==='true'}){
@@ -80,7 +80,19 @@ function createPlazaSocialServiceV16({supabase,enabled=()=>process.env.CING_PLAZ
   return {world:(checked(world)||[]).reverse().map(map),pm:(checked(pm)||[]).reverse().map(map)};
  }
  async function upload(customer,id,buffer){
-  const a=await actor(customer);if(!UUID.test(id||''))fail('PLAZA_INVALID_REQUEST');jpegSize(buffer);try{const decoded=jpeg.decode(buffer,{useTArray:true,tolerantDecoding:false,maxResolutionInMP:1,maxMemoryUsageInMB:32});buffer=jpeg.encode({width:decoded.width,height:decoded.height,data:decoded.data},82).data;if(buffer.length>262144)fail('PLAZA_INVALID_AVATAR');}catch{fail('PLAZA_INVALID_AVATAR');}const key=a.memberId+'/'+id+'.jpg';
+  const a=await actor(customer);if(!UUID.test(id||''))fail('PLAZA_INVALID_REQUEST');jpegSize(buffer);try{const decoded=jpeg.decode(buffer,{useTArray:true,tolerantDecoding:false,maxResolutionInMP:2,maxMemoryUsageInMB:48});{
+      let encoded=null;
+      for(const quality of [82,70,58,46,34,25]){
+        encoded=jpeg.encode({
+          width:decoded.width,
+          height:decoded.height,
+          data:decoded.data
+        },quality).data;
+        if(encoded.length<=262144)break;
+      }
+      if(!encoded||encoded.length>262144)fail('PLAZA_INVALID_AVATAR');
+      buffer=encoded;
+    }}catch{fail('PLAZA_INVALID_AVATAR');}const key=a.memberId+'/'+id+'.jpg';
   const uploaded=await supabase.storage.from(BUCKET).upload(key,buffer,{contentType:'image/jpeg',upsert:false,cacheControl:'3600'});
   if(uploaded.error){if(!['409','400'].includes(String(uploaded.error.statusCode)))fail('PLAZA_AVATAR_UPLOAD_FAILED',503);const existing=checked(await supabase.storage.from(BUCKET).download(key));const bytes=Buffer.from(await existing.arrayBuffer());if(!createHash('sha256').update(bytes).digest().equals(createHash('sha256').update(buffer).digest()))fail('PLAZA_COMMAND_CONFLICT');}
   return {avatarCommandId:id};
