@@ -35,7 +35,19 @@ function createPlazaSocialServiceV16({supabase,enabled=()=>process.env.CING_PLAZ
   const row=checked(await supabase.from('cing_plaza_social_profiles_v16').select('bio,avatar_key,revision,updated_at').eq('member_id',memberId).maybeSingle());
   const identity=await titles.read({memberId,playerId,displayName:p.display_name||p.zalo_name||c.name||'Cing iu'});
   let avatarUrl=null;if(row?.avatar_key){const result=await supabase.storage.from(BUCKET).createSignedUrl(row.avatar_key,600);avatarUrl=checked(result)?.signedUrl||null;}
-  return {memberId,displayName:identity.displayName,character:character.character,bio:row?.bio||'',revision:row?.revision||1,avatarUrl,selectedBadge:identity.selectedBadge,ownedBadges:identity.ownedBadges};
+  const equipped=process.env.CING_PLAZA_APPEARANCE_ENABLED==='true'?checked(await supabase.from('cing_plaza_appearance_equipped_v27').select('slot,item_id').eq('member_id',memberId)):[];
+  return {appearance:Object.fromEntries((equipped||[]).map(x=>[x.slot,x.item_id])),memberId,displayName:identity.displayName,character:character.character,bio:row?.bio||'',revision:row?.revision||1,avatarUrl,selectedBadge:identity.selectedBadge,ownedBadges:identity.ownedBadges};
+ }
+ async function appearance(memberId){
+  if(process.env.CING_PLAZA_APPEARANCE_ENABLED!=='true')return {ready:false,catalog:[],owned:[],equipped:{}};
+  const [items,owned,equipped]=await Promise.all([
+   supabase.from('cing_plaza_appearance_items_v27').select('id,slot,label,price_coin,enabled,character,recipe,revision'),
+   supabase.from('cing_plaza_appearance_owned_v27').select('item_id').eq('member_id',memberId),
+   supabase.from('cing_plaza_appearance_equipped_v27').select('slot,item_id').eq('member_id',memberId),
+  ]);
+  // Missing migration disables this feature while preserving existing commerce.
+  if([items,owned,equipped].some(x=>x.error))return {ready:false,catalog:[],owned:[],equipped:{}};
+  return {ready:true,catalog:items.data.map(x=>({id:x.id,slot:x.slot,label:x.label,priceCoin:Number(x.price_coin),enabled:x.enabled,character:x.character,recipe:x.recipe})),owned:owned.data.map(x=>x.item_id),equipped:Object.fromEntries(equipped.data.map(x=>[x.slot,x.item_id]))};
  }
  async function overview(customer){
   const a=await actor(customer);
@@ -47,14 +59,16 @@ function createPlazaSocialServiceV16({supabase,enabled=()=>process.env.CING_PLAZ
   const profiles=customers.length?checked(await supabase.from('players').select('user_id,display_name,zalo_name').in('user_id',customers.map(c=>normalizePhone(c.phone)))):[];
   const playerNames=new Map((profiles||[]).map(p=>[p.user_id,p.display_name||p.zalo_name]));
   const names=new Map(customers.map(r=>[r.id,playerNames.get(normalizePhone(r.phone))||r.name||'Cing iu']));
-  return {profile:own,coinBalance:Number(checked(coins)?.balance||0),loudspeakers:Number(coins.data?.loudspeakers||0),walletBalance:Number(checked(wallet)?.balance||0),vndPerCoin:1000,loudspeakerPrice:3,commerceEnabled:commerceEnabled(),friends:friendships.map(r=>{const peerId=r.low_id===a.memberId?r.high_id:r.low_id;return {peerId,displayName:names.get(peerId)||'Cing iu',status:r.status,incoming:r.requester_id!==a.memberId};}),blocked:blocked.map(r=>({peerId:r.blocked_id,displayName:names.get(r.blocked_id)||'Cing iu'}))};
+  return {appearance:await appearance(a.memberId),profile:own,coinBalance:Number(checked(coins)?.balance||0),loudspeakers:Number(coins.data?.loudspeakers||0),walletBalance:Number(checked(wallet)?.balance||0),vndPerCoin:1000,loudspeakerPrice:3,commerceEnabled:commerceEnabled(),friends:friendships.map(r=>{const peerId=r.low_id===a.memberId?r.high_id:r.low_id;return {peerId,displayName:names.get(peerId)||'Cing iu',status:r.status,incoming:r.requester_id!==a.memberId};}),blocked:blocked.map(r=>({peerId:r.blocked_id,displayName:names.get(r.blocked_id)||'Cing iu'}))};
  }
  async function command(customer,input){
   const a=await actor(customer),op=input?.operation,id=input?.commandId;
   if(!UUID.test(id||''))fail('PLAZA_INVALID_REQUEST');
-  const allowed=['convert','buy_loudspeaker','use_loudspeaker','pm','friend_request','friend_accept','friend_remove','block','unblock','profile'];
+  const allowed=['buy_appearance','equip_appearance','convert','buy_loudspeaker','use_loudspeaker','pm','friend_request','friend_accept','friend_remove','block','unblock','profile'];
   if(!allowed.includes(op))fail('PLAZA_INVALID_OPERATION');
-  if(['convert','buy_loudspeaker','use_loudspeaker'].includes(op)&&!commerceEnabled())fail('PLAZA_COMMERCE_UNAVAILABLE',503);
+  if(['buy_appearance','convert','buy_loudspeaker','use_loudspeaker'].includes(op)&&!commerceEnabled())fail('PLAZA_COMMERCE_UNAVAILABLE',503);
+  if(['buy_appearance','equip_appearance'].includes(op)&&process.env.CING_PLAZA_APPEARANCE_ENABLED!=='true')fail('PLAZA_APPEARANCE_UNAVAILABLE',503);
+  if(['buy_appearance','equip_appearance'].includes(op)&&!(typeof input.itemId==='string'&&/^[a-z0-9_]{1,64}$/.test(input.itemId)))fail('PLAZA_INVALID_ITEM');
   let payload={};
   if(['convert','buy_loudspeaker'].includes(op)){if(!Number.isSafeInteger(input.quantity)||input.quantity<1||input.quantity>(op==='convert'?1000000:1000))fail('PLAZA_INVALID_QUANTITY');payload.quantity=input.quantity;}
   if(['friend_request','friend_accept','friend_remove','block','unblock','pm'].includes(op)){if(!UUID.test(input.peerId||'')||input.peerId===a.memberId)fail('PLAZA_INVALID_MEMBER');payload.peerId=input.peerId;}
@@ -71,6 +85,7 @@ function createPlazaSocialServiceV16({supabase,enabled=()=>process.env.CING_PLAZ
    if(typeof input.bio!=='string'||[...input.bio].length>200||!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<1)fail('PLAZA_INVALID_PROFILE');payload={bio:input.bio,expectedRevision:input.expectedRevision};
    if(input.avatarCommandId!==undefined){if(!UUID.test(input.avatarCommandId))fail('PLAZA_INVALID_AVATAR');const key=a.memberId+'/'+input.avatarCommandId+'.jpg';const result=await supabase.storage.from(BUCKET).download(key);checked(result);payload.avatarKey=key;}
   }
+  if(['buy_appearance','equip_appearance'].includes(op))return checked(await supabase.rpc('cing_plaza_appearance_command_v27',{p_member_id:a.memberId,p_command_id:id,p_operation:op,p_item_id:input.itemId}));
   return checked(await supabase.rpc('cing_plaza_social_command_v16',{p_member_id:a.memberId,p_operation:op,p_command_id:id,p_payload:payload}));
  }
  async function feed(customer){
