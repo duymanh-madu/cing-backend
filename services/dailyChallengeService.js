@@ -1,255 +1,84 @@
 const supabase = require("../supabase");
 const { realtimeEventBus } = require("./realtime/realtimeEventBus");
 const { broadcastNotification } = require("./notificationService");
-
+const REVIVAL_GAMES = new Set(["black-pearl-rush", "cing-stack-tower"]);
 
 function todayVN() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
 }
 
-function fallbackChallengeConfig(game_key) {
-  const fallbackByGame = {
-    "black-pearl-rush": {
-      game_key: "black-pearl-rush",
-      challenge_type: "combo",
-      target_value: 100,
-      reward_points: 50,
-      label: "Đạt combo 100 trong game Bay cùng trân châu",
-    },
-    "cing-stack-tower": {
-      game_key: "cing-stack-tower",
-      challenge_type: "combo",
-      target_value: 10,
-      reward_points: 50,
-      label: "Đạt combo x10 game Xếp Tháp Cing",
-    },
-    chess: {
-      game_key: "chess",
-      challenge_type: "wins",
-      target_value: 5,
-      reward_points: 150,
-      label: "Thắng 5 ván game Kỳ thủ cờ vua",
-    },
-  };
-
-  return fallbackByGame[game_key] || fallbackByGame["black-pearl-rush"];
-}
-
-function normalizeChallengeConfig(cfg, game_key) {
-  const fallback = fallbackChallengeConfig(game_key || cfg?.game_key);
-  return {
-    game_key: cfg?.game_key || fallback.game_key,
-    challenge_type: cfg?.challenge_type || fallback.challenge_type,
-    target_value: Number(cfg?.target_value || fallback.target_value),
-    reward_points: Number(cfg?.reward_points || fallback.reward_points),
-    label: cfg?.label || fallback.label,
-    enabled: cfg?.enabled !== false,
-  };
-}
-
-// Lay hoac tao challenge ngay hom nay
-async function getTodayChallenge(game_key = "black-pearl-rush") {
-  const today = todayVN();
-  
-  const { data: existing } = await supabase
-    .from("daily_challenges")
-    .select("*")
-    .eq("challenge_date", today)
-    .eq("game_key", game_key)
-    .maybeSingle();
-
-  if (existing) return existing;
-
-  // V2 Revival: never create from legacy fallback.
-  if (
-    game_key === "black-pearl-rush" ||
-    game_key === "cing-stack-tower"
-  ) {
-    return null;
-  }
-
-  // Đọc config từ DB
-  const { data: cfgRow } = await supabase
-    .from("app_configs")
-    .select("daily_challenge_config")
-    .eq("id", 1)
-    .single();
-
-  const challenges = cfgRow?.daily_challenge_config?.challenges || [];
-  const cfg = normalizeChallengeConfig(
-    challenges.find(c => c.game_key === game_key && c.enabled !== false),
-    game_key
-  );
-
-  // DB UNIQUE(challenge_date, game_key) owns period identity.
-  const payload = {
-    challenge_date: today,
-    game_key: cfg.game_key,
-    challenge_type:
-      cfg.challenge_type || "combo",
-    target_value:
-      cfg.target_value || 100,
-    reward_points:
-      cfg.reward_points || 50,
-    label:
-      cfg.label || null,
-  };
-
-  const {
-    data: created,
-    error: createError,
-  } = await supabase
-    .from("daily_challenges")
-    .insert(payload)
-    .select()
-    .single();
-
-  if (!createError && created) {
-    return created;
-  }
-
-  if (createError?.code === "23505") {
-    const {
-      data: canonical,
-      error: canonicalError,
-    } = await supabase
-      .from("daily_challenges")
-      .select("*")
-      .eq("challenge_date", today)
-      .eq("game_key", cfg.game_key)
-      .single();
-
-    if (canonicalError) {
-      throw canonicalError;
-    }
-
-    return canonical;
-  }
-
-  if (createError) {
-    throw createError;
-  }
-
-  return created;
-}
-
-// Lấy tất cả challenges hôm nay cho tất cả game trong config
-async function getTodayChallenges() {
-  const today = todayVN();
-  const { data: cfgRow } = await supabase.from("app_configs")
+async function readAdminChallenges() {
+  const { data, error } = await supabase.from("app_configs")
     .select("daily_challenge_config").eq("id", 1).single();
-  const challenges = cfgRow?.daily_challenge_config?.challenges || [];
-  const enabled = challenges.filter(c => c.enabled !== false);
-  if (enabled.length === 0) return [];
+  if (error) throw error;
+  const entries = data?.daily_challenge_config?.challenges;
+  if (!Array.isArray(entries)) throw new Error("DAILY_CHALLENGE_CONFIG_INVALID");
+  const seen = new Set();
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry) ||
+        typeof entry.game_key !== "string" || !entry.game_key.trim() ||
+        typeof entry.enabled !== "boolean" || seen.has(entry.game_key)) {
+      throw new Error("DAILY_CHALLENGE_CONFIG_INVALID");
+    }
+    seen.add(entry.game_key);
+    if (entry.enabled && (
+      !["combo", "score", "wins"].includes(entry.challenge_type) ||
+      !Number.isInteger(entry.target_value) || entry.target_value < 1 ||
+      entry.target_value > 1000000 ||
+      !Number.isInteger(entry.reward_points) || entry.reward_points < 1 ||
+      entry.reward_points > 1000000
+    )) throw new Error("DAILY_CHALLENGE_CONFIG_INVALID");
+  }
+  return entries;
+}
 
+async function getTodayChallenge(game_key = "black-pearl-rush") {
+  // Revival creation and reward remain exclusively snapshot-bound.
+  if (REVIVAL_GAMES.has(game_key)) {
+    const entries = await readAdminChallenges();
+    if (!entries.some(c => c.game_key === game_key && c.enabled === true)) return null;
+    const { data, error } = await supabase.from("daily_challenges")
+      .select("*").eq("challenge_date", todayVN()).eq("game_key", game_key).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+  // PostgreSQL reads/locks Admin config before any creation or update.
+  // Missing migration / read error must never fall back to local defaults.
+  const { data, error } = await supabase.rpc("cing_daily_challenge_resolve_admin_v1", {
+    p_game_key: game_key,
+  });
+  if (error) throw error;
+  return data || null;
+}
+
+async function getTodayChallenges() {
+  const entries = await readAdminChallenges();
   const results = [];
-  for (const cfg of enabled) {
-    let challenge = await getTodayChallenge(cfg.game_key);
-    if (challenge) results.push(challenge);
+  for (const entry of entries.filter(c => c.enabled === true)) {
+    const row = await getTodayChallenge(entry.game_key);
+    if (row) results.push(row);
   }
   return results;
 }
 
-// Đồng bộ challenge hôm nay theo config mới, không đụng challenge đã hoàn thành.
 async function syncTodayChallengesFromConfig() {
-  const today = todayVN();
-
-  const { data: cfgRow } = await supabase
-    .from("app_configs")
-    .select("daily_challenge_config")
-    .eq("id", 1)
-    .single();
-
-  const enabled = (cfgRow?.daily_challenge_config?.challenges || [])
-    .filter(c =>
-        c.enabled !== false &&
-        !["black-pearl-rush", "cing-stack-tower"].includes(c.game_key)
-      )
-    .map(c => normalizeChallengeConfig(c, c.game_key));
-
-  const activeGameKeys = enabled.map(c => c.game_key);
+  const entries = await readAdminChallenges();
   const results = [];
-
-  for (const cfg of enabled) {
-    const { data: existing } = await supabase
-      .from("daily_challenges")
-      .select("*")
-      .eq("challenge_date", today)
-      .eq("game_key", cfg.game_key)
-      .maybeSingle();
-
-    const payload = {
-      challenge_date: today,
-      game_key: cfg.game_key,
-      challenge_type: cfg.challenge_type,
-      target_value: cfg.target_value,
-      reward_points: cfg.reward_points,
-      label: cfg.label,
-    };
-
-    if (existing?.completed) {
-      results.push(existing);
-      continue;
-    }
-
-    if (existing) {
-      const { data: updated, error } = await supabase
-        .from("daily_challenges")
-        .update(payload)
-        .eq("id", existing.id)
-        .select()
-        .single();
-      if (error) throw error;
-      results.push(updated);
-    } else {
-      const { data: created, error } = await supabase
-        .from("daily_challenges")
-        .insert(payload)
-        .select()
-        .single();
-      if (error) throw error;
-      results.push(created);
-    }
+  for (const entry of entries.filter(c => c.enabled === true && !REVIVAL_GAMES.has(c.game_key))) {
+    const row = await getTodayChallenge(entry.game_key);
+    if (row) results.push(row);
   }
-
-  const { data: todayRows } = await supabase
-    .from("daily_challenges")
-    .select("id, game_key, completed")
-    .eq("challenge_date", today);
-
-  const staleIds = (todayRows || [])
-    .filter(row =>
-        !row.completed &&
-        !["black-pearl-rush", "cing-stack-tower"].includes(row.game_key) &&
-        !activeGameKeys.includes(row.game_key)
-      )
-    .map(row => row.id);
-
-  if (staleIds.length > 0) {
-    const { error } = await supabase
-      .from("daily_challenges")
-      .delete()
-      .in("id", staleIds);
-    if (error) throw error;
-  }
-
+  // Disabled rows are retained for audit; resolver/claim refuse them.
+  // Do not delete history or reset a previously completed challenge.
   return results;
 }
 
 // Kiem tra combo va claim reward
 async function claimChallengeReward({ user_id, player_name, avatar, combo, score, progress, game_key = "black-pearl-rush" }) {
-  // V2 Revival rewards require finalized-session authority.
-  if (
-    game_key === "black-pearl-rush" ||
-    game_key === "cing-stack-tower"
-  ) {
-    return {
-      success: false,
-      code: "REVIVAL_CHALLENGE_V2_AUTHORITY_REQUIRED",
-      message: "Phần thưởng game được xử lý qua Revival V2",
-    };
+  if (REVIVAL_GAMES.has(game_key)) {
+    return { success: false, code: "REVIVAL_CHALLENGE_V2_AUTHORITY_REQUIRED",
+      message: "Phần thưởng game được xử lý qua Revival V2" };
   }
-
   const challenge = await getTodayChallenge(game_key);
   
   if (!challenge) return { success: false, message: "Không tìm thấy thử thách" };
@@ -313,7 +142,7 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, score
   }
 
   // Broadcast toan server
-  const msg = `🏆 ${player_name} vừa hoàn thành thử thách ngày và nhận +${challenge.reward_points} điểm tích lũy!`;
+  const msg = `🏆 ${player_name} vừa hoàn thành thử thách ngày và nhận +${atomicResult.reward_points} điểm tích lũy!`;
   
   realtimeEventBus.publish({
     event: "challenge.won",
@@ -322,7 +151,7 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, score
       winner_user_id: user_id,
       winner_name:    player_name,
       winner_avatar:  avatar,
-      reward_points:  challenge.reward_points,
+      reward_points:  atomicResult.reward_points,
       message: msg,
       game_key,
     },
@@ -339,14 +168,14 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, score
     payload: {
       notification: {
         title: "🏆 Nhận thưởng thử thách ngày!",
-        message: `Chúc mừng! Bạn nhận được +${challenge.reward_points} điểm tích lũy.`,
+        message: `Chúc mừng! Bạn nhận được +${atomicResult.reward_points} điểm tích lũy.`,
         type: "daily_challenge_reward",
         created_at: new Date().toISOString(),
         delay_if_in_game: true,
       },
       popup: {
         type: "daily_challenge_reward",
-        reward_points: challenge.reward_points,
+        reward_points: atomicResult.reward_points,
         game_key,
         delay_if_in_game: true,
       },
@@ -362,7 +191,7 @@ async function claimChallengeReward({ user_id, player_name, avatar, combo, score
   });
 
   console.log(`[CHALLENGE] Winner: ${player_name} - progress ${progressValue}`);
-  return { success: true, reward_points: challenge.reward_points, message: `Chúc mừng! Bạn nhận được +${challenge.reward_points} điểm!` };
+  return { success: true, reward_points: atomicResult.reward_points, message: `Chúc mừng! Bạn nhận được +${atomicResult.reward_points} điểm!` };
 }
 
 module.exports = { getTodayChallenge, getTodayChallenges, claimChallengeReward, syncTodayChallengesFromConfig };
