@@ -1,0 +1,44 @@
+{
+  "event_id": 11,
+  "event": "sale_manager",
+  "timestamp": "1509702721626",
+  "sale_manager": {
+    "pos_name": "Documentation Test Branch",
+    "pos_type": "ipos_pc",
+    "pos_parent": "KDS_DOC_TEST",
+    "pos_id": 296,
+    "tran_id": "33902",
+    "tran_no": "TA0014",
+    "tran_date": "2017-11-03 16:51:00",
+    "created_at": "2017-11-03 16:52:01",
+    "sale_type": "TA",
+    "items": [
+      {
+        "item_id": "SU04",
+        "item_name": "Món thử nghiệm",
+        "price": 20000,
+        "quantity": 1,
+        "amount": 18000,
+        "discount_amount": 2000
+      },
+      {
+        "item_id": "SU04",
+        "item_name": "Món thử nghiệm",
+        "price": 20000,
+        "quantity": 1,
+        "amount": 18000,
+        "discount_amount": 2000
+      }
+    ],
+    "payment_info": [
+      {
+        "tran_id": "DOC_TEST_PAYMENT",
+        "method_id": "CASH",
+        "name": "CASH",
+        "currency": "VND",
+        "amount": 32400,
+        "trace_no": ""
+      }
+    ]
+  }
+}
