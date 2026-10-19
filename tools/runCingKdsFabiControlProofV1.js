@@ -28,8 +28,8 @@ async function main() {
     configurationProvider: async () => ({
       SUPABASE_URL: process.env.SUPABASE_URL,
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      IPOS_TOKEN: process.env.IPOS_TOKEN,
-      IPOS_ACCESS_TOKEN: process.env.IPOS_ACCESS_TOKEN
+      IPOS_TOKEN: process.env.KDS_FABI_AUTHORIZATION,
+      IPOS_ACCESS_TOKEN: process.env.KDS_FABI_ACCESS_TOKEN
     }),
     createSupabaseClient: config =>
       createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY),
