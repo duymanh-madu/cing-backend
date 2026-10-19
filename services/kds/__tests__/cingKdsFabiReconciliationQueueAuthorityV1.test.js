@@ -10,7 +10,7 @@ const fs =
   require("node:fs");
 
 const DB =
-  "db/migrations/20261015110000_cing_kds_fabi_reconciliation_queue_v1.sql";
+  "docs/kds/draft-migrations/r1-original/20261015110000_cing_kds_fabi_reconciliation_queue_v1.sql";
 
 const SB =
   "docs/kds/draft-migrations/r1-original/20261015110000_cing_kds_fabi_reconciliation_queue_v1.sql";

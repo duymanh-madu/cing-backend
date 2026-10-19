@@ -348,7 +348,7 @@ test(
   () => {
     const db =
       fs.readFileSync(
-        "db/migrations/20261015090000_cing_kds_fabi_c04_event_inbox_v1.sql",
+        "docs/kds/draft-migrations/r1-original/20261015090000_cing_kds_fabi_c04_event_inbox_v1.sql",
         "utf8"
       );
 

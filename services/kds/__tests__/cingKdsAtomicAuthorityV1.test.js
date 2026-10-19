@@ -10,7 +10,7 @@ const root = path.resolve(__dirname, "../../..");
 const sqlA = fs.readFileSync(
   path.join(
     root,
-    "db/migrations/20261002_cing_kds_atomic_cup_authority_v1.sql"
+    "docs/kds/draft-migrations/r1-original/20261002_cing_kds_atomic_cup_authority_v1.sql"
   ),
   "utf8"
 );
