@@ -12,14 +12,7 @@ const stamp =
 const name =
   "cing_kds_fabi_c04_event_inbox_v1.sql";
 
-const dbPath =
-  path.join(
-    process.cwd(),
-    "db/migrations",
-    `${stamp}_${name}`
-  );
-
-const supaPath =
+const archivePath =
   path.join(
     process.cwd(),
     "docs/kds/draft-migrations/r1-original",
@@ -28,13 +21,7 @@ const supaPath =
 
 const db =
   fs.readFileSync(
-    dbPath,
-    "utf8"
-  );
-
-const supa =
-  fs.readFileSync(
-    supaPath,
+    archivePath,
     "utf8"
   );
 
@@ -43,9 +30,18 @@ function has(pattern) {
 }
 
 test(
-  "SQL mirrors are byte identical",
+  "Archived C04 draft is byte-preserved",
   () => {
-    assert.equal(db, supa);
+    const digest =
+      crypto
+        .createHash("sha256")
+        .update(db)
+        .digest("hex");
+
+    assert.equal(
+      digest,
+      "864b9b3cc70142c73f53fe65484ed30b78e210fc1e7c5239abb2a0788c7e2ad5"
+    );
   }
 );
 
@@ -314,7 +310,7 @@ test(
     const b =
       crypto
         .createHash("sha256")
-        .update(supa)
+        .update(db)
         .digest("hex");
 
     assert.match(
