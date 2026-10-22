@@ -3,6 +3,7 @@
 require("dotenv").config();
 
 const axios = require("axios");
+const { createKdsFabiIpv4TransportV1 } = require("../services/kds/cingKdsFabiIpv4TransportV1");
 const { createClient } = require("@supabase/supabase-js");
 
 const {
@@ -30,17 +31,7 @@ async function main() {
     createSupabaseClient: config =>
       createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY),
     controlProofDependencies: {
-      requestFn: async ({ method, url, headers, signal }) => {
-        const response = await axios({
-          method,
-          url,
-          headers,
-          signal,
-          timeout: 11_000,
-          validateStatus: () => true
-        });
-        return Object.freeze({ status: response.status, body: response.data, json: response.data });
-      }
+      requestFn: createKdsFabiIpv4TransportV1({ request: axios })
     }
   });
   const result = await launcher.runOnce({
