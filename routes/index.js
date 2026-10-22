@@ -5,6 +5,8 @@ const customerMultiplayerGate = require("../middlewares/customerMultiplayerGate"
 const router =
   express.Router();
 
+router.use("/admin/kds", require("./kdsProductionOperationsRoutesV1"));
+
   const crmSyncRoutes = require("./crmSyncRoutes");
 router.use('/admin/plaza',require('./adminPlazaRoutesV7'));
 router.use('/plaza/social', require('./plazaSocialRoutesV16'));
