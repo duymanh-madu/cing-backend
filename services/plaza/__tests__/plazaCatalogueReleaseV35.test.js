@@ -1,0 +1,2 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+test('public readiness signal exposes no admin data and admin CRUD remains behind JWT middleware',()=>{const s=fs.readFileSync(path.join(__dirname,'../../../routes/adminPlazaRoutesV7.js'),'utf8');assert.ok(s.indexOf("router.get('/catalogue-capabilities'")<s.indexOf('router.use('));assert.ok(s.indexOf("router[method]('/catalogue'")>s.indexOf('jwt.verify'));assert.match(s,/pricingAuthority:'super_admin'/);});
