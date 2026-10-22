@@ -1,5 +1,7 @@
 "use strict";
 
+const { resolveFabiC04TimePolicyV1 } = require("./cingKdsFabiC04ObservedTimePolicyV1");
+
 /*
  * Cing KDS FABi Runtime Composition V1
  *
@@ -138,8 +140,10 @@ function createFabiKdsRuntimeCompositionV1({
   beforeExternalOperation =
     async () => {},
 
-  c04MaxPages = 100
+  c04MaxPages = 100,
+  c04TimeConvention = "legacy"
 } = {}) {
+  const timePolicy = resolveFabiC04TimePolicyV1(c04TimeConvention);
   const c04Http =
     validateHttpClient(
       c04HttpClient,
@@ -276,6 +280,8 @@ function createFabiKdsRuntimeCompositionV1({
    */
   const coordinator =
     createFabiC04IngestCoordinatorV1({
+      normalizeEvent: timePolicy.normalizeEvent,
+      projectState: timePolicy.projectState,
       fetchEvents:
         fetchAdapter.fetchEvents,
 

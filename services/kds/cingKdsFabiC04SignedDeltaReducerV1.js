@@ -278,7 +278,8 @@ function validateNormalizedEvent(
   }
 }
 
-function sortedUniqueEvents(events) {
+function sortedUniqueEvents(events, eventClock) {
+  const clocks = new Map();
   const seen =
     new Set();
 
@@ -299,6 +300,19 @@ function sortedUniqueEvents(events) {
       index
     );
 
+    if (eventClock) {
+      const clock = eventClock(event);
+      if (!clock || typeof clock.epoch_microseconds !== "string" ||
+          !/^\d+$/.test(clock.epoch_microseconds)) {
+        invalid(`events[${index}].clock`, "invalid");
+      }
+      const micros = BigInt(clock.epoch_microseconds);
+      if (micros / 1000n > BigInt(Number.MAX_SAFE_INTEGER)) {
+        invalid(`events[${index}].clock`, "range");
+      }
+      clocks.set(event, micros);
+    }
+
     if (
       seen.has(
         event.event_fingerprint
@@ -316,6 +330,11 @@ function sortedUniqueEvents(events) {
   }
 
   unique.sort((a, b) => {
+    if (eventClock) {
+      const left = clocks.get(a);
+      const right = clocks.get(b);
+      if (left !== right) return left < right ? -1 : 1;
+    }
     const createdDiff =
       Number(a.event_created_at) -
       Number(b.event_created_at);
@@ -344,7 +363,8 @@ function sortedUniqueEvents(events) {
 
   return {
     unique,
-    replayed
+    replayed,
+    clocks
   };
 }
 
@@ -667,7 +687,10 @@ function finalizeLine(
   };
 }
 
-function projectFabiC04StateV1(events) {
+function projectFabiC04StateV1(events, { eventClock = null } = {}) {
+  if (eventClock !== null && typeof eventClock !== "function") {
+    invalid("eventClock", "function_required");
+  }
   requiredArray(
     events,
     "events"
@@ -682,9 +705,10 @@ function projectFabiC04StateV1(events) {
 
   const {
     unique,
-    replayed
+    replayed,
+    clocks
   } =
-    sortedUniqueEvents(events);
+    sortedUniqueEvents(events, eventClock);
 
   if (unique.length === 0) {
     invalid(
@@ -852,13 +876,14 @@ function projectFabiC04StateV1(events) {
       replayed,
 
     first_event_created_at:
-      unique[0]
-        .event_created_at,
+      eventClock
+        ? Number(clocks.get(unique[0]) / 1000n)
+        : unique[0].event_created_at,
 
     last_event_created_at:
-      unique[
-        unique.length - 1
-      ].event_created_at,
+      eventClock
+        ? Number((clocks.get(unique[unique.length - 1]) + 999n) / 1000n)
+        : unique[unique.length - 1].event_created_at,
 
     active_line_count:
       activeLines.length,
@@ -895,6 +920,10 @@ function projectFabiC04StateV1(events) {
         true
     }
   };
+
+  if (eventClock) {
+    state.event_time_basis = "utc_epoch_milliseconds_from_c04_observed_clock_v1";
+  }
 
   const result = {
     ...state,

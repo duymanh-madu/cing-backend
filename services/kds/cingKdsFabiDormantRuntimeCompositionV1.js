@@ -1,5 +1,7 @@
 "use strict";
 
+const { resolveFabiC04TimePolicyV1 } = require("./cingKdsFabiC04ObservedTimePolicyV1");
+
 /*
  * Cing KDS FABi Dormant Runtime Composition V1
  *
@@ -415,8 +417,10 @@ function createFabiKdsDormantRuntimeCompositionV1({
 
   pendingRetryDelaySeconds = 10,
   retryBatchSize = 1,
-  retryLeaseSeconds = 120
+  retryLeaseSeconds = 120,
+  c04TimeConvention = "legacy"
 } = {}) {
+  const timePolicy = resolveFabiC04TimePolicyV1(c04TimeConvention);
   requiredFunction(
     scopeProvider,
     "KDS_DORMANT_SCOPE_PROVIDER_REQUIRED"
@@ -521,7 +525,7 @@ function createFabiKdsDormantRuntimeCompositionV1({
 
         scopeProvider:
           async () =>
-            branch,
+            ({ companyUid: branch.company_uid, brandUid: branch.brand_uid, storeUid: branch.store_uid }),
 
         windowProvider:
           historicalC03WindowProvider
@@ -544,7 +548,7 @@ function createFabiKdsDormantRuntimeCompositionV1({
       loadDurableEvents,
 
       projectState:
-        projectFabiC04StateV1,
+        timePolicy.projectState,
 
       reconcileWithC03:
         reconcileRetryWithC03
@@ -584,6 +588,7 @@ function createFabiKdsDormantRuntimeCompositionV1({
     );
 
     return createFabiKdsRuntimeCompositionV1({
+      c04TimeConvention,
       c04HttpClient,
 
       c04ScopeProvider:
@@ -600,7 +605,7 @@ function createFabiKdsDormantRuntimeCompositionV1({
 
       c03ScopeProvider:
         async () =>
-          branch,
+          ({ companyUid: branch.company_uid, brandUid: branch.brand_uid, storeUid: branch.store_uid }),
 
       c03WindowProvider:
         historicalC03WindowProvider,
