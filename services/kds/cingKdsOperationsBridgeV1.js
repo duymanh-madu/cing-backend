@@ -7,7 +7,7 @@ const HTTP = { KDS_OPS_UNAUTHORIZED:401, KDS_OPS_FORBIDDEN:403,
   KDS_OPS_INVALID_INPUT:400, KDS_OPS_VERSION_CONFLICT:409,
   KDS_OPS_IDEMPOTENCY_CONFLICT:409, KDS_OPS_TRANSITION_CONFLICT:409,
   KDS_OPS_READ_DISABLED:423, KDS_OPS_WRITES_DISABLED:423,
-  KDS_OPS_POLICY_REQUIRED:423, KDS_OPS_SNAPSHOT_LIMIT:503 };
+  KDS_OPS_POLICY_REQUIRED:423, KDS_OPS_SOURCE_STALE:503, KDS_OPS_SNAPSHOT_LIMIT:503 };
 function error(code) { return Object.assign(new Error(code), { code }); }
 function createKdsOperationsBridgeV1({ rpc, verifyToken, clock = () => new Date().toISOString() }) {
   if (typeof rpc !== "function" || typeof verifyToken !== "function") throw error("KDS_OPS_DEPENDENCY_REQUIRED");
@@ -76,7 +76,7 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, clock = () => new Date(
       preparation:read.preparation_queue.map(decorate), serving:read.serving_queue.map(decorate),
       group_counts:read.group_counts, history:report.completed_history.map(row=>({...row,tran_no:data.orders.find(o=>o.id===row.order_id)?.tran_no || ""})),
       alerts:report.active_alert_candidates, performance:report.branches,
-      history_range:data.history_range, source_status:"canonical_database_snapshot" };
+      history_range:data.history_range, source_health:data.source_health || null, source_status:"canonical_database_snapshot" };
   }
   function handler(operation) {
     return async (req, res) => {

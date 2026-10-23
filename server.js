@@ -1356,3 +1356,17 @@ try {
     e.message
   );
 }
+
+
+// C03 paid pipeline: default OFF. Separate DB control is also required.
+if (process.env.KDS_C03_PAID_WORKER_ENABLED === "true") {
+  try {
+    const {createC03PaidProductionWorkerV1} = require("./services/kds/cingKdsC03PaidBootstrapV1");
+    const kdsPaidWorker = createC03PaidProductionWorkerV1();
+    kdsPaidWorker.start();
+    process.once("SIGTERM", () => { void kdsPaidWorker.close(); });
+    process.once("SIGINT", () => { void kdsPaidWorker.close(); });
+  } catch {
+    console.warn('{"component":"kds_c03_paid","status":"hold","error_code":"KDS_PAID_BOOTSTRAP_FAILED"}');
+  }
+}
