@@ -70,6 +70,8 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
         !Array.isArray(data.orders) || !data.policy || !data.capabilities) throw error("KDS_OPS_UNAVAILABLE");
     for (const order of data.orders) if (order.pos_parent !== branch.pos_parent || String(order.pos_id) !== branch.pos_id)
       throw error("KDS_OPS_UNAVAILABLE");
+    const canReport=data.capabilities.can_report === true;
+    if(!canReport && (durationMin !== null || durationMax !== null))throw error("KDS_OPS_FORBIDDEN");
     const now = clock();
     const read = buildOperationsReadModel({ orders:data.orders, now,
       warningMinutes:data.policy.warning_minutes, criticalMinutes:data.policy.critical_minutes });
@@ -83,15 +85,15 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
     }
     return { success:true, branch, sampled_at:data.sampled_at, policy:data.policy,
       capabilities:{transitions_enabled:data.capabilities.transitions_enabled === true,
-        can_prepare:data.capabilities.can_prepare !== false,can_serve:data.capabilities.can_serve !== false},
+        can_report:canReport,can_prepare:data.capabilities.can_prepare !== false,can_serve:data.capabilities.can_serve !== false},
       preparation:read.preparation_queue.map(decorate), serving:read.serving_queue.map(decorate),
       bills:data.orders.filter(order=>order.cups.some(c=>c.status!=="served")).map(order=>({
         order_id:order.id,tran_no:order.tran_no || "",table_name:order.table_name || "",card_number:order.card_number || "",
         cups:order.cups.map(cup=>({cup_id:cup.id,status:cup.status,item_name:cup.item_name,item_group:cup.item_group,version:cup.version}))
       })),
-      group_counts:read.group_counts, history:report.completed_history.map(row=>({...row,tran_no:data.orders.find(o=>o.id===row.order_id)?.tran_no || ""})),
-      alerts:report.active_alert_candidates, performance:report.branches,
-      history_range:data.history_range,duration_filter:{minimum:durationMin,maximum:durationMax}, source_health:data.source_health || null, source_status:"canonical_database_snapshot" };
+      group_counts:read.group_counts, history:(canReport?report.completed_history:[]).map(row=>({...row,tran_no:data.orders.find(o=>o.id===row.order_id)?.tran_no || ""})),
+      alerts:report.active_alert_candidates, performance:canReport?report.branches:[],
+      history_range:canReport?data.history_range:null,duration_filter:canReport?{minimum:durationMin,maximum:durationMax}:null, source_health:data.source_health || null, source_status:"canonical_database_snapshot" };
   }
   function handler(operation) {
     return async (req, res) => {
