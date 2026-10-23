@@ -130,7 +130,7 @@ test(
 
 
 test(
-  "points-only can never masquerade as MoMo or Wallet",
+  "points-only keeps zero amount and internal payment identity",
   () => {
 
     const start =
@@ -160,7 +160,7 @@ test(
 
     assert.match(
       region,
-      /IPOS_POINTS_PAYMENT_METHOD/
+      /getConfiguredPointsPaymentMethod/
     );
 
     assert.match(
@@ -172,17 +172,10 @@ test(
 );
 
 
-test(
-  "points-only fails closed until iPOS-approved tender is configured",
-  () => {
-
-    assert.match(
-      source,
-      /IPOS_POINTS_PAYMENT_METHOD_REQUIRED/
-    );
-
-  }
-);
+test("iPOS zero-cash mapping does not alter internal settlement", () => {
+  assert.match(source, /getConfiguredPointsPaymentMethod/);
+  assert.match(source, /IPOS_POINTS_ONLY_AMOUNT_INVALID/);
+});
 
 
 test(

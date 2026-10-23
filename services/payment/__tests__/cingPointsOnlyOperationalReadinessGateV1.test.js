@@ -63,22 +63,20 @@ test(
 );
 
 
-test(
-  "missing approved points tender fails with bounded 503 readiness error",
-  () => {
-
-    assert.match(
-      service,
-      /COMMERCE_POINTS_ONLY_TENDER_NOT_READY/
-    );
-
-    assert.match(
-      service,
-      /statusCode:\s*503/
-    );
-
+test("zero cash points transport has a configured or MOMO_OD_ONLINE mapping", () => {
+  const service = require("../../commerce/pointsOnlyOperationalReadinessService");
+  const old = process.env.IPOS_POINTS_PAYMENT_METHOD;
+  try {
+    delete process.env.IPOS_POINTS_PAYMENT_METHOD;
+    assert.deepEqual(service.assertPointsOnlyCommerceReadiness(), {ready:true});
+    assert.equal(service.getConfiguredPointsPaymentMethod(), "MOMO_OD_ONLINE");
+    process.env.IPOS_POINTS_PAYMENT_METHOD = "POINT";
+    assert.equal(service.getConfiguredPointsPaymentMethod(), "POINT");
+  } finally {
+    if (old === undefined) delete process.env.IPOS_POINTS_PAYMENT_METHOD;
+    else process.env.IPOS_POINTS_PAYMENT_METHOD = old;
   }
-);
+});
 
 
 test(

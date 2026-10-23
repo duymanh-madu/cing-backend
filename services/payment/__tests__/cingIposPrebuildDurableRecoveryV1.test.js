@@ -230,7 +230,7 @@ test(
 
 
 test(
-  "points-only still never masquerades as Wallet or MoMo",
+  "points-only keeps internal loyalty identity with zero cash",
   () => {
 
     const pointsStart =
@@ -260,7 +260,7 @@ test(
 
     assert.match(
       region,
-      /IPOS_POINTS_PAYMENT_METHOD/
+      /getConfiguredPointsPaymentMethod/
     );
 
     assert.match(
@@ -322,7 +322,7 @@ test(
 
     assert.equal(
       logIdUses.length,
-      2
+      3
     );
 
   }

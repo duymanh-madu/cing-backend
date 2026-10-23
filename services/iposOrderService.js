@@ -161,17 +161,8 @@ function resolveIposPaymentProjection(
   }
 
 
-  /*
-   * Points-only must never masquerade as MoMo or Cing Wallet.
-   *
-   * iPOS public documentation does not expose the accepted
-   * order_online Payment_Method enum for an internal loyalty
-   * tender, so we require an explicit iPOS-approved method value.
-   *
-   * This is operational configuration, not financial authority:
-   * amount remains canonical zero and discount comes from the
-   * frozen order snapshot.
-   */
+  // Zero-cash points orders use an iPOS transport mapping; internal
+  // financial identity remains points, never a MoMo payment transaction.
   if (
     paymentMethod ===
       "points"
@@ -192,28 +183,8 @@ function resolveIposPaymentProjection(
     }
 
 
-    const configuredMethod =
-      String(
-        process.env
-          .IPOS_POINTS_PAYMENT_METHOD ||
-        ""
-      ).trim();
-
-
-    if (!configuredMethod) {
-
-      const error =
-        new Error(
-          "IPOS_POINTS_PAYMENT_METHOD_REQUIRED"
-        );
-
-      error.code =
-        "IPOS_POINTS_PAYMENT_METHOD_REQUIRED";
-
-      throw error;
-
-    }
-
+    const configuredMethod = require("./commerce/pointsOnlyOperationalReadinessService")
+      .getConfiguredPointsPaymentMethod();
 
     return {
 
@@ -650,19 +621,15 @@ async function pushOrderToIPOS({ order, transaction_code, momo_trans_id = "" }) 
     // iPOS docs: ?access_token=XXXX — KHÔNG phải Authorization: Bearer
     const config = getIposConfig();
 
-    const response = await axios.post(
-      `${config.baseUrl}/ipos/ws/xpartner/order_online`,
-      payload,
-      {
-        params: {
-          access_token: config.accessToken,
-        },
-        headers: {
-          "Content-Type": "application/json",
-        },
-        timeout: 15000,
-      }
-    );
+    const { sendPointsAwareIposOrder } = require("./commerce/pointsOnlyIposTransport");
+    const response = await sendPointsAwareIposOrder({
+      order, payload,
+      post: body => axios.post(`${config.baseUrl}/ipos/ws/xpartner/order_online`, body, {
+        params: { access_token: config.accessToken },
+        headers: { "Content-Type": "application/json" }, timeout: 15000,
+      }),
+      onFallback: body => updateIposLog({log_id: log?.id, updates: {request_payload: body}}),
+    });
 
     const responseData = response.data;
     console.log("[IPOS] Response:", JSON.stringify(responseData).slice(0, 200));

@@ -40,10 +40,40 @@ function mapTierKey(name) {
   return "member";
 }
 
+// Live balance belongs to the authenticated account, never a supplied phone.
+router.get("/balance/current", require("../middlewares/authMiddleware"), async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
+  try {
+    const { resolveAuthenticatedUserId } = require("../services/games/cingBlockPuzzle/cingBlockPuzzleSessionService");
+    const userId = resolveAuthenticatedUserId(req.customer);
+    const { data, error } = await require("../supabase").from("players")
+      .select("total_points").eq("user_id", userId).maybeSingle();
+    if (error) throw error;
+    if (!data || data.total_points === null || !Number.isSafeInteger(Number(data.total_points)) || Number(data.total_points) < 0) {
+      return res.status(409).json({success:false, code:"LOYALTY_BALANCE_UNAVAILABLE"});
+    }
+    return res.json({success:true, data:{phone:userId, points:Number(data.total_points)}});
+  } catch (error) {
+    return res.status(error.statusCode || 503).json({success:false, code:"LOYALTY_BALANCE_UNAVAILABLE"});
+  }
+});
+
+async function overlayCurrentBalance(memberData, phone) {
+  const { data, error } = await require("../supabase").from("players")
+    .select("total_points").eq("user_id", phone).maybeSingle();
+  if (error) throw error;
+  if (data && Number.isSafeInteger(Number(data.total_points)) && Number(data.total_points) >= 0) {
+    return {...memberData, points:Number(data.total_points)};
+  }
+  return memberData;
+}
+
 // GET /api/membership/:phone
 router.get("/:phone", async (req, res) => {
   try {
-    const phone = (req.params.phone || "").replace(/\D/g, "");
+    const digits = (req.params.phone || "").replace(/\D/g, "");
+    const phone = digits.startsWith("84") ? "0" + digits.slice(2) : digits;
+    res.set("Cache-Control", "private, no-store");
     if (!phone) return res.status(400).json({ success: false, message: "Thiếu phone" });
 
     const cacheKey = `membership:${phone}`;
@@ -51,7 +81,7 @@ router.get("/:phone", async (req, res) => {
     // 1. Check Redis cache truoc
     const cached = await redisClient.get(cacheKey);
     if (cached) {
-      const data = JSON.parse(cached);
+      const data = await overlayCurrentBalance(JSON.parse(cached), phone);
       console.log(`[MEMBERSHIP] Cache HIT for ${phone}`);
       return res.json({ success: true, data, source: "cache" });
     }
@@ -257,7 +287,9 @@ router.get("/:phone", async (req, res) => {
 // GET /api/membership/:phone/vouchers
 router.get("/:phone/vouchers", async (req, res) => {
   try {
-    const phone = (req.params.phone || "").replace(/\D/g, "");
+    const digits = (req.params.phone || "").replace(/\D/g, "");
+    const phone = digits.startsWith("84") ? "0" + digits.slice(2) : digits;
+    res.set("Cache-Control", "private, no-store");
     const cacheKey = `membership:vouchers:${phone}`;
     
     const cached = await redisClient.get(cacheKey);
@@ -289,7 +321,9 @@ router.get("/:user_id/partner-progress", async (req, res) => {
 // GET /api/membership/:phone/transactions — lịch sử giao dịch cả 2 luồng app + iPOS
 router.get("/:phone/transactions", async (req, res) => {
   try {
-    const phone = (req.params.phone || "").replace(/\D/g, "");
+    const digits = (req.params.phone || "").replace(/\D/g, "");
+    const phone = digits.startsWith("84") ? "0" + digits.slice(2) : digits;
+    res.set("Cache-Control", "private, no-store");
     if (!phone) return res.status(400).json({ success:false, message:"Thiếu số điện thoại" });
 
     const supabase = require("../supabase");
