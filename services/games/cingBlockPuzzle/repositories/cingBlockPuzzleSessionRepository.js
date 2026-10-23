@@ -1,3 +1,4 @@
+const { measureStage } = require("../performance/requestTiming");
 const supabase =
   require("../../../../supabase");
 
@@ -83,7 +84,7 @@ async function getSessionForSubmission(
   const {
     data,
     error,
-  } = await supabase
+  } = await measureStage("session_read", () => supabase
     .from(
       "cing_block_puzzle_sessions"
     )
@@ -112,7 +113,7 @@ async function getSessionForSubmission(
       "id",
       sessionId
     )
-    .maybeSingle();
+    .maybeSingle());
 
   if (error) {
     throw error;
@@ -134,7 +135,7 @@ async function submitSessionAtomic({
   const {
     data,
     error,
-  } = await supabase.rpc(
+  } = await measureStage("transaction", () => supabase.rpc(
     SUBMIT_SESSION_RPC,
     {
       p_session_id:
@@ -161,7 +162,7 @@ async function submitSessionAtomic({
       p_continues_used:
         continuesUsed,
     }
-  );
+  ));
 
   if (error) {
     throw error;

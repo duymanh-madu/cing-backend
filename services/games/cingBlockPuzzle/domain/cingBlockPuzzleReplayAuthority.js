@@ -179,7 +179,7 @@ function assertReplayResourceBound(
   }
 }
 
-async function verifyReplayAuthority({
+async function verifyReplayAuthorityUncached({
   transcript,
   expectedSeed,
   engineVersion,
@@ -324,6 +324,11 @@ async function verifyReplayAuthority({
       fingerprint,
   });
 }
+
+const { createReplayVerificationCache } = require("../performance/replayVerificationCache");
+const { measureStage } = require("../performance/requestTiming");
+const cachedVerifyReplay = createReplayVerificationCache(verifyReplayAuthorityUncached);
+const verifyReplayAuthority = args => measureStage("replay_verify", () => cachedVerifyReplay(args));
 
 module.exports = {
   MAX_REPLAY_MOVES,

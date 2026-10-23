@@ -1,3 +1,4 @@
+const { resolveSessionRead } = require("./performance/requestSessionRead");
 const crypto =
   require("crypto");
 
@@ -195,6 +196,7 @@ async function purchaseGameplayContinue({
   customer,
   sessionId,
   body,
+  sessionRead,
 }) {
   const userId =
     resolveAuthenticatedUserId(
@@ -208,6 +210,7 @@ async function purchaseGameplayContinue({
     });
 
   const rawSession =
+    resolveSessionRead(sessionRead, request.session_id) ||
     await getSessionForSubmission(
       request.session_id
     );

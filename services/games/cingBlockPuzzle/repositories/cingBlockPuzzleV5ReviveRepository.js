@@ -1,3 +1,4 @@
+const { measureStage } = require("../performance/requestTiming");
 const supabase =
   require("../../../../supabase");
 
@@ -15,7 +16,7 @@ async function applyV5ReviveAtomic({
   const {
     data,
     error,
-  } = await supabase.rpc(
+  } = await measureStage("transaction", () => supabase.rpc(
     V5_REVIVE_RPC,
     {
       p_purchase_id:
@@ -36,7 +37,7 @@ async function applyV5ReviveAtomic({
       p_verified_replay_fingerprint:
         verifiedReplayFingerprint,
     }
-  );
+  ));
 
   if (error) {
     throw error;

@@ -1,3 +1,4 @@
+const { resolveSessionRead } = require("./performance/requestSessionRead");
 const crypto =
   require("node:crypto");
 
@@ -162,6 +163,7 @@ async function purchaseV5GameplayRevive({
   customer,
   sessionId,
   body,
+  sessionRead,
 }) {
   const userId =
     resolveAuthenticatedUserId(
@@ -175,6 +177,7 @@ async function purchaseV5GameplayRevive({
     });
 
   const rawSession =
+    resolveSessionRead(sessionRead, request.session_id) ||
     await getSessionForSubmission(
       request.session_id
     );

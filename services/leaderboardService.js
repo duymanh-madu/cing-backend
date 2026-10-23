@@ -51,7 +51,7 @@ function getLastMonday() {
   return new Date(mondayVN.getTime() - 7 * 60 * 60 * 1000).toISOString();
 }
 
-async function getGameLeaderboard(gameKey, { limit = 100, weekly = true, strictPlayerRead = false } = {}) {
+async function getGameLeaderboard(gameKey, { limit = 100, weekly = true, strictPlayerRead = false, weekStart = null } = {}) {
   // Weekly: filter theo played_at >= last Monday (đúng logic BXH tuần)
   let query = supabase
     .from("game_scores")
@@ -61,7 +61,7 @@ async function getGameLeaderboard(gameKey, { limit = 100, weekly = true, strictP
     .limit(2000);
 
   if (weekly) {
-    query = query.gte("played_at", getLastMonday());
+    query = query.gte("played_at", weekStart || getLastMonday());
   }
 
   const { data, error } = await query;

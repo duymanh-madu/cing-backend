@@ -1,3 +1,4 @@
+const { createSessionRead } = require("./performance/requestSessionRead");
 const {
   resolveAuthenticatedUserId,
 } = require(
@@ -144,9 +145,9 @@ purchaseVersionedGameplayContinue({
   /*
    * This lookup is for routing only.
    *
-   * The selected financial service MUST
-   * reload and verify its session, user,
-   * replay and atomic SQL authority.
+   * Share this database read only within this request. The selected
+   * service still normalizes ownership/version and verifies the replay.
+   * The locked atomic SQL transaction rechecks mutable session state.
    */
 
   const userId =
@@ -177,8 +178,8 @@ purchaseVersionedGameplayContinue({
    * Fail closed before selecting either
    * financial service.
    *
-   * The selected service repeats ownership
-   * verification against its own fresh read.
+   * The selected service repeats ownership verification against the
+   * request-local database row; SQL remains the current-state authority.
    */
 
   if (
@@ -197,6 +198,7 @@ purchaseVersionedGameplayContinue({
     );
 
   const args = {
+    sessionRead: createSessionRead(row),
     customer,
     sessionId:
       request.session_id,
