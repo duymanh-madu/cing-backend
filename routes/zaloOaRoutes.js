@@ -1,7 +1,9 @@
 const express  = require("express");
 const router   = express.Router();
 const axios    = require("axios");
+const crypto   = require("crypto");
 const supabase = require("../supabase");
+const redis    = require("../services/infrastructure/cache/redisClient");
 
 const {
   verifyAdmin,
@@ -11,6 +13,40 @@ const {
 
 const APP_ID     = process.env.ZALO_APP_ID;
 const APP_SECRET = process.env.ZALO_APP_SECRET;
+
+const OA_CONNECT_TTL_SECONDS =
+  10 * 60;
+
+function createPkcePair() {
+  const verifier =
+    crypto
+      .randomBytes(32)
+      .toString("base64url");
+
+  const challenge =
+    crypto
+      .createHash("sha256")
+      .update(
+        verifier,
+        "ascii"
+      )
+      .digest("base64url");
+
+  return {
+    verifier,
+    challenge,
+  };
+}
+
+function createOauthState() {
+  return crypto
+    .randomBytes(24)
+    .toString("base64url");
+}
+
+function oauthStateKey(state) {
+  return `zalo:oa:oauth:${state}`;
+}
 
 // Zalo domain verification
 router.get("/zalo_verifierIDxcEwgkGZ9UWiaqjOWJ5sBsjpMEW69YCZOt.html", (req, res) => {
@@ -30,44 +66,371 @@ router.get("/zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu.html", (req, res)
   res.send("zalo_verifierU8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu");
 });
 
+// POST /api/zalo/oa-connect/start
+router.post(
+  "/oa-connect/start",
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      if (!APP_ID || !APP_SECRET) {
+        return res
+          .status(503)
+          .json({
+            success: false,
+            message:
+              "Zalo OA app authority is not configured",
+          });
+      }
+
+      const callbackUrl =
+        String(
+          process.env
+            .ZALO_OA_CALLBACK_URL
+          || ""
+        ).trim();
+
+      if (!callbackUrl) {
+        return res
+          .status(503)
+          .json({
+            success: false,
+            message:
+              "ZALO_OA_CALLBACK_URL is not configured",
+          });
+      }
+
+      const {
+        verifier,
+        challenge,
+      } =
+        createPkcePair();
+
+      const state =
+        createOauthState();
+
+      await redis.setex(
+        oauthStateKey(state),
+        OA_CONNECT_TTL_SECONDS,
+        JSON.stringify({
+          verifier,
+          callback_url:
+            callbackUrl,
+          created_at:
+            new Date()
+              .toISOString(),
+        })
+      );
+
+      const permissionUrl =
+        new URL(
+          "https://oauth.zaloapp.com/v4/oa/permission"
+        );
+
+      permissionUrl.searchParams.set(
+        "app_id",
+        APP_ID
+      );
+
+      permissionUrl.searchParams.set(
+        "redirect_uri",
+        callbackUrl
+      );
+
+      permissionUrl.searchParams.set(
+        "code_challenge",
+        challenge
+      );
+
+      permissionUrl.searchParams.set(
+        "state",
+        state
+      );
+
+      res.json({
+        success: true,
+        data: {
+          authorization_url:
+            permissionUrl.toString(),
+          expires_in_seconds:
+            OA_CONNECT_TTL_SECONDS,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "[ZALO OA] PKCE start failed:",
+        error.message
+      );
+
+      res
+        .status(500)
+        .json({
+          success: false,
+          message:
+            "Unable to prepare Zalo OA authorization",
+        });
+    }
+  }
+);
+
 // GET /api/zalo/oa-callback
 router.get("/oa-callback", async (req, res) => {
-  try {
-    const { code } = req.query;
-    if (!code) return res.status(400).send("Missing code");
+  const code =
+    String(
+      req.query.code
+      || ""
+    ).trim();
 
-    console.log("[ZALO OA] Calling authorization_code exchange with app_id:", process.env.ZALO_APP_ID);
-    const result = await axios.post("https://oauth.zaloapp.com/v4/oa/access_token", null, {
-      params: { app_id: APP_ID, code, grant_type: "authorization_code" },
-      headers: { secret_key: APP_SECRET, "Content-Type": "application/x-www-form-urlencoded" }
-    });
+  const state =
+    String(
+      req.query.state
+      || ""
+    ).trim();
+
+  if (!code) {
+    return res
+      .status(400)
+      .send(
+        "Missing code"
+      );
+  }
+
+  if (!state) {
+    return res
+      .status(400)
+      .send(
+        "Missing state"
+      );
+  }
+
+  const key =
+    oauthStateKey(state);
+
+  try {
+    const pendingRaw =
+      await redis.get(key);
+
+    if (!pendingRaw) {
+      return res
+        .status(400)
+        .send(
+          "Authorization state expired or already used"
+        );
+    }
+
+    /*
+     * Consume before exchange so the same state/code-verifier
+     * cannot be replayed.
+     */
+    await redis.del(key);
+
+    let pending;
+
+    try {
+      pending =
+        JSON.parse(
+          pendingRaw
+        );
+    } catch {
+      return res
+        .status(400)
+        .send(
+          "Invalid authorization state"
+        );
+    }
+
+    const codeVerifier =
+      String(
+        pending?.verifier
+        || ""
+      );
+
+    if (!codeVerifier) {
+      return res
+        .status(400)
+        .send(
+          "Missing PKCE verifier"
+        );
+    }
+
+    const form =
+      new URLSearchParams({
+        app_id:
+          APP_ID,
+        code,
+        grant_type:
+          "authorization_code",
+        code_verifier:
+          codeVerifier,
+      });
 
     console.log(
-      "[ZALO OA] Authorization code exchange completed"
+      "[ZALO OA] Exchanging authorization code"
     );
 
-    const { access_token, refresh_token, expires_in } = result.data;
+    const result =
+      await axios.post(
+        "https://oauth.zaloapp.com/v4/oa/access_token",
+        form,
+        {
+          headers: {
+            secret_key:
+              APP_SECRET,
+            "Content-Type":
+              "application/x-www-form-urlencoded",
+          },
+        }
+      );
 
-    if (!access_token) {
-      return res.status(500).send(
-        "❌ Zalo không trả về access token hợp lệ"
+    const body =
+      result.data
+      || {};
+
+    if (
+      body.error
+      &&
+      body.error !== 0
+    ) {
+      console.error(
+        "[ZALO OA] Authorization exchange rejected:",
+        body.error_name
+        || body.error
+      );
+
+      return res
+        .status(502)
+        .send(
+          "Zalo authorization exchange failed"
+        );
+    }
+
+    const accessToken =
+      String(
+        body.access_token
+        || ""
+      );
+
+    const refreshToken =
+      String(
+        body.refresh_token
+        || ""
+      );
+
+    if (
+      !accessToken
+      ||
+      !refreshToken
+    ) {
+      return res
+        .status(502)
+        .send(
+          "Zalo did not return a complete credential pair"
+        );
+    }
+
+    /*
+     * Verify the freshly issued access token belongs to a usable OA
+     * before replacing the Production credential pair.
+     */
+    const oaResponse =
+      await axios.get(
+        "https://openapi.zalo.me/v2.0/oa/getoa",
+        {
+          headers: {
+            access_token:
+              accessToken,
+          },
+        }
+      );
+
+    const oaBody =
+      oaResponse.data
+      || {};
+
+    if (
+      oaBody.error !== 0
+      ||
+      !oaBody.data
+    ) {
+      return res
+        .status(502)
+        .send(
+          "Zalo OA credential validation failed"
+        );
+    }
+
+    const expiresIn =
+      Number(
+        body.expires_in
+      );
+
+    const expiry =
+      Number.isFinite(
+        expiresIn
+      )
+      &&
+      expiresIn > 0
+        ? new Date(
+            Date.now()
+            +
+            expiresIn * 1000
+          ).toISOString()
+        : null;
+
+    const {
+      data: updated,
+      error: updateError,
+    } =
+      await supabase
+        .from(
+          "app_configs"
+        )
+        .update({
+          zalo_oa_access_token:
+            accessToken,
+          zalo_oa_refresh_token:
+            refreshToken,
+          zalo_oa_token_expiry:
+            expiry,
+        })
+        .eq(
+          "id",
+          1
+        )
+        .select(
+          "id"
+        )
+        .single();
+
+    if (
+      updateError
+      ||
+      !updated?.id
+    ) {
+      throw new Error(
+        updateError?.message
+        ||
+        "Credential persistence failed"
       );
     }
 
-    await supabase.from("app_configs").update({
-      zalo_oa_access_token:  access_token,
-      zalo_oa_refresh_token: refresh_token,
-      zalo_oa_token_expiry:  expires_in ? new Date(Date.now() + Number(expires_in) * 1000).toISOString() : null,
-    }).eq("id", 1);
-
-    console.log("[ZALO OA] Token saved successfully");
-    res.send("<h2>✅ Kết nối Zalo OA thành công! Bạn có thể đóng tab này.</h2>");
-  } catch(err) {
-    console.error(
-      "[ZALO OA] Callback error:",
-      err.message
+    console.log(
+      "[ZALO OA] PKCE credential pair saved"
     );
-    res.status(500).send("❌ Lỗi: " + (err.response?.data?.message || err.message));
+
+    res.send(
+      "<h2>✅ Kết nối Zalo OA thành công. Bạn có thể đóng tab này.</h2>"
+    );
+  } catch (error) {
+    console.error(
+      "[ZALO OA] Callback failed:",
+      error.message
+    );
+
+    res
+      .status(500)
+      .send(
+        "❌ Không thể hoàn tất kết nối Zalo OA"
+      );
   }
 });
 
