@@ -42,7 +42,7 @@ test("wrong branch RPC result holds",async()=>{
 });
 test("transition validates version/idempotency and excludes caller actor",async()=>{
   let args;const h=createKdsOperationsBridgeV1({verifyToken:()=>({id:"trusted"}),rpc:async(n,a)=>{args=a;return {data:{outcome:"applied"}};}});
-  const body={cup_id:"00000000-0000-4000-8000-000000000001",expected_version:3,target_status:"preparing",action_key:"action-key-test-123",actor_id:"forged"};
+  const body={cup_id:"00000000-0000-4000-8000-000000000001",expected_version:3,target_status:"prepared",action_key:"action-key-test-123",actor_id:"forged"};
   assert.equal((await call(h.transition,req(body))).status,200);
   assert.equal(args.p_admin_id,"trusted");assert.equal(args.p_payload.actor_id,undefined);
   assert.equal((await call(h.transition,req({...body,expected_version:-1}))).status,400);

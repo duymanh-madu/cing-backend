@@ -18,6 +18,10 @@ function createC03PaidProductionWorkerV1() {
     if(!data||typeof data!=="object")throw new Error("KDS_PAID_DATABASE_RECEIPT_INVALID");
     return data;
   };
-  return createC03PaidWorkerV1({rpc,collect,report:result=>console.log(JSON.stringify({component:"kds_c03_paid",...result}))});
+  return createC03PaidWorkerV1({rpc,collect,report:result=>{
+    if(result.status==="completed" && result.outcome==="committed" && result.inserted_orders>0)
+      require("./cingKdsChangeEventsV1").notifyKdsChangedV1();
+    console.log(JSON.stringify({component:"kds_c03_paid",...result}));
+  }});
 }
 module.exports={createC03PaidProductionWorkerV1};

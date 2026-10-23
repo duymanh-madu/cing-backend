@@ -9,7 +9,7 @@ const HTTP = { KDS_OPS_UNAUTHORIZED:401, KDS_OPS_FORBIDDEN:403,
   KDS_OPS_READ_DISABLED:423, KDS_OPS_WRITES_DISABLED:423,
   KDS_OPS_POLICY_REQUIRED:423, KDS_OPS_SOURCE_STALE:503, KDS_OPS_SNAPSHOT_LIMIT:503 };
 function error(code) { return Object.assign(new Error(code), { code }); }
-function createKdsOperationsBridgeV1({ rpc, verifyToken, clock = () => new Date().toISOString() }) {
+function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, clock = () => new Date().toISOString() }) {
   if (typeof rpc !== "function" || typeof verifyToken !== "function") throw error("KDS_OPS_DEPENDENCY_REQUIRED");
   async function execute(req, operation) {
     const match = /^Bearer\s+(\S+)$/i.exec(req.headers?.authorization || "");
@@ -36,7 +36,7 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, clock = () => new Date(
     } else if (operation === "transition") {
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.cup_id || "") ||
           !Number.isSafeInteger(body.expected_version) || body.expected_version < 0 ||
-          !["preparing", "prepared", "served"].includes(body.target_status) ||
+          !["prepared", "served"].includes(body.target_status) ||
           typeof body.action_key !== "string" || !/^[A-Za-z0-9_-]{16,100}$/.test(body.action_key)) throw error("KDS_OPS_INVALID_INPUT");
       payload = { cup_id:body.cup_id, expected_version:body.expected_version,
         target_status:body.target_status, action_key:body.action_key };
@@ -55,7 +55,10 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, clock = () => new Date(
     }
     const data = response?.data;
     if (!data || typeof data !== "object" || Array.isArray(data)) throw error("KDS_OPS_UNAVAILABLE");
-    if (operation !== "snapshot") return { success:true, data };
+    if (operation !== "snapshot") {
+      if (operation === "transition" || operation === "policy") {try {onChange();} catch {}}
+      return { success:true, data };
+    }
     if (!data.branch || data.branch.pos_parent !== branch.pos_parent || String(data.branch.pos_id) !== branch.pos_id ||
         !Array.isArray(data.orders) || !data.policy || !data.capabilities) throw error("KDS_OPS_UNAVAILABLE");
     for (const order of data.orders) if (order.pos_parent !== branch.pos_parent || String(order.pos_id) !== branch.pos_id)
@@ -74,6 +77,10 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, clock = () => new Date(
     return { success:true, branch, sampled_at:data.sampled_at, policy:data.policy,
       capabilities:{transitions_enabled:data.capabilities.transitions_enabled === true},
       preparation:read.preparation_queue.map(decorate), serving:read.serving_queue.map(decorate),
+      bills:data.orders.filter(order=>order.cups.some(c=>c.status!=="served")).map(order=>({
+        order_id:order.id,tran_no:order.tran_no || "",table_name:order.table_name || "",card_number:order.card_number || "",
+        cups:order.cups.map(cup=>({cup_id:cup.id,status:cup.status,item_name:cup.item_name,item_group:cup.item_group,version:cup.version}))
+      })),
       group_counts:read.group_counts, history:report.completed_history.map(row=>({...row,tran_no:data.orders.find(o=>o.id===row.order_id)?.tran_no || ""})),
       alerts:report.active_alert_candidates, performance:report.branches,
       history_range:data.history_range, source_health:data.source_health || null, source_status:"canonical_database_snapshot" };
@@ -90,7 +97,7 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, clock = () => new Date(
       }
     };
   }
-  return Object.freeze({ branches:handler("branches"), snapshot:handler("snapshot"),
+  return Object.freeze({ readSnapshot:req=>execute(req,"snapshot"), branches:handler("branches"), snapshot:handler("snapshot"),
     transition:handler("transition"), policy:handler("policy") });
 }
 module.exports = { createKdsOperationsBridgeV1 };
