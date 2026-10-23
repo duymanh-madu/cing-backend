@@ -17,7 +17,7 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
     let claims;
     try { claims = await verifyToken(match[1]); } catch { throw error("KDS_OPS_UNAUTHORIZED"); }
     if (!claims || !["string", "number"].includes(typeof claims.id) || !String(claims.id).trim()) throw error("KDS_OPS_UNAUTHORIZED");
-    const branch = operation === "branches" ? null : branchIdentity(req.query);
+    const branch = ["branches","access_branches"].includes(operation) ? null : branchIdentity(req.query);
     const body = req.body || {};
     let payload = {};
     let durationMin = null, durationMax = null;
@@ -45,8 +45,15 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
           body.warning_minutes < 1 || body.critical_minutes <= body.warning_minutes || body.critical_minutes > 1440) throw error("KDS_OPS_INVALID_INPUT");
       payload = { warning_minutes:body.warning_minutes, critical_minutes:body.critical_minutes };
     }
+    if(operation==="access_save") {
+      if(typeof body.admin_id!=="string" || !/^[0-9]+$/.test(body.admin_id) ||
+        typeof body.action_key!=="string" || !/^[A-Za-z0-9_-]{16,100}$/.test(body.action_key))throw error("KDS_OPS_INVALID_INPUT");
+      payload={admin_id:body.admin_id,grant:body.grant,expected_grant:body.expected_grant,action_key:body.action_key};
+    }
     let response;
-    try { response = await rpc("cing_kds_operations_p10_v1", {
+    try { response = operation.startsWith("access_") ? await rpc("cing_kds_access_p13_v1",{
+      p_actor_id:String(claims.id),p_operation:operation==="access_list"?"list":operation==="access_branches"?"branches":"save",p_branch:branch,p_payload:payload
+    }) : await rpc("cing_kds_operations_p10_v1", {
       p_admin_id:String(claims.id), p_operation:operation, p_branch:branch, p_payload:payload
     }); } catch { throw error("KDS_OPS_UNAVAILABLE"); }
     if (response?.error) {
@@ -56,7 +63,7 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
     const data = response?.data;
     if (!data || typeof data !== "object" || Array.isArray(data)) throw error("KDS_OPS_UNAVAILABLE");
     if (operation !== "snapshot") {
-      if (operation === "transition" || operation === "policy") {try {onChange();} catch {}}
+      if (operation === "transition" || operation === "policy" || operation === "access_save") {try {onChange();} catch {}}
       return { success:true, data };
     }
     if (!data.branch || data.branch.pos_parent !== branch.pos_parent || String(data.branch.pos_id) !== branch.pos_id ||
@@ -75,7 +82,8 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
         table_name:source.order.table_name || "", card_number:source.order.card_number || ""};
     }
     return { success:true, branch, sampled_at:data.sampled_at, policy:data.policy,
-      capabilities:{transitions_enabled:data.capabilities.transitions_enabled === true},
+      capabilities:{transitions_enabled:data.capabilities.transitions_enabled === true,
+        can_prepare:data.capabilities.can_prepare !== false,can_serve:data.capabilities.can_serve !== false},
       preparation:read.preparation_queue.map(decorate), serving:read.serving_queue.map(decorate),
       bills:data.orders.filter(order=>order.cups.some(c=>c.status!=="served")).map(order=>({
         order_id:order.id,tran_no:order.tran_no || "",table_name:order.table_name || "",card_number:order.card_number || "",
@@ -83,7 +91,7 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
       })),
       group_counts:read.group_counts, history:report.completed_history.map(row=>({...row,tran_no:data.orders.find(o=>o.id===row.order_id)?.tran_no || ""})),
       alerts:report.active_alert_candidates, performance:report.branches,
-      history_range:data.history_range, source_health:data.source_health || null, source_status:"canonical_database_snapshot" };
+      history_range:data.history_range,duration_filter:{minimum:durationMin,maximum:durationMax}, source_health:data.source_health || null, source_status:"canonical_database_snapshot" };
   }
   function handler(operation) {
     return async (req, res) => {
@@ -98,6 +106,6 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
     };
   }
   return Object.freeze({ readSnapshot:req=>execute(req,"snapshot"), branches:handler("branches"), snapshot:handler("snapshot"),
-    transition:handler("transition"), policy:handler("policy") });
+    transition:handler("transition"), policy:handler("policy"),accessBranches:handler("access_branches"),accessList:handler("access_list"),accessSave:handler("access_save") });
 }
 module.exports = { createKdsOperationsBridgeV1 };
