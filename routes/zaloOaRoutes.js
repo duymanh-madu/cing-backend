@@ -267,100 +267,19 @@ router.get("/oa-callback", async (req, res) => {
       "[ZALO OA] Exchanging authorization code"
     );
 
-    let result;
-
-    try {
-      result =
-        await axios.post(
-          "https://oauth.zaloapp.com/v4/oa/access_token",
-          form,
-          {
-            headers: {
-              secret_key:
-                APP_SECRET,
-              "Content-Type":
-                "application/x-www-form-urlencoded",
-            },
-          }
-        );
-    } catch (exchangeError) {
-      const responseStatus =
-        Number(
-          exchangeError?.response?.status
-        )
-        || null;
-
-      const responseBody =
-        exchangeError?.response?.data;
-
-      const safeScalar =
-        (value) => {
-          if (
-            typeof value !== "string"
-            &&
-            typeof value !== "number"
-          ) {
-            return null;
-          }
-
-          return String(value)
-            .replace(
-              /(access_token|refresh_token|code_verifier|secret_key)\s*[:=]\s*[^\s,&]+/gi,
-              "$1=[REDACTED]"
-            )
-            .slice(
-              0,
-              300
-            );
-        };
-
-      const safeError =
-        responseBody
-        &&
-        typeof responseBody === "object"
-          ? safeScalar(
-              responseBody.error
-            )
-          : null;
-
-      const safeErrorName =
-        responseBody
-        &&
-        typeof responseBody === "object"
-          ? safeScalar(
-              responseBody.error_name
-            )
-          : null;
-
-      const safeMessage =
-        responseBody
-        &&
-        typeof responseBody === "object"
-          ? safeScalar(
-              responseBody.message
-              ??
-              responseBody.error_description
-            )
-          : null;
-
-      console.error(
-        "[ZALO OA] Authorization exchange HTTP failure:",
+    const result =
+      await axios.post(
+        "https://oauth.zaloapp.com/v4/oa/access_token",
+        form,
         {
-          status:
-            responseStatus,
-          error:
-            safeError,
-          error_name:
-            safeErrorName,
-          message:
-            safeMessage,
+          headers: {
+            secret_key:
+              APP_SECRET,
+            "Content-Type":
+              "application/x-www-form-urlencoded",
+          },
         }
       );
-
-      throw new Error(
-        "ZALO_OA_AUTHORIZATION_EXCHANGE_HTTP_FAILED"
-      );
-    }
 
     const body =
       result.data
