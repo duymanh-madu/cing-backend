@@ -107,20 +107,10 @@ function pricePointRedemption({
     );
 
 
-  /*
-   * Full-point redemption only.
-   *
-   * Example:
-   * payable = 36,100
-   * value   = 1,000
-   *
-   * maximum = 36 points
-   * remainder = 100 VND
-   *
-   * Never consume 37 points for only 36,100 VND of value.
-   */
+  // Points are whole units. The final unit may cover a partial 1,000đ
+  // remainder for a zero-cash order; the monetary discount is capped below.
   const maxPointsByPayable =
-    Math.floor(
+    Math.ceil(
       payable /
       pointValue
     );
@@ -176,9 +166,11 @@ function pricePointRedemption({
   }
 
 
-  const pointsDiscount =
-    requested *
-    pointValue;
+  const nominalDiscount = requested * pointValue;
+  if (!Number.isSafeInteger(nominalDiscount)) {
+    throw pointPricingError("COMMERCE_POINTS_DISCOUNT_INVALID");
+  }
+  const pointsDiscount = Math.min(nominalDiscount, payable);
 
 
   if (

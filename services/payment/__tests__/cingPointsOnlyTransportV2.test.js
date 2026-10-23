@@ -32,5 +32,7 @@ test('actual iPOS payload keeps full discounts and zero tender for a 20,000đ / 
  const base={id:1,order_code:'QA00000001',customer_phone:'0900000000',payment_method:'points',total_amount:0,subtotal:20000,tier_discount:1000,points_discount:19000,points_used:19,items:[]};
  const body=mod.exports.buildPayload(base);
  assert.equal(body.PaymentInfo.Payment_Method,'MOMO_OD_ONLINE');assert.equal(body.PaymentInfo.Payment_Info,'LOYALTY_POINTS');assert.equal(body.PaymentInfo.Amount,0);assert.equal(body.amount,0);assert.equal(body.total_amount,0);assert.equal(body.partner_voucher_info.discount_amount,20000);
+ const rounded=mod.exports.buildPayload({...base,subtotal:15000,tier_discount:750,points_discount:14250,points_used:15});
+ assert.equal(rounded.PaymentInfo.Amount,0);assert.equal(rounded.partner_voucher_info.discount_amount,15000);
  assert.throws(()=>mod.exports.buildPayload({...base,total_amount:1000}),/IPOS_POINTS_ONLY_AMOUNT_INVALID/);
 });

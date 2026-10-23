@@ -52,7 +52,7 @@ test(
 
 
 test(
-  "point maximum uses floor and never over-discounts payable",
+  "partial redemption retains cash remainder while full coverage allows one final whole point",
   () => {
 
     const result =
@@ -69,7 +69,7 @@ test(
 
     assert.equal(
       result.max_points_by_payable,
-      36
+      37
     );
 
     assert.equal(
@@ -86,29 +86,13 @@ test(
 );
 
 
-test(
-  "ceil-style over-redemption fails closed",
-  () => {
-
-    assert.throws(
-      () =>
-        pricePointRedemption({
-          requestedPoints:
-            37,
-          availablePoints:
-            100,
-          prePointsPayable:
-            36100,
-          pointValueVnd:
-            1000,
-        }),
-      error =>
-        error.code ===
-          "COMMERCE_POINTS_EXCEEDS_PAYABLE"
-    );
-
-  }
-);
+test("15 whole points cover 14,250đ, but never discount beyond payable", () => {
+  const result = pricePointRedemption({requestedPoints:15,availablePoints:9924,prePointsPayable:14250,pointValueVnd:1000});
+  assert.equal(result.points_used,15);
+  assert.equal(result.points_discount,14250);
+  assert.equal(result.remaining_payable,0);
+  assert.throws(() => pricePointRedemption({requestedPoints:16,availablePoints:9924,prePointsPayable:14250,pointValueVnd:1000}), error => error.code === "COMMERCE_POINTS_EXCEEDS_PAYABLE");
+});
 
 
 test(

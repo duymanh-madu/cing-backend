@@ -166,6 +166,8 @@ function createApp() {
     res.send("zalo-platform-site-verification=U8VZ5vBvLGrmZyGXZuTg70Mkno3fs1P_CpOu");
   });
 
+  app.use(require("../middlewares/appLiveDataMiddleware").appLiveDataMiddleware);
+
   // Zalo Checkout callback must be mounted directly before general /api routes.
   app.use(
     "/api/payment/webhook",

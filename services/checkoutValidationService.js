@@ -712,7 +712,11 @@ async function validateCheckout({
         "COMMERCE_POINTS_PRICING_FAILED",
 
       message:
-        "Số điểm sử dụng không hợp lệ",
+        error.code === "COMMERCE_POINTS_INSUFFICIENT_BALANCE"
+          ? "Số dư điểm không đủ hoặc vừa thay đổi. Vui lòng kiểm tra số điểm muốn dùng."
+          : error.code === "COMMERCE_POINTS_EXCEEDS_PAYABLE"
+            ? "Số điểm vượt quá số điểm cần thanh toán đơn hiện tại. Vui lòng chọn lại Dùng tối đa."
+            : "Chưa xác nhận được số điểm sử dụng. Vui lòng nhập số điểm nguyên và thử lại.",
 
     };
 
