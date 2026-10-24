@@ -1,23 +1,41 @@
 "use strict";
 const crypto = require("node:crypto");
 const {resolveFabiC04TimePolicyV1,OBSERVED_TIME_CONVENTION}=require("./cingKdsFabiC04ObservedTimePolicyV1");
-const {interpretFabiC04NormalizedClockV1}=require("./cingKdsFabiC04ObservedClockV1");
+const {interpretFabiC04NormalizedClockV1,interpretFabiC04ObservedClockV1}=require("./cingKdsFabiC04ObservedClockV1");
 const {classifyC04LogTypeV1}=require("./cingKdsC04LogClassificationV1");
 const {projectC03PaidOrdersV1}=require("./cingKdsC03PaidProjectionV1");
 const POLICY="c04_order_intake_v1";
 function fail(code){throw Object.assign(new Error(code),{code});}
 function text(value){if(typeof value!=="string"||!value.trim()||value!==value.trim()||value.length>1000)fail("KDS_PAID_LIVE_TEXT_INVALID");return value;}
 function hash(value){return crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex");}
-function projectC04OrdersV1({sales,logs,scope,branch,knownTransactions=[],deadlineAt=Infinity}={}){
- if(!Array.isArray(sales)||!Array.isArray(logs)||!Array.isArray(knownTransactions))fail("KDS_PAID_LIVE_INPUT_INVALID");
+function projectC04OrdersV1({sales,logs,scope,branch,knownTransactions=[],openTransactions=[],deadlineAt=Infinity}={}){
+ if(!Array.isArray(sales)||!Array.isArray(logs)||!Array.isArray(knownTransactions)||!Array.isArray(openTransactions))fail("KDS_PAID_LIVE_INPUT_INVALID");
  for(const key of ["company_uid","brand_uid","store_uid"])text(scope?.[key]);
  text(branch?.pos_parent);if(!/^[1-9][0-9]*$/.test(String(branch?.pos_id||"")))fail("KDS_PAID_BRANCH_INVALID");
  const checkDeadline=()=>{if(Date.now()>=deadlineAt)fail("KDS_PAID_DEADLINE");};checkDeadline();
  const known=new Set(knownTransactions.map(text)),invoices=new Map(),groups=new Map();
  for(const sale of sales){const id=text(sale?.tran_id);if(sale.store_uid!==scope.store_uid)fail("KDS_PAID_STORE_MISMATCH");if(invoices.has(id))fail("KDS_PAID_DUPLICATE_INVOICE");invoices.set(id,sale);}
+ const open=new Set(openTransactions.map(text));let cancelObservations=0;
+ const signedTransactions=new Set(logs.filter(r=>classifyC04LogTypeV1(r?.log_type)==="signed_delta_candidate").map(r=>r?.tran_id||r?.change_data?.tran_id));
  const time=resolveFabiC04TimePolicyV1(OBSERVED_TIME_CONVENTION);
  for(const raw of logs){checkDeadline();
   const id=text(raw?.tran_id||raw?.change_data?.tran_id);if(known.has(id))continue;
+  if(raw.log_type==="CANCEL_ORDER_ONLINE"){
+   const change=raw.change_data,current=raw.sale_current;
+   // Empty online cancellation is not a signed item delta or a command to
+   // clear an admitted bill. sale_current is a snapshot, never a signed delta
+   // or C03 paid authority. Its contents cannot create or remove work here.
+   if(!change||!current||typeof change!=="object"||typeof current!=="object"
+    || change.tran_id!==id || change.tran_no!=="" || change.origin_tran_id!==""
+    || typeof change.foodbook_order_id!=="string" || !/^[1-9][0-9]*$/.test(change.foodbook_order_id)
+    || !Array.isArray(change.sale_detail)||change.sale_detail.length!==0
+    || !Array.isArray(current.sale_detail)||current.sale_detail.length>1000
+    || !Array.isArray(current.sale_payment_method)||current.sale_payment_method.length>1000
+    || signedTransactions.has(id)||invoices.has(id)||open.has(id))fail("KDS_PAID_ONLINE_CANCEL_REVIEW_REQUIRED");
+   for(const key of ["company_uid","brand_uid","store_uid"])if(change[key]!==scope[key])fail("KDS_PAID_SCOPE_MISMATCH");
+   interpretFabiC04ObservedClockV1(raw);
+   cancelObservations++;continue;
+  }
   const kind=classifyC04LogTypeV1(raw.log_type);if(kind==="print_observation")continue;
   if(kind!=="signed_delta_candidate")fail("KDS_PAID_UNKNOWN_LOG_TYPE");
   const event=time.normalizeEvent(raw);
@@ -76,6 +94,6 @@ function projectC04OrdersV1({sales,logs,scope,branch,knownTransactions=[],deadli
    paid_reported_at_ms:invoice?.paid_reported_at_ms||null,lines,cups,total_units:cups.length};
   orders.push({...order,content_hash:hash(order)});
  }
- return {policy:POLICY,orders,source_invoice_count:invoices.size,created_unit_count:orders.reduce((n,o)=>n+o.cups.length,0)};
+ return {policy:POLICY,orders,non_preparation_cancel_observations:cancelObservations,source_invoice_count:invoices.size,created_unit_count:orders.reduce((n,o)=>n+o.cups.length,0)};
 }
 module.exports={POLICY,projectC04OrdersV1};

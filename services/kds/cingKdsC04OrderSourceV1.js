@@ -5,8 +5,9 @@ const {projectC04OrdersV1}=require("./cingKdsC04OrderProjectionV1");
 function fail(code){throw Object.assign(new Error(code),{code});}
 function createC04OrderSourceV1({requestFn,authProvider,appAccessTokenProvider,maxPages=20}={}){
  if(typeof requestFn!=="function"||!Number.isSafeInteger(maxPages)||maxPages<2||maxPages>100)fail("KDS_PAID_SOURCE_CONFIG_INVALID");
- return async function collect({scope,branch,fromMs,toMs,knownTransactions=[],deadlineAt=Date.now()+40000,signal}={}){
+ return async function collect({scope,branch,fromMs,toMs,knownTransactions=[],openTransactions,deadlineAt=Date.now()+40000,signal}={}){
   if(!Number.isSafeInteger(fromMs)||!Number.isSafeInteger(toMs)||fromMs<0||toMs<fromMs)fail("KDS_PAID_WINDOW_INVALID");
+  if(!Array.isArray(openTransactions)||openTransactions.length>20000)fail("KDS_PAID_OPEN_TRANSACTIONS_REQUIRED");
   let requests=0;
   const request=async input=>{
    if(signal?.aborted)fail("KDS_PAID_DEADLINE");const url=new URL(input.url);
@@ -48,7 +49,7 @@ function createC04OrderSourceV1({requestFn,authProvider,appAccessTokenProvider,m
   if(historyFrom<fromMs)logs=(await pages(async page=>(await c04.getSaleChangeLog({...scope,start_date:Math.max(0,historyFrom-60000),end_date:toMs,page})).rows))
    .filter(row=>targets.has(row.tran_id||row.change_data?.tran_id));
   if(signal?.aborted)fail("KDS_PAID_DEADLINE");
-  const result=projectC04OrdersV1({sales,logs,scope,branch,knownTransactions,deadlineAt});
+  const result=projectC04OrdersV1({sales,logs,scope,branch,knownTransactions,openTransactions,deadlineAt});
   return {...result,requests,c04_pages_exhausted:true,c03_pages_exhausted:c03Complete};
  };
 }

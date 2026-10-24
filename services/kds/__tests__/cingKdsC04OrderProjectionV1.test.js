@@ -45,7 +45,7 @@ test("customer, payment traces and credentials never enter output",()=>{
 test("live collection queries C04 even with empty C03, exhausts pages, and forwards abort",async()=>{
  const paths=[];const collect=createC03PaidSourceV1({authProvider:()=>"test",appAccessTokenProvider:()=>"test",requestFn:async r=>{
  const u=new URL(r.url);paths.push(u.pathname);assert.ok(r.signal);const rows=u.pathname.includes("sale-change-log")&&u.searchParams.get("page")==="1"?[event()]:[];return {status:200,body:{data:rows},json:{data:rows}};
- }});const result=await collect({scope,branch,fromMs:Date.parse("2026-10-23T00:00:00+07:00"),toMs:Date.parse("2026-10-23T23:59:59+07:00"),intakeMode:"c04_order_intake_v1"});
+ }});const result=await collect({scope,branch,openTransactions:[],fromMs:Date.parse("2026-10-23T00:00:00+07:00"),toMs:Date.parse("2026-10-23T23:59:59+07:00"),intakeMode:"c04_order_intake_v1"});
  assert.equal(result.orders.length,1);assert.equal(result.c04_pages_exhausted,true);assert.equal(paths.filter(p=>p.includes("sale-change-log")).length,2);
 });
 test("CPU-bound projection observes its absolute deadline before producing work",()=>{assert.throws(()=>project([event()],[],{deadlineAt:0}),/DEADLINE/);});
@@ -55,7 +55,7 @@ test("C03 temporary transport outage cannot suppress complete C04 work or fabric
   const u=new URL(r.url);if(u.pathname.includes("sale-by-date"))throw new Error("fixture network failure");
   const rows=u.searchParams.get("page")==="1"?[event()]:[];return {status:200,body:{data:rows},json:{data:rows}};
  }});
- const result=await collect({scope,branch,fromMs:Date.parse("2026-10-23T00:00:00+07:00"),toMs:Date.parse("2026-10-23T23:59:59+07:00")});
+ const result=await collect({scope,branch,openTransactions:[],fromMs:Date.parse("2026-10-23T00:00:00+07:00"),toMs:Date.parse("2026-10-23T23:59:59+07:00")});
  assert.equal(result.c03_pages_exhausted,false);assert.equal(result.c04_pages_exhausted,true);assert.equal(result.orders[0].payment_verification,"pending_verification");
 });
 test("overnight recovery excludes unrelated historical transactions",async()=>{
@@ -66,7 +66,7 @@ test("overnight recovery excludes unrelated historical transactions",async()=>{
   if(u.pathname.includes("sale-change-log")&&u.searchParams.get("page")==="1")rows=Number(u.searchParams.get("start_date"))<from?[old,inside]:[inside];
   return {status:200,body:{data:rows},json:{data:rows}};
  }});
- const result=await collect({scope,branch,fromMs:from,toMs:Date.parse("2026-10-23T23:59:59+07:00")});
+ const result=await collect({scope,branch,openTransactions:[],fromMs:from,toMs:Date.parse("2026-10-23T23:59:59+07:00")});
  assert.deepEqual(result.orders.map(o=>o.tran_id),["txn"]);
 });
 test("default read model excludes unpaid rows; only explicit trusted DB admission opts in",()=>{
@@ -77,4 +77,49 @@ test("default read model excludes unpaid rows; only explicit trusted DB admissio
  assert.equal(buildOperationsReadModel(args).preparation_queue.length,0);
  assert.equal(buildOperationsReadModel({...args,allowC04Orders:true}).preparation_queue.length,1);
  assert.equal(buildOperationsReadModel({...args,orders:[{...o,order_admission_verified:false}],allowC04Orders:true}).preparation_queue.length,0);
+});
+function emptyOnlineCancel(){const raw=event(0,1,"online-cancel");raw.log_type="CANCEL_ORDER_ONLINE";
+ raw.change_data={...scope,tran_id:"online-cancel",tran_no:"",origin_tran_id:"",foodbook_order_id:"2697733019",sale_detail:[]};raw.sale_current={sale_detail:[],sale_payment_method:[]};return raw;}
+test("observed empty online cancellation with no source, C03 or DB-admitted work is inert",()=>{
+ const result=project([emptyOnlineCancel()]);assert.deepEqual(result.orders,[]);assert.equal(result.non_preparation_cancel_observations,1);
+});
+test("inert online cancellation cannot block an unrelated real unpaid order",()=>{
+ const result=project([emptyOnlineCancel(),event()]);assert.equal(result.orders.length,1);assert.equal(result.orders[0].tran_id,"txn");assert.equal(result.orders[0].cups.length,1);
+});
+test("online cancellation touching a persisted open transaction always requires review",()=>{
+ assert.throws(()=>project([emptyOnlineCancel()],[],{openTransactions:["online-cancel"]}),/ONLINE_CANCEL_REVIEW_REQUIRED/);
+});
+test("online cancellation with signed history or a C03 invoice cannot silently clear or disappear",()=>{
+ assert.throws(()=>project([emptyOnlineCancel(),event(1,1,"online-cancel")]),/ONLINE_CANCEL_REVIEW_REQUIRED/);
+ assert.throws(()=>project([emptyOnlineCancel()],[{...sale(),tran_id:"online-cancel"}]),/ONLINE_CANCEL_REVIEW_REQUIRED/);
+});
+test("foreign scope, changed identity and invalid clocks cannot enter the inert-cancel branch",()=>{
+ const a=emptyOnlineCancel();a.change_data.store_uid="foreign";assert.throws(()=>project([a]),/SCOPE/);
+ const b=emptyOnlineCancel();b.change_data.tran_id="different";assert.throws(()=>project([b]),/ONLINE_CANCEL_REVIEW_REQUIRED/);
+ const c=emptyOnlineCancel();c.fmt_created_at="wrong";assert.throws(()=>project([c]),/CLOCK/);
+});
+test("source deltas, invoice or origin require review; current snapshots are not work authority",()=>{
+ for(const mutate of [r=>r.change_data.sale_detail.push({}),r=>r.change_data.tran_no="240151",r=>r.change_data.origin_tran_id="origin",r=>r.change_data.foodbook_order_id=""]){
+  const raw=emptyOnlineCancel();mutate(raw);assert.throws(()=>project([raw]),/ONLINE_CANCEL_REVIEW_REQUIRED/);
+ }
+});
+test("collector refuses live mode without the database open-transaction contract before HTTP",async()=>{
+ const {createC04OrderSourceV1}=require("../cingKdsC04OrderSourceV1");let calls=0;
+ const collect=createC04OrderSourceV1({authProvider:()=>"test",appAccessTokenProvider:()=>"test",requestFn:()=>{calls++;}});
+ await assert.rejects(collect({scope,branch,fromMs:0,toMs:1}),/OPEN_TRANSACTIONS_REQUIRED/);assert.equal(calls,0);
+});
+test("worker forwards persisted open identities to the source collector",async()=>{
+ const {createC03PaidWorkerV1}=require("../cingKdsC03PaidWorkerV1");let received;
+ const worker=createC03PaidWorkerV1({rpc:async op=>op==="claim"?{outcome:"claimed",intake_mode:"c04_order_intake_v1",open_transactions:["already-open"],known_transactions:[],scope,branch,from_ms:0,to_ms:1}:{outcome:"committed"},
+ collect:async input=>{received=input;return {orders:[],requests:0,source_invoice_count:0,c03_pages_exhausted:true,c04_pages_exhausted:true};}});
+ assert.equal((await worker.runOnce()).status,"completed");assert.deepEqual(received.openTransactions,["already-open"]);await worker.close();
+});
+
+test("observed cancelled-online current snapshot with one cooking item and one payment entry creates no cups or paid authority",()=>{
+ const raw=emptyOnlineCancel();raw.sale_current={sale_detail:[{item_id:"ITEM-BFOD",quantity:1,status:"COOKING",customer_phone:"PRIVATE"}],sale_payment_method:[{amount:41000,trace_no:"PRIVATE"}]};
+ const result=project([raw,event()]);assert.equal(result.orders.length,1);assert.equal(result.orders[0].tran_id,"txn");assert.equal(result.orders[0].cups.length,1);assert.equal(result.orders[0].payment_verification,"pending_verification");assert.equal(result.non_preparation_cancel_observations,1);assert.doesNotMatch(JSON.stringify(result),/PRIVATE|ITEM-BFOD|trace_no|customer_phone/);
+ assert.throws(()=>project([raw],[],{openTransactions:["online-cancel"]}),/ONLINE_CANCEL_REVIEW_REQUIRED/);
+});
+test("malformed or unbounded current snapshots still require review",()=>{
+ for(const mutate of [r=>r.sale_current.sale_detail=null,r=>r.sale_current.sale_payment_method=null,r=>r.sale_current.sale_detail=Array(1001).fill({}),r=>r.sale_current.sale_payment_method=Array(1001).fill({})]){const raw=emptyOnlineCancel();mutate(raw);assert.throws(()=>project([raw]),/ONLINE_CANCEL_REVIEW_REQUIRED/);}
 });

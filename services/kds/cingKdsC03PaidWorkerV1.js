@@ -14,12 +14,12 @@ function createC03PaidWorkerV1({rpc,collect,now=Date.now,schedule=setTimeout,can
       if(claim.outcome!=="claimed")return {status:claim.outcome,database_writes:0};
       claimed=true;
       const result=await collect({scope:claim.scope,branch:claim.branch,fromMs:claim.from_ms,toMs:claim.to_ms,
-        knownTransactions:claim.known_transactions,intakeMode:claim.intake_mode||"paid",deadlineAt:started+deadlineMs,signal:controller.signal});
+        knownTransactions:claim.known_transactions,intakeMode:claim.intake_mode||"paid",openTransactions:claim.open_transactions,deadlineAt:started+deadlineMs,signal:controller.signal});
       if(closed||controller.signal.aborted)throw Object.assign(new Error(),{code:"KDS_PAID_DEADLINE"});
       const commit=await rpc("commit",{token,intake_mode:claim.intake_mode||"paid",orders:result.orders,source_invoice_count:result.source_invoice_count,
         requests:result.requests,c03_pages_exhausted:result.c03_pages_exhausted,c04_pages_exhausted:result.c04_pages_exhausted},controller.signal);
       if(!["committed","replayed"].includes(commit?.outcome))throw Object.assign(new Error(),{code:"KDS_PAID_COMMIT_NOT_CONFIRMED"});
-      return {status:"completed",...commit,requests:result.requests,duration_ms:now()-started};
+      return {status:"completed",...commit,...(result.non_preparation_cancel_observations?{non_preparation_cancel_observations:result.non_preparation_cancel_observations}:{}),requests:result.requests,duration_ms:now()-started};
     } catch(error) {
       const safe=controller.signal.aborted?"KDS_PAID_DEADLINE":code(error);
       // Release is best-effort; token + server deadline also fence delayed commits.
