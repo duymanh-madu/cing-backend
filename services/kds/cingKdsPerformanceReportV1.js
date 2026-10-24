@@ -48,6 +48,7 @@ function percentile(sorted, fraction) {
 
 function buildPerformanceReport({
   orders,
+  allowC04Orders = false,
   policies,
   now,
   durationMin = null,
@@ -107,7 +108,7 @@ function buildPerformanceReport({
 
   for (const order of orders) {
     if (
-      order.payment_verification !== "verified" ||
+      (order.payment_verification !== "verified" && !(allowC04Orders && order.order_admission_verified === true)) ||
       order.ingestion_status !== "processed" ||
       order.conflict_status !== "clear"
     ) {

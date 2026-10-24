@@ -19,7 +19,7 @@ function createC03PaidProductionWorkerV1() {
     return data;
   };
   return createC03PaidWorkerV1({rpc,collect,report:result=>{
-    if(result.status==="completed" && result.outcome==="committed" && result.inserted_orders>0)
+    if(result.status==="completed" && result.outcome==="committed" && (result.inserted_orders>0 || result.changed_orders>0))
       require("./cingKdsChangeEventsV1").notifyKdsChangedV1();
     console.log(JSON.stringify({component:"kds_c03_paid",...result}));
   }});

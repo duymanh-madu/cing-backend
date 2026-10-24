@@ -73,14 +73,15 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
     const canReport=data.capabilities.can_report === true;
     if(!canReport && (durationMin !== null || durationMax !== null))throw error("KDS_OPS_FORBIDDEN");
     const now = clock();
-    const read = buildOperationsReadModel({ orders:data.orders, now,
+    const read = buildOperationsReadModel({ orders:data.orders, allowC04Orders:true, now,
       warningMinutes:data.policy.warning_minutes, criticalMinutes:data.policy.critical_minutes });
-    const report = buildPerformanceReport({ orders:data.orders, policies:[{...data.policy,...branch}], now, durationMin, durationMax });
+    const report = buildPerformanceReport({ orders:data.orders, allowC04Orders:true, policies:[{...data.policy,...branch}], now, durationMin, durationMax });
     const details = new Map();
     for (const order of data.orders) for (const cup of order.cups) details.set(cup.id, {cup,order});
     function decorate(row) {
       const source = details.get(row.cup_id);
       return {...row, version:source.cup.version, prepared_at:source.cup.prepared_at,
+        payment_verification:source.order.payment_verification,
         table_name:source.order.table_name || "", card_number:source.order.card_number || ""};
     }
     return { success:true, branch, sampled_at:data.sampled_at, policy:data.policy,
@@ -88,9 +89,10 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
         can_report:canReport,can_prepare:data.capabilities.can_prepare !== false,can_serve:data.capabilities.can_serve !== false},
       preparation:read.preparation_queue.map(decorate), serving:read.serving_queue.map(decorate),
       bills:data.orders.filter(order=>order.cups.some(c=>c.status!=="served")).map(order=>({
-        order_id:order.id,tran_no:order.tran_no || "",table_name:order.table_name || "",card_number:order.card_number || "",
+        order_id:order.id,payment_verification:order.payment_verification,tran_no:order.tran_no || "",table_name:order.table_name || "",card_number:order.card_number || "",
         cups:order.cups.map(cup=>({cup_id:cup.id,status:cup.status,item_name:cup.item_name,item_group:cup.item_group,version:cup.version}))
       })),
+      source_cancellations:Array.isArray(data.source_cancellations)?data.source_cancellations:[],
       group_counts:read.group_counts, history:(canReport?report.completed_history:[]).map(row=>({...row,tran_no:data.orders.find(o=>o.id===row.order_id)?.tran_no || ""})),
       alerts:report.active_alert_candidates, performance:canReport?report.branches:[],
       history_range:canReport?data.history_range:null,duration_filter:canReport?{minimum:durationMin,maximum:durationMax}:null, source_health:data.source_health || null, source_status:"canonical_database_snapshot" };

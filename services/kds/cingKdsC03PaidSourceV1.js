@@ -2,11 +2,14 @@
 const {createFabiC03HttpClientV1}=require("./cingKdsFabiC03HttpClientV1");
 const {createFabiC04HttpClientV1}=require("./cingKdsFabiC04HttpClientV1");
 const {projectC03PaidOrdersV1}=require("./cingKdsC03PaidProjectionV1");
+const {createC04OrderSourceV1}=require("./cingKdsC04OrderSourceV1");
 function fail(code){const e=new Error(code);e.code=code;throw e;}
 function createC03PaidSourceV1({requestFn,authProvider,appAccessTokenProvider,maxPages=20}={}) {
   if(typeof requestFn!=="function"||!Number.isSafeInteger(maxPages)||maxPages<2||maxPages>100)fail("KDS_PAID_SOURCE_CONFIG_INVALID");
-  return async function collect({scope,branch,fromMs,toMs,knownTransactions=[],signal}={}) {
+  return async function collect({scope,branch,fromMs,toMs,knownTransactions=[],intakeMode="paid",deadlineAt,signal}={}) {
     if(!Number.isSafeInteger(fromMs)||!Number.isSafeInteger(toMs)||fromMs<0||toMs<fromMs)fail("KDS_PAID_WINDOW_INVALID");
+    if(!["paid","c04_order_intake_v1"].includes(intakeMode))fail("KDS_PAID_INTAKE_MODE_INVALID");
+    if(intakeMode==="c04_order_intake_v1")return createC04OrderSourceV1({requestFn,authProvider,appAccessTokenProvider,maxPages})({scope,branch,fromMs,toMs,knownTransactions,deadlineAt,signal});
     let requests=0;
     const request=async input=>{
       if(signal?.aborted)fail("KDS_PAID_DEADLINE");

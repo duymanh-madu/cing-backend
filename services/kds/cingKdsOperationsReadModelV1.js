@@ -30,6 +30,7 @@ function positiveMinutes(value, field) {
 
 function buildOperationsReadModel({
   orders,
+  allowC04Orders = false,
   now,
   warningMinutes,
   criticalMinutes,
@@ -65,7 +66,7 @@ function buildOperationsReadModel({
 
     // This gate is read-only, NOT payment verification.
     if (
-      order.payment_verification !== "verified" ||
+      (order.payment_verification !== "verified" && !(allowC04Orders && order.order_admission_verified === true)) ||
       order.ingestion_status !== "processed" ||
       order.conflict_status !== "clear"
     ) {
