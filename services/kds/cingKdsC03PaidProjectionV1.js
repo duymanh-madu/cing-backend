@@ -1,5 +1,6 @@
 "use strict";
 const crypto = require("node:crypto");
+const {isEmptyPinObservationV1}=require("./cingKdsC04PinObservationV1");
 const {resolveFabiC04TimePolicyV1, OBSERVED_TIME_CONVENTION} = require("./cingKdsFabiC04ObservedTimePolicyV1");
 const {classifyC04LogTypeV1} = require("./cingKdsC04LogClassificationV1");
 const POLICY = "c03_report_membership_paid_v1";
@@ -54,7 +55,8 @@ function projectC03PaidOrdersV1({sales,logs,scope,branch,knownTransactions=[]}={
   for(const raw of logs) {
     const id=raw?.tran_id || raw?.change_data?.tran_id;
     if(!invoices.has(id)||known.has(id))continue;
-    const kind=classifyC04LogTypeV1(raw.log_type);
+    if(isEmptyPinObservationV1(raw,scope))continue;
+  const kind=classifyC04LogTypeV1(raw.log_type);
     if(kind==="print_observation")continue;
     if(kind!=="signed_delta_candidate")fail("KDS_PAID_UNKNOWN_LOG_TYPE");
     const event=time.normalizeEvent(raw);
