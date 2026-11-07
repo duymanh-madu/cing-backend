@@ -1,4 +1,5 @@
 "use strict";
+const {collectVietnamDayPagesV1}=require("./cingKdsVietnamDayWindowsV1");
 const {createFabiC03HttpClientV1}=require("./cingKdsFabiC03HttpClientV1");
 const {createFabiC04HttpClientV1}=require("./cingKdsFabiC04HttpClientV1");
 const {projectC03PaidOrdersV1}=require("./cingKdsC03PaidProjectionV1");
@@ -46,8 +47,8 @@ function createC03PaidSourceV1({requestFn,authProvider,appAccessTokenProvider,ma
         if(typeof row.start_date!=="number"||!Number.isSafeInteger(row.start_date)||row.start_date<=0||row.start_date>toMs)fail("KDS_PAID_HISTORY_WINDOW_INVALID");
         start=Math.min(start,row.start_date);
       }
-      logs=await pages(async page=>(await c04.getSaleChangeLog({company_uid:scope.company_uid,brand_uid:scope.brand_uid,
-        store_uid:scope.store_uid,start_date:Math.max(0,start-60000),end_date:toMs,page})).rows);
+      logs=await collectVietnamDayPagesV1(Math.max(0,start-60000),toMs,pages,async (start_date,end_date,page)=>(await c04.getSaleChangeLog({company_uid:scope.company_uid,brand_uid:scope.brand_uid,
+        store_uid:scope.store_uid,start_date,end_date,page})).rows);
     }
     const result=projectC03PaidOrdersV1({sales,logs,scope,branch,knownTransactions});
     if(signal?.aborted)fail("KDS_PAID_DEADLINE");

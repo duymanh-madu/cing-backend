@@ -1,4 +1,5 @@
 "use strict";
+const {collectVietnamDayPagesV1}=require("./cingKdsVietnamDayWindowsV1");
 const {createFabiC03HttpClientV1}=require("./cingKdsFabiC03HttpClientV1");
 const {createFabiC04HttpClientV1}=require("./cingKdsFabiC04HttpClientV1");
 const {projectC04OrdersV1}=require("./cingKdsC04OrderProjectionV1");
@@ -24,14 +25,15 @@ function createC04OrderSourceV1({requestFn,authProvider,appAccessTokenProvider,m
     if(rows.length>20000)fail("KDS_PAID_SOURCE_ROW_LIMIT");
    }fail("KDS_PAID_PAGINATION_INCOMPLETE");
   }
-  let logs=await pages(async page=>(await c04.getSaleChangeLog({...scope,start_date:fromMs,end_date:toMs,page})).rows);
-  let sales=[],c03Complete=true;
+  let logs=await collectVietnamDayPagesV1(fromMs,toMs,pages,async (start_date,end_date,page)=>(await c04.getSaleChangeLog({...scope,start_date,end_date,page})).rows);
+  let sales=[],c03Complete=true,c03Error=null;
   try{sales=await pages(async page=>(await c03.listSales({companyUid:scope.company_uid,brandUid:scope.brand_uid,storeUid:scope.store_uid,startDate:fromMs,endDate:toMs,page,resultsPerPage:200})).data);}
   catch(error){
-   // A transport failure in the secondary paid report cannot suppress C04 work.
+   // Secondary paid-report unavailability (including 401/403) cannot suppress
+   // independently authorized, complete C04 work. This grants no paid proof.
    // Invalid schemas/parity/pagination still fail rather than confirming payment.
-   if(!["C03_TRANSPORT_ERROR","C03_REQUEST_TIMEOUT","C03_UPSTREAM_ERROR","C03_RATE_LIMITED"].includes(error?.code))throw error;
-   c03Complete=false;
+   if(!["C03_TRANSPORT_ERROR","C03_REQUEST_TIMEOUT","C03_UPSTREAM_ERROR","C03_RATE_LIMITED","C03_AUTH_REQUIRED"].includes(error?.code))throw error;
+   c03Complete=false;c03Error=error.code;
   }
   // Widen for overnight histories, but only retain transactions observed in
   // the requested window or in its C03 report. Unrelated old bills stay out.
@@ -46,11 +48,11 @@ function createC04OrderSourceV1({requestFn,authProvider,appAccessTokenProvider,m
    if(!Number.isSafeInteger(row.start_date)||row.start_date<946684800000||row.start_date>toMs)fail("KDS_PAID_HISTORY_WINDOW_INVALID");
    historyFrom=Math.min(historyFrom,row.start_date);
   }
-  if(historyFrom<fromMs)logs=(await pages(async page=>(await c04.getSaleChangeLog({...scope,start_date:Math.max(0,historyFrom-60000),end_date:toMs,page})).rows))
+  if(historyFrom<fromMs)logs=(await collectVietnamDayPagesV1(Math.max(0,historyFrom-60000),toMs,pages,async (start_date,end_date,page)=>(await c04.getSaleChangeLog({...scope,start_date,end_date,page})).rows))
    .filter(row=>targets.has(row.tran_id||row.change_data?.tran_id));
   if(signal?.aborted)fail("KDS_PAID_DEADLINE");
   const result=projectC04OrdersV1({sales,logs,scope,branch,knownTransactions,openTransactions,deadlineAt});
-  return {...result,requests,c04_pages_exhausted:true,c03_pages_exhausted:c03Complete};
+  return {...result,requests,c04_pages_exhausted:true,c03_pages_exhausted:c03Complete,...(c03Error?{c03_error_code:c03Error}: {})};
  };
 }
 module.exports={createC04OrderSourceV1};

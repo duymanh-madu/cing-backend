@@ -1,4 +1,5 @@
 "use strict";
+const {isReprintOrderObservationV1}=require("./cingKdsC04ReprintOrderObservationV1");
 const crypto = require("node:crypto");
 const {isEmptyPinObservationV1}=require("./cingKdsC04PinObservationV1");
 const {resolveFabiC04TimePolicyV1,OBSERVED_TIME_CONVENTION}=require("./cingKdsFabiC04ObservedTimePolicyV1");
@@ -38,6 +39,7 @@ function projectC04OrdersV1({sales,logs,scope,branch,knownTransactions=[],openTr
    cancelObservations++;continue;
   }
   if(isEmptyPinObservationV1(raw,scope))continue;
+    if(isReprintOrderObservationV1(raw,scope))continue;
   const kind=classifyC04LogTypeV1(raw.log_type);if(kind==="print_observation")continue;
   if(kind!=="signed_delta_candidate")fail("KDS_PAID_UNKNOWN_LOG_TYPE");
   const event=time.normalizeEvent(raw);

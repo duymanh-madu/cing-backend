@@ -40,6 +40,15 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
           typeof body.action_key !== "string" || !/^[A-Za-z0-9_-]{16,100}$/.test(body.action_key)) throw error("KDS_OPS_INVALID_INPUT");
       payload = { cup_id:body.cup_id, expected_version:body.expected_version,
         target_status:body.target_status, action_key:body.action_key };
+    } else if (operation === "bill_transition") {
+      const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+      if(!uuid.test(body.order_id||"") || !["prepared","served"].includes(body.target_status) ||
+        !/^[A-Za-z0-9_-]{16,100}$/.test(body.action_key||"") || !Array.isArray(body.cups) ||
+        body.cups.length<1 || body.cups.length>1000 || new Set(body.cups.map(c=>c?.cup_id)).size!==body.cups.length ||
+        body.cups.some(c=>!c || !uuid.test(c.cup_id||"") || !Number.isSafeInteger(c.version) || c.version<0 ||
+          !["pending","preparing","prepared","served"].includes(c.status))) throw error("KDS_OPS_INVALID_INPUT");
+      payload={order_id:body.order_id,target_status:body.target_status,action_key:body.action_key,
+        cups:body.cups.map(({cup_id,version,status})=>({cup_id,version,status}))};
     } else if (operation === "policy") {
       if (!Number.isSafeInteger(body.warning_minutes) || !Number.isSafeInteger(body.critical_minutes) ||
           body.warning_minutes < 1 || body.critical_minutes <= body.warning_minutes || body.critical_minutes > 1440) throw error("KDS_OPS_INVALID_INPUT");
@@ -51,7 +60,9 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
       payload={admin_id:body.admin_id,grant:body.grant,expected_grant:body.expected_grant,action_key:body.action_key};
     }
     let response;
-    try { response = operation.startsWith("access_") ? await rpc("cing_kds_access_p13_v1",{
+    try { response = operation === "bill_transition" ? await rpc("cing_kds_transition_bill_v1",{
+      p_admin_id:String(claims.id),p_branch:branch,p_payload:payload
+    }) : operation.startsWith("access_") ? await rpc("cing_kds_access_p13_v1",{
       p_actor_id:String(claims.id),p_operation:operation==="access_list"?"list":operation==="access_branches"?"branches":"save",p_branch:branch,p_payload:payload
     }) : await rpc("cing_kds_operations_p10_v1", {
       p_admin_id:String(claims.id), p_operation:operation, p_branch:branch, p_payload:payload
@@ -63,7 +74,7 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
     const data = response?.data;
     if (!data || typeof data !== "object" || Array.isArray(data)) throw error("KDS_OPS_UNAVAILABLE");
     if (operation !== "snapshot") {
-      if (operation === "transition" || operation === "policy" || operation === "access_save") {try {onChange();} catch {}}
+      if (operation === "transition" || operation === "bill_transition" || operation === "policy" || operation === "access_save") {try {onChange();} catch {}}
       return { success:true, data };
     }
     if (!data.branch || data.branch.pos_parent !== branch.pos_parent || String(data.branch.pos_id) !== branch.pos_id ||
@@ -110,6 +121,6 @@ function createKdsOperationsBridgeV1({ rpc, verifyToken, onChange = () => {}, cl
     };
   }
   return Object.freeze({ readSnapshot:req=>execute(req,"snapshot"), branches:handler("branches"), snapshot:handler("snapshot"),
-    transition:handler("transition"), policy:handler("policy"),accessBranches:handler("access_branches"),accessList:handler("access_list"),accessSave:handler("access_save") });
+    transition:handler("transition"), billTransition:handler("bill_transition"), policy:handler("policy"),accessBranches:handler("access_branches"),accessList:handler("access_list"),accessSave:handler("access_save") });
 }
 module.exports = { createKdsOperationsBridgeV1 };

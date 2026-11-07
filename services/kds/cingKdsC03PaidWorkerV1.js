@@ -19,7 +19,7 @@ function createC03PaidWorkerV1({rpc,collect,now=Date.now,schedule=setTimeout,can
       const commit=await rpc("commit",{token,intake_mode:claim.intake_mode||"paid",orders:result.orders,source_invoice_count:result.source_invoice_count,
         requests:result.requests,c03_pages_exhausted:result.c03_pages_exhausted,c04_pages_exhausted:result.c04_pages_exhausted},controller.signal);
       if(!["committed","replayed"].includes(commit?.outcome))throw Object.assign(new Error(),{code:"KDS_PAID_COMMIT_NOT_CONFIRMED"});
-      return {status:"completed",...commit,...(result.non_preparation_cancel_observations?{non_preparation_cancel_observations:result.non_preparation_cancel_observations}:{}),requests:result.requests,duration_ms:now()-started};
+      return {status:"completed",...commit,...(["C03_TRANSPORT_ERROR","C03_REQUEST_TIMEOUT","C03_UPSTREAM_ERROR","C03_RATE_LIMITED","C03_AUTH_REQUIRED"].includes(result.c03_error_code)?{secondary_source:"c03_payment_report",secondary_source_status:"degraded",secondary_source_error_code:result.c03_error_code}:{}),...(result.non_preparation_cancel_observations?{non_preparation_cancel_observations:result.non_preparation_cancel_observations}:{}),requests:result.requests,duration_ms:now()-started};
     } catch(error) {
       const safe=controller.signal.aborted?"KDS_PAID_DEADLINE":code(error);
       // Release is best-effort; token + server deadline also fence delayed commits.

@@ -16,6 +16,7 @@ router.get("/branches", handlers.branches);
 router.get("/snapshot", handlers.snapshot);
 router.get("/events",createKdsOperationsStreamV1({snapshot:handlers.readSnapshot,subscribe:subscribeKdsChangedV1}));
 router.post("/cups/transition", express.json({limit:"8kb"}), handlers.transition);
+router.post("/bills/transition", express.json({limit:"160kb"}), handlers.billTransition);
 router.put("/policy", express.json({limit:"8kb"}), handlers.policy);
 router.get("/access/branches",handlers.accessBranches);
 router.get("/access",handlers.accessList);
