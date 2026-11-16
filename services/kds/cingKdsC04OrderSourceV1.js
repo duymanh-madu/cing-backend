@@ -1,5 +1,5 @@
 "use strict";
-const {collectVietnamDayPagesV1}=require("./cingKdsVietnamDayWindowsV1");
+const {createKdsCycleReadsV2}=require("./cingKdsCycleReadsV2");
 const {createFabiC03HttpClientV1}=require("./cingKdsFabiC03HttpClientV1");
 const {createFabiC04HttpClientV1}=require("./cingKdsFabiC04HttpClientV1");
 const {projectC04OrdersV1}=require("./cingKdsC04OrderProjectionV1");
@@ -9,12 +9,10 @@ function createC04OrderSourceV1({requestFn,authProvider,appAccessTokenProvider,m
  return async function collect({scope,branch,fromMs,toMs,knownTransactions=[],openTransactions,deadlineAt=Date.now()+40000,signal}={}){
   if(!Number.isSafeInteger(fromMs)||!Number.isSafeInteger(toMs)||fromMs<0||toMs<fromMs)fail("KDS_PAID_WINDOW_INVALID");
   if(!Array.isArray(openTransactions)||openTransactions.length>20000)fail("KDS_PAID_OPEN_TRANSACTIONS_REQUIRED");
-  let requests=0;
-  const request=async input=>{
-   if(signal?.aborted)fail("KDS_PAID_DEADLINE");const url=new URL(input.url);
-   if(url.pathname==="/api/reports_v1/v3/pos-cms/report/sale-by-date")url.searchParams.set("csv","1");
-   requests++;return requestFn({...input,url:url.toString(),signal:signal?AbortSignal.any([signal,input.signal].filter(Boolean)):input.signal});
-  };
+  const cycle=createKdsCycleReadsV2({requestFn,signal,deadlineAt});
+  const request=cycle.request;
+  const collectVietnamDayPagesV1=cycle.collectDays;
+  try {
   const c04=createFabiC04HttpClientV1({requestFn:request,authProvider,appAccessTokenProvider,requestTimeoutMs:10000});
   const c03=createFabiC03HttpClientV1({requestFn:request,authProvider,appAccessTokenProvider,requestTimeoutMs:10000});
   async function pages(fetchPage){
@@ -50,9 +48,12 @@ function createC04OrderSourceV1({requestFn,authProvider,appAccessTokenProvider,m
   }
   if(historyFrom<fromMs)logs=(await collectVietnamDayPagesV1(Math.max(0,historyFrom-60000),toMs,pages,async (start_date,end_date,page)=>(await c04.getSaleChangeLog({...scope,start_date,end_date,page})).rows))
    .filter(row=>targets.has(row.tran_id||row.change_data?.tran_id));
-  if(signal?.aborted)fail("KDS_PAID_DEADLINE");
+  cycle.check();
   const result=projectC04OrdersV1({sales,logs,scope,branch,knownTransactions,openTransactions,deadlineAt});
-  return {...result,requests,c04_pages_exhausted:true,c03_pages_exhausted:c03Complete,...(c03Error?{c03_error_code:c03Error}: {})};
+  cycle.check();
+  const metrics=cycle.metrics();
+  return {...result,requests:metrics.requests,source_metrics:metrics,c04_pages_exhausted:true,c03_pages_exhausted:c03Complete,...(c03Error?{c03_error_code:c03Error}: {})};
+  } finally {cycle.close();}
  };
 }
 module.exports={createC04OrderSourceV1};

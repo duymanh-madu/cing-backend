@@ -3,7 +3,7 @@ const {randomUUID}=require("node:crypto");
 function code(error){return /^(KDS_PAID_|C03_|C04_)[A-Z0-9_]+$/.test(error?.code||"")?error.code:"KDS_PAID_CYCLE_FAILED";}
 function createC03PaidWorkerV1({rpc,collect,now=Date.now,schedule=setTimeout,cancel=clearTimeout,report=()=>{},intervalMs=5000,deadlineMs=45000}={}) {
   if(typeof rpc!=="function"||typeof collect!=="function"||!Number.isSafeInteger(intervalMs)||intervalMs<1000||!Number.isSafeInteger(deadlineMs)||deadlineMs<1000||deadlineMs>60000)throw new Error("KDS_PAID_WORKER_CONFIG_INVALID");
-  let running=false,closed=false,timer=null,active=null,flight=null;
+  let running=false,closed=false,timer=null,active=null,flight=null,failures=0;
   async function execute() {
     const started=now(),token=randomUUID(),controller=new AbortController();active=controller;
     const deadline=schedule(()=>controller.abort(),deadlineMs);
@@ -19,7 +19,7 @@ function createC03PaidWorkerV1({rpc,collect,now=Date.now,schedule=setTimeout,can
       const commit=await rpc("commit",{token,intake_mode:claim.intake_mode||"paid",orders:result.orders,source_invoice_count:result.source_invoice_count,
         requests:result.requests,c03_pages_exhausted:result.c03_pages_exhausted,c04_pages_exhausted:result.c04_pages_exhausted},controller.signal);
       if(!["committed","replayed"].includes(commit?.outcome))throw Object.assign(new Error(),{code:"KDS_PAID_COMMIT_NOT_CONFIRMED"});
-      return {status:"completed",...commit,...(["C03_TRANSPORT_ERROR","C03_REQUEST_TIMEOUT","C03_UPSTREAM_ERROR","C03_RATE_LIMITED","C03_AUTH_REQUIRED"].includes(result.c03_error_code)?{secondary_source:"c03_payment_report",secondary_source_status:"degraded",secondary_source_error_code:result.c03_error_code}:{}),...(result.non_preparation_cancel_observations?{non_preparation_cancel_observations:result.non_preparation_cancel_observations}:{}),requests:result.requests,duration_ms:now()-started};
+      return {status:"completed",...commit,...(["C03_TRANSPORT_ERROR","C03_REQUEST_TIMEOUT","C03_UPSTREAM_ERROR","C03_RATE_LIMITED","C03_AUTH_REQUIRED"].includes(result.c03_error_code)?{secondary_source:"c03_payment_report",secondary_source_status:"degraded",secondary_source_error_code:result.c03_error_code}:{}),...(result.non_preparation_cancel_observations?{non_preparation_cancel_observations:result.non_preparation_cancel_observations}:{}),...(result.source_metrics?{source_metrics:Object.fromEntries(["requests","cache_hits","peak_in_flight","cached_bytes","day_windows"].filter(k=>Number.isSafeInteger(result.source_metrics[k])&&result.source_metrics[k]>=0).map(k=>[k,result.source_metrics[k]]))}:{}),requests:result.requests,duration_ms:now()-started};
     } catch(error) {
       const safe=controller.signal.aborted?"KDS_PAID_DEADLINE":code(error);
       // Release is best-effort; token + server deadline also fence delayed commits.
@@ -31,7 +31,8 @@ function createC03PaidWorkerV1({rpc,collect,now=Date.now,schedule=setTimeout,can
   function runOnce(){if(closed)return Promise.resolve({status:"closed"});if(flight)return flight;
     flight=execute().finally(()=>{flight=null;});return flight;}
   async function tick(){if(!running||closed)return;const result=await runOnce();try{report(result);}catch{}
-    if(running&&!closed)timer=schedule(tick,intervalMs);}
+    failures=result.status==="hold"?Math.min(failures+1,3):0;
+    if(running&&!closed)timer=schedule(tick,Math.min(30000,intervalMs*2**failures));}
   return {runOnce,start(){if(!running&&!closed){running=true;timer=schedule(tick,0);}},
     async close(){closed=true;running=false;if(timer!==null)cancel(timer);active?.abort();if(flight)await flight;}};
 }

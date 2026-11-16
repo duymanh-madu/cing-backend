@@ -10,7 +10,7 @@ function createKdsFabiIpv4TransportV1({ request }) {
     }
     const response = await request({
       method, url, headers, signal, family: 4,
-      timeout: 11_000, maxRedirects: 0,
+      timeout: 11_000, maxRedirects: 0, maxContentLength: 8*1024*1024, maxBodyLength: 8*1024*1024,
       validateStatus: () => true
     });
     return Object.freeze({ status: response.status, body: response.data, json: response.data });
