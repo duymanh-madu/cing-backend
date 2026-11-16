@@ -34,6 +34,8 @@ router.put("/config", requireAdmin, async (req, res) => {
     const { error } = await supabase.from("app_configs")
       .update({ leaderboard_config }).eq("id", 1);
     if (error) throw error;
+    // Invalidate public reads only after the saved configuration is confirmed.
+    try { req.app.get("io")?.emit("app.data.changed", { domains: ["leaderboard", "config"] }); } catch {}
     res.json({ success: true, message: "Đã lưu cấu hình bảng xếp hạng" });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

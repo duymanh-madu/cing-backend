@@ -164,11 +164,15 @@ router.get(
 
       const supabase = require("../supabase");
 
+      res.set("Cache-Control", "no-store");
       let rewards = [];
+      let rewards_enabled = false;
       try {
         const { data: cfg } = await supabase.from("app_configs")
           .select("leaderboard_config").eq("id", 1).single();
-        rewards = cfg?.leaderboard_config?.games?.[gameKey]?.rewards || [];
+        const gameConfig = cfg?.leaderboard_config?.games?.[gameKey];
+        rewards_enabled = gameConfig?.enabled === true;
+        rewards = rewards_enabled && Array.isArray(gameConfig?.rewards) ? gameConfig.rewards : [];
       } catch(e) {}
 
       if (gameKey === "chess-wins" || gameKey === "chess-streak") {
@@ -227,6 +231,7 @@ router.get(
           success:true,
           data:enrichedData,
           rewards,
+          rewards_enabled,
         });
       }
 
@@ -244,6 +249,7 @@ router.get(
         success:true,
         data:enrichedData,
         rewards,
+        rewards_enabled,
       });
 
     } catch (error) {
