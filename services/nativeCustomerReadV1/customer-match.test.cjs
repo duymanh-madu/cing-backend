@@ -1,0 +1,27 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const {createCustomerMatchReviewer,normalizePhone}=require('./customer-match.cjs');
+const input={miniAccessToken:'fake-access-proof',phoneToken:'fake-phone-proof'};
+const row={id:'11111111-1111-4111-8111-111111111111',zalo_id:'123456789',phone:'0912345678'};
+const proof={verified:true,zaloUserId:row.zalo_id,phone:row.phone};
+const result=(rows)=>({rows,complete:true});
+function fixture(overrides={}){return createCustomerMatchReviewer({verifyProof:async()=>proof,lookupByZaloId:async()=>result([row]),lookupByPhone:async()=>result([row]),...overrides});}
+const rejected=(run,code)=>assert.rejects(run,e=>e.code===code&&e.message===code);
+test('same provider identity and normalized phone identify one canonical UUID without linking',async()=>{assert.deepEqual(await fixture()(input),{customerId:row.id,reviewOnly:true,linkCreated:false,sessionIssued:false});});
+test('all three strict mobile formats normalize identically',()=>{for(const p of ['0912345678','84912345678','+84912345678'])assert.equal(normalizePhone(p),row.phone);});
+test('both customer rows may use different supported phone formats',async()=>{await fixture({lookupByPhone:async()=>result([{...row,phone:'+84912345678'}])})(input);});
+test('caller cannot inject customer, principal, phone or verified flag',async()=>{for(const key of ['customerId','principalId','phone','verified'])await rejected(()=>fixture()({...input,[key]:'injected'}),'MATCH_REJECTED');});
+test('malformed tokens fail before verifier or customer lookups',async()=>{let called=0;const review=fixture({verifyProof:async()=>{called++;return proof;}});for(const p of ['', 'a\nb',' '.repeat(5),'a'.repeat(4097),7])await rejected(()=>review({...input,phoneToken:p}),'MATCH_REJECTED');assert.equal(called,0);});
+test('provider failure cannot leak diagnostic or call customer lookup',async()=>{let called=0;await rejected(()=>fixture({verifyProof:async()=>{throw Error('private provider token');},lookupByZaloId:async()=>called++})(input),'PROOF_REJECTED');assert.equal(called,0);});
+test('unverified or malformed server proof is rejected',async()=>{for(const p of [{...proof,verified:false},{...proof,zaloUserId:'mock_zalo_user'},{...proof,phone:'09 12345678'},{...proof,customerId:row.id}])await rejected(()=>fixture({verifyProof:async()=>p})(input),'PROOF_REJECTED');});
+test('no customer on either lookup cannot create a customer',async()=>{await rejected(()=>fixture({lookupByZaloId:async()=>result([]),lookupByPhone:async()=>result([])})(input),'CUSTOMER_NOT_FOUND');});
+test('phone alone cannot match a customer',async()=>{await rejected(()=>fixture({lookupByZaloId:async()=>result([])})(input),'CUSTOMER_CONFLICT');});
+test('Zalo ID alone cannot match a customer',async()=>{await rejected(()=>fixture({lookupByPhone:async()=>result([])})(input),'CUSTOMER_CONFLICT');});
+test('different canonical customers are a conflict',async()=>{await rejected(()=>fixture({lookupByPhone:async()=>result([{...row,id:'22222222-2222-4222-8222-222222222222'}])})(input),'CUSTOMER_CONFLICT');});
+test('duplicate normalized phones are a conflict',async()=>{await rejected(()=>fixture({lookupByPhone:async()=>result([row,{...row,id:'22222222-2222-4222-8222-222222222222'}])})(input),'CUSTOMER_CONFLICT');});
+test('same UUID with changed phone or provider is a conflict',async()=>{for(const r of [{...row,phone:'0987654321'},{...row,zalo_id:'987654321'}])await rejected(()=>fixture({lookupByPhone:async()=>result([r])})(input),'CUSTOMER_CONFLICT');});
+test('truncated lookup cannot report a match',async()=>{await rejected(()=>fixture({lookupByPhone:async()=>({rows:[row],complete:false})})(input),'MATCH_UNAVAILABLE');});
+test('lookup error is generic and never retried',async()=>{let calls=0;await rejected(()=>fixture({lookupByPhone:async()=>{calls++;throw Error('database credential');}})(input),'MATCH_UNAVAILABLE');assert.equal(calls,1);});
+test('malformed rows and repeated UUIDs are refused',async()=>{for(const rows of [[{...row,id:'bad'}],[row,row],[{...row,phone:null}],[{...row,zalo_id:'placeholder'}]])await rejected(()=>fixture({lookupByPhone:async()=>result(rows)})(input),'MATCH_UNAVAILABLE');});
+test('arbitrary characters, landlines, Unicode and whitespace never normalize',()=>{for(const p of [' 0912345678','0912345678 ','(091)2345678','02412345678','０９１２３４５６７８',null])assert.throws(()=>normalizePhone(p));});
+test('network is disabled throughout all offline fixtures',async()=>{const previous=globalThis.fetch;globalThis.fetch=()=>{throw Error('NO NETWORK');};try{await fixture()(input);}finally{globalThis.fetch=previous;}});

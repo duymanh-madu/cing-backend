@@ -1,0 +1,31 @@
+export const sections=['summary','vouchers','orders'];
+const exact=(v,keys)=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).sort().join('|')===[...keys].sort().join('|');
+const num=v=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0;
+const txt=(v,max=4000)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(v);
+const nullable=v=>v===null||txt(v);
+const dec=v=>txt(v,80)&&/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]{1,40})?$/.test(v);
+const nonnegativeDecimal=v=>dec(v)&&!v.startsWith('-');
+const date=v=>txt(v,40)&&Number.isFinite(Date.parse(v));
+const unavailable=v=>exact(v,['state','code'])&&v.state==='unavailable'&&v.code==='DATA_INVALID';
+const fields=(v,types)=>exact(v,Object.keys(types))&&Object.entries(types).every(([k,fn])=>fn(v[k]));
+const list=(v,max,fn)=>Array.isArray(v)&&v.length<=max&&v.every(x=>fn(x));
+const item=v=>fields(v,{name:txt,quantity:dec,unitPrice:dec});
+const payment=v=>fields(v,{name:txt,amount:dec});
+const profile=v=>unavailable(v)||fields(v,{state:v=>v==='available',source:v=>v==='customer-player-snapshot',name:nullable,birthday:v=>v===null||/^\d{4}-\d{2}-\d{2}$/.test(v),phoneMasked:v=>/^0[35789]\d\*{4}\d{3}$/.test(v)});
+const points=v=>unavailable(v)||fields(v,{state:v=>v==='snapshot',source:v=>v==='players.total_points',points:num,observedAt:date});
+const spending=v=>unavailable(v)||fields(v,{state:v=>v==='snapshot',source:v=>v==='players.crm_spend',alltime:num,weekly:num,monthly:num,quarterly:num,yearly:num,orders:num,syncedAt:date});
+const month=v=>fields(v,{period:v=>/^\d{4}-(0[1-9]|1[0-2])$/.test(v),state:v=>v==='unavailable'})||fields(v,{period:v=>/^\d{4}-(0[1-9]|1[0-2])$/.test(v),state:v=>v==='snapshot',spent:num,qualified:v=>typeof v==='boolean',updatedAt:date});
+const partner=v=>unavailable(v)||fields(v,{state:v=>v==='snapshot',source:v=>v==='partner_monthly_spending',months:v=>list(v,2,month)&&v.length===2&&new Set(v.map(x=>x.period)).size===2});
+const sourceUnavailable=v=>exact(v,['state','code'])&&v.state==='unavailable'&&v.code==='SOURCE_UNAVAILABLE';
+const member=v=>sourceUnavailable(v)||fields(v,{source:v=>v==='ipos-member',name:txt,tierName:txt,crmPoints:dec,paymentAmount:dec,pointAmount:dec,visits:num});
+const voucher=v=>fields(v,{code:v=>txt(v,128)&&v.length>0,campaignId:num,campaignName:txt,description:txt,startsAt:date,endsAt:date,createdAt:date,discountType:num,discountAmount:nonnegativeDecimal,discountRate:nonnegativeDecimal,providerStatus:num});
+const appOrder=v=>fields(v,{id:v=>txt(v,50)&&/^app_\d+$/.test(v),source:v=>v==='app',code:nullable,createdAt:date,amount:num,status:nullable,paymentStatus:nullable,paymentMethod:nullable,orderType:nullable,items:v=>list(v,200,x=>fields(x,{name:txt,quantity:v=>num(v)&&v>0,unitPrice:num})),iposReference:nullable});
+const iposOrder=v=>fields(v,{id:txt,source:v=>v==='ipos',transactionId:txt,posId:num,code:txt,createdAt:date,amount:dec,items:v=>list(v,200,item),payments:v=>list(v,20,payment),channels:v=>list(v,30,txt),posName:txt,saleType:txt});
+const app=v=>fields(v,{source:v=>v==='app-orders',rows:v=>list(v,50,appOrder),offset:num,total:num,hasMore:v=>typeof v==='boolean',complete:v=>typeof v==='boolean',pagination:v=>v==='offset-not-atomic',iposReconciliation:v=>v==='not-verified'})&&v.hasMore===(v.offset+v.rows.length<v.total)&&v.complete===(v.offset===0&&v.rows.length===v.total)&&v.rows.length===Math.min(50,Math.max(0,v.total-v.offset));
+const ipos=v=>fields(v,{source:v=>v==='ipos-history',page:v=>num(v)&&v>=1,pageSize:v=>v===20,total:num,rows:v=>list(v,20,iposOrder),hasMore:v=>typeof v==='boolean',complete:v=>typeof v==='boolean',consistency:v=>v==='paged-non-atomic'})&&v.rows.length===Math.min(20,Math.max(0,v.total-(v.page-1)*20))&&v.hasMore===(v.page*20<v.total)&&v.complete===(v.page===1&&v.rows.length===v.total);
+export function validAccountData(v){try{
+ if(!exact(v,['contract','section','page','observedAt','data'])||v.contract!=='native-account-data-v1'||!sections.includes(v.section)||!num(v.page)||v.page<1||v.page>50||!date(v.observedAt))return false;
+ if(v.section==='summary')return v.page===1&&fields(v.data,{profile,points,spending,partner,crmMember:member});
+ if(v.section==='vouchers')return v.page===1&&fields(v.data,{source:v=>v==='ipos-vouchers',coverage:v=>v==='provider-returned-list',rows:v=>list(v,2000,voucher)})&&new Set(v.data.rows.map(r=>r.code)).size===v.data.rows.length;
+ return fields(v.data,{app:v=>sourceUnavailable(v)||app(v),ipos:v=>sourceUnavailable(v)||ipos(v)})&&(sourceUnavailable(v.data.app)||v.data.app.offset===(v.page-1)*50)&&(sourceUnavailable(v.data.ipos)||v.data.ipos.page===v.page)&&[v.data.app,v.data.ipos].every(s=>sourceUnavailable(s)||new Set(s.rows.map(r=>r.id)).size===s.rows.length);
+ }catch{return false;}}

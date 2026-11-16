@@ -57,6 +57,9 @@ function createApp() {
   const app =
     express();
 
+  // Private native read boundaries precede public body parsers and database logging.
+  require('../services/nativeReadIntegrationV38.cjs').mountNativeReads(app);
+
   /**
    * =================================================
    * TRUST PROXY

@@ -1,0 +1,24 @@
+'use strict';
+const {timingSafeEqual}=require('node:crypto');
+const {fail}=require('./contract.cjs');
+const NATIVE=new Set(['capacitor://localhost','http://localhost','https://localhost']);
+const ERRORS={ACTIVITY_INVALID:400,ACTIVITY_DISABLED:503,GAME_WRITES_DISABLED:503,SESSION_INVALID:401,ACCOUNT_NOT_LINKED:409,ACCOUNT_BLOCKED:403,ACTIVITY_IDENTITY_CONFLICT:409,TRY_LATER:429,BOARD_DISABLED:409,ACTIVITY_UNAVAILABLE:503};
+Object.assign(ERRORS,{GAME_MEMBERSHIP_REQUIRED:409},{"REVIVAL_SESSION_NOT_FOUND": 404, "NO_GAME_PLAYS": 409, "INSUFFICIENT_REVIVE_CREDITS": 409, "REVIVAL_LIMIT_REACHED": 409, "REVIVAL_SESSION_EXPIRED": 409, "REVIVAL_SESSION_NOT_ACTIVE": 409, "REVIVAL_SESSION_NOT_PENDING": 409, "REVIVAL_EVENT_SEQUENCE_CONFLICT": 409, "REVIVAL_START_REFERENCE_CONFLICT": 409, "REVIVAL_FINALIZE_REQUEST_CONFLICT": 409, "REVIVAL_SESSION_ALREADY_FINALIZED": 409, "GAME_POLICY_NOT_CONFIGURED": 409, "PLAYER_NOT_FOUND": 404, "BLOCK_PUZZLE_SESSION_EXPIRED": 409, "BLOCK_PUZZLE_SESSION_NOT_FOUND": 404, "BLOCK_PUZZLE_SESSION_ALREADY_SUBMITTED": 409, "BLOCK_PUZZLE_CONTINUE_LIMIT_REACHED": 409});
+function createHandler({enabled=false,internal=false,key,service,marker='72e3655ddc98e6e0b380b9679a3a8cc411aae70004b180e96b03ca7e2f1fa086',contextRoute=false}={}){
+ if(typeof enabled!=='boolean'||enabled&&(!service||internal&&!/^[a-f0-9]{64}$/.test(key)))throw fail('ACTIVITY_CONFIGURATION_INVALID');let active=0,count=0,minute=Date.now();
+ const route=internal?(contextRoute?'/internal/native-activity-context-v1':'/internal/native-activity-v1'):'/account/activity';
+ return async(req,res)=>{
+  if(!req.url.startsWith(route))return false;
+  const reply=(status,body)=>{req.resume();const raw=JSON.stringify(body);res.writeHead(Buffer.byteLength(raw)>524288?503:status,{'Content-Type':'application/json','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','X-Cing-Activity-Release':marker,Connection:'close'});res.end(Buffer.byteLength(raw)>524288?'{"success":false,"code":"ACTIVITY_UNAVAILABLE"}':raw);return true;};
+  if(!enabled||req.url!==route)return reply(404,{success:false,code:'ACTIVITY_DISABLED'});
+  if(internal){if(['origin','cookie','sec-fetch-site','sec-fetch-dest','sec-fetch-user'].some(k=>req.headers[k]!==undefined))return reply(403,{success:false,code:'ORIGIN_NOT_ALLOWED'});const auth=req.headers.authorization;if(typeof auth!=='string'||!/^Bearer [a-f0-9]{64}$/.test(auth)||!timingSafeEqual(Buffer.from(auth.slice(7)),Buffer.from(key)))return reply(401,{success:false,code:'UNAUTHORIZED'});}
+  else {if(req.headers.cookie!==undefined||req.headers.authorization!==undefined)return reply(400,{success:false,code:'ACTIVITY_INVALID'});const origin=req.headers.origin;if(origin!==undefined&&!NATIVE.has(origin))return reply(403,{success:false,code:'ORIGIN_NOT_ALLOWED'});if(origin){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin');}if(req.method==='OPTIONS'){const keys=String(req.headers['access-control-request-headers']||'').toLowerCase().split(',').map(x=>x.trim()).filter(Boolean);if(req.headers['access-control-request-method']!=='POST'||keys.some(k=>!['content-type','accept'].includes(k)))return reply(405,{success:false,code:'PREFLIGHT_NOT_ALLOWED'});res.writeHead(204,{'Access-Control-Allow-Methods':'POST','Access-Control-Allow-Headers':'Accept, Content-Type','Cache-Control':'no-store'});res.end();return true;}}
+  if(req.method!=='POST')return reply(405,{success:false,code:'METHOD_NOT_ALLOWED'});
+  if(req.headers['content-encoding']||!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(req.headers['content-type']||''))return reply(415,{success:false,code:'UNSUPPORTED_CONTENT_TYPE'});
+  if(Number(req.headers['content-length']||0)>2500000)return reply(413,{success:false,code:'BODY_TOO_LARGE'});
+  if(Date.now()-minute>60000){minute=Date.now();count=0;}if(active>=2||count>=90)return reply(429,{success:false,code:'TRY_LATER'});active++;count++;
+  try{const raw=await new Promise((resolve,reject)=>{let done=false,size=0;const chunks=[];function finish(error,value){if(done)return;done=true;clearTimeout(timer);req.off('data',ondata);error?reject(error):resolve(value);}const timer=setTimeout(()=>{req.resume();finish(fail('ACTIVITY_INVALID'));},7000);function ondata(b){size+=b.length;if(size>2500000){req.resume();finish(fail('ACTIVITY_INVALID'));}else chunks.push(b);}req.on('data',ondata);req.once('aborted',()=>finish(fail('ACTIVITY_INVALID')));req.once('error',()=>finish(fail('ACTIVITY_INVALID')));req.once('end',()=>finish(null,Buffer.concat(chunks).toString('utf8')));});let input;try{input=JSON.parse(raw);}catch{throw fail('ACTIVITY_INVALID');}return reply(200,await service.call(input));}
+  catch(e){const code=Object.hasOwn(ERRORS,e?.code)?e.code:'ACTIVITY_UNAVAILABLE';return reply(ERRORS[code],{success:false,code});}finally{active--;}
+ };
+}
+module.exports={createHandler};
